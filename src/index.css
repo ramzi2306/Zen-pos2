@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #C0C7D4;
+  --color-on-primary: #2A313C;
+  --color-primary-container: #404753;
+  --color-on-primary-container: #DCE3F1;
+  --color-secondary: #FFB4A5;
+  --color-on-secondary: #561E19;
+  --color-secondary-container: #73342D;
+  --color-on-secondary-container: #FFDAD5;
+  --color-tertiary: #9DD761;
+  --color-on-tertiary: #1B3700;
+  --color-tertiary-container: #285000;
+  --color-on-tertiary-container: #B8F47A;
+  --color-error: #FFB4AB;
+  --color-on-error: #690005;
+  --color-error-container: #93000A;
+  --color-on-error-container: #FFDAD6;
+  --color-background: #1A1C1E;
+  --color-on-background: #E2E2E6;
+  --color-surface: #1A1C1E;
+  --color-on-surface: #E2E2E6;
+  --color-surface-variant: #44474E;
+  --color-on-surface-variant: #C4C6D0;
+  --color-outline: #8E9099;
+  --color-outline-variant: #44474E;
+  --color-surface-container-lowest: #0F1113;
+  --color-surface-container-low: #1A1C1E;
+  --color-surface-container: #1E2022;
+  --color-surface-container-high: #292A2D;
+  --color-surface-container-highest: #333538;
+  
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --tracking-micro: 0.15em;
+}
+
+@layer base {
+  body {
+    color-scheme: dark;
+    @apply bg-background text-on-surface font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .bg-grid-pattern {
+    background-image: radial-gradient(circle at 2px 2px, rgba(255, 255, 255, 0.05) 1px, transparent 0);
+    background-size: 32px 32px;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-variant);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-outline);
+  }
+
+  @media print {
+    @page {
+      size: A4;
+      margin: 0;
+    }
+    body {
+      background: white !important;
+      color: black !important;
+    }
+    /* Hide everything except the print area */
+    body > *:not(#dossier-print-area) {
+      display: none !important;
+    }
+    #dossier-print-area {
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: white !important;
+    }
+  }
+}
