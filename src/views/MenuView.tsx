@@ -106,7 +106,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       {/* 3D Touch Variations Overlay */}
       <AnimatePresence>
         {selectedProduct && productRect && selectedProduct.variations && (
-          <div className="fixed inset-0 z-[80]">
+          <div className="fixed inset-0 z-[150]">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -179,7 +179,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
                       opacity: 0
                     }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    className="fixed z-[90] bg-surface-container rounded-lg overflow-hidden flex flex-col border border-outline-variant/20 shadow-2xl pointer-events-none origin-top"
+                    className="fixed z-[160] bg-surface-container rounded-lg overflow-hidden flex flex-col border border-outline-variant/20 shadow-2xl pointer-events-none origin-top"
                   >
                     <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest">
                       <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover" />
@@ -222,7 +222,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
                       width: menuWidth,
                       transformOrigin: transformOrigin,
                     }}
-                    className="z-[90] bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col"
+                    className="z-[160] bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col"
                   >
                     <div className="p-4 overflow-y-auto max-h-[40vh] space-y-4">
                       {selectedProduct.variations.map(group => (

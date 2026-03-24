@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { USERS, PERFORMANCE_LOGS, User, PerformanceLog, ROLES, Role, Permission, Product, CATEGORIES, PRODUCTS, VariationGroup, VariationOption } from '../data';
+import { USERS, PERFORMANCE_LOGS, User, PerformanceLog, ROLES, Role, Permission, Product, CATEGORIES, PRODUCTS, VariationGroup, VariationOption, Ingredient } from '../data';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie } from 'recharts';
 
 const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void }) => {
@@ -47,6 +47,13 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   const totalLateFees = totalLateHours * LATE_HOURLY_RATE;
   const totalEarlyFees = totalEarlyHours * EARLY_HOURLY_RATE;
   const totalOvertimeBonus = totalOvertimeHours * OVERTIME_HOURLY_RATE;
+  
+  const getFullDate = (dayNum: string) => {
+    if (!dateRange) return `Day ${dayNum}`;
+    const date = new Date(dateRange.start);
+    date.setDate(parseInt(dayNum));
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
   
   const netAdjustments = user.rewards - user.sanctions + totalOvertimeBonus - totalLateFees - totalEarlyFees;
   const maxAmount = user.baseSalary + netAdjustments;
@@ -243,7 +250,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                       <div key={i} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-error uppercase">Late Check-in ({a.checkIn})</span>
-                          <span className="text-[10px] font-medium text-error/70 uppercase">Day {a.day}</span>
+                          <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
                         <span className="text-xs font-bold text-error">-$20.00</span>
                       </div>
@@ -252,7 +259,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                       <div key={i} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-error uppercase">Early Departure ({a.checkOut})</span>
-                          <span className="text-[10px] font-medium text-error/70 uppercase">Day {a.day}</span>
+                          <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
                         <span className="text-xs font-bold text-error">-$20.00</span>
                       </div>
@@ -261,7 +268,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                       <div key={i} className="flex justify-between items-center p-3 bg-tertiary/5 rounded-lg border border-tertiary/10">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-tertiary uppercase">Overtime (+{a.hours - 8}h)</span>
-                          <span className="text-[10px] font-medium text-tertiary/70 uppercase">Day {a.day}</span>
+                          <span className="text-[10px] font-medium text-tertiary/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
                         <span className="text-xs font-bold text-tertiary">+${(a.hours - 8) * 30}.00</span>
                       </div>
@@ -2164,6 +2171,7 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
   const [category, setCategory] = useState(product?.category || CATEGORIES[0].name);
   const [image, setImage] = useState(product?.image || '');
   const [variations, setVariations] = useState<VariationGroup[]>(product?.variations || []);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(product?.ingredients || []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2212,6 +2220,70 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
     const newVars = [...variations];
     newVars[groupIndex].options = newVars[groupIndex].options.filter((_, i) => i !== optionIndex);
     setVariations(newVars);
+  };
+
+  const addIngredient = () => {
+    setIngredients([...ingredients, { id: `ing_${Date.now()}`, name: '', amount: 0, unit: 'g' }]);
+  };
+
+  const updateIngredient = (index: number, field: keyof Ingredient, value: any) => {
+    const newIngs = [...ingredients];
+    newIngs[index] = { ...newIngs[index], [field]: value };
+    setIngredients(newIngs);
+  };
+
+  const removeIngredient = (index: number) => {
+    setIngredients(ingredients.filter((_, i) => i !== index));
+  };
+
+  const addOptionIngredient = (groupIndex: number, optionIndex: number) => {
+    const newVars = [...variations];
+    const option = newVars[groupIndex].options[optionIndex];
+    if (!option.ingredients) option.ingredients = [];
+    option.ingredients.push({ id: `ing_${Date.now()}`, name: '', amount: 0, unit: 'g' });
+    setVariations(newVars);
+  };
+
+  const updateOptionIngredient = (groupIndex: number, optionIndex: number, ingIndex: number, field: keyof Ingredient, value: any) => {
+    const newVars = [...variations];
+    const option = newVars[groupIndex].options[optionIndex];
+    if (option.ingredients) {
+      option.ingredients[ingIndex] = { ...option.ingredients[ingIndex], [field]: value };
+    }
+    setVariations(newVars);
+  };
+
+  const removeOptionIngredient = (groupIndex: number, optionIndex: number, ingIndex: number) => {
+    const newVars = [...variations];
+    const option = newVars[groupIndex].options[optionIndex];
+    if (option.ingredients) {
+      option.ingredients = option.ingredients.filter((_, i) => i !== ingIndex);
+    }
+    setVariations(newVars);
+  };
+
+  const handleSave = () => {
+    const productData: Product = {
+      id: product?.id || `p${Date.now()}`,
+      name,
+      description,
+      price: parseFloat(price) || 0,
+      category,
+      image,
+      variations,
+      ingredients,
+      inStock: product?.inStock ?? true
+    };
+
+    if (product) {
+      const index = PRODUCTS.findIndex(p => p.id === product.id);
+      if (index !== -1) {
+        PRODUCTS[index] = productData;
+      }
+    } else {
+      PRODUCTS.push(productData);
+    }
+    onClose();
   };
 
   return (
@@ -2303,6 +2375,75 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
             />
           </div>
 
+          {/* Base Ingredients */}
+          <div className="space-y-4 pt-4 border-t border-outline-variant/10">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-bold text-on-surface">Base Ingredients</h3>
+                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Ingredients included in the base product</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={addIngredient}
+                className="px-4 py-2 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                Add Ingredient
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {ingredients.map((ing, iIndex) => (
+                <div key={ing.id} className="flex gap-3 items-center">
+                  <input 
+                    value={ing.name} 
+                    onChange={e => updateIngredient(iIndex, 'name', e.target.value)} 
+                    placeholder="Ingredient (e.g. Tuna)" 
+                    className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                  />
+                  <div className="relative w-24 shrink-0">
+                    <input 
+                      type="number" 
+                      value={ing.amount || ''} 
+                      onChange={e => updateIngredient(iIndex, 'amount', parseFloat(e.target.value) || 0)} 
+                      placeholder="Amount" 
+                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                    />
+                  </div>
+                  <select 
+                    value={ing.unit} 
+                    onChange={e => updateIngredient(iIndex, 'unit', e.target.value)} 
+                    className="w-20 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-2 py-2 text-xs text-on-surface focus:border-primary outline-none transition-all"
+                  >
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="ml">ml</option>
+                    <option value="l">l</option>
+                    <option value="pcs">pcs</option>
+                  </select>
+                  <div className="relative w-24 shrink-0">
+                    <input 
+                      type="number" 
+                      value={ing.wastePercent || ''} 
+                      onChange={e => updateIngredient(iIndex, 'wastePercent', parseFloat(e.target.value) || 0)} 
+                      placeholder="Waste %" 
+                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                    />
+                  </div>
+                  <button 
+                    onClick={() => removeIngredient(iIndex)}
+                    className="w-8 h-8 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-all flex items-center justify-center shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+              ))}
+              {ingredients.length === 0 && (
+                <p className="text-center py-4 text-[10px] text-on-surface-variant uppercase tracking-widest italic opacity-50">No base ingredients added</p>
+              )}
+            </div>
+          </div>
+
           {/* Variations System */}
           <div className="space-y-4 pt-4 border-t border-outline-variant/10">
             <div className="flex justify-between items-center">
@@ -2344,7 +2485,8 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
                   <div className="space-y-3 pl-4 border-l-2 border-outline-variant/20">
                     <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block">Options</label>
                     {group.options.map((opt, oIndex) => (
-                      <div key={opt.id} className="flex gap-3 items-center">
+                      <React.Fragment key={opt.id}>
+                        <div className="flex gap-3 items-center">
                         <input 
                           value={opt.name} 
                           onChange={e => updateOptionName(gIndex, oIndex, e.target.value)} 
@@ -2368,6 +2510,62 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
                           <span className="material-symbols-outlined text-sm">close</span>
                         </button>
                       </div>
+
+                      {/* Option Ingredients */}
+                      <div className="ml-4 space-y-2 mb-4">
+                        <div className="flex justify-between items-center">
+                          <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">Option Ingredients</p>
+                          <button 
+                            type="button" 
+                            onClick={() => addOptionIngredient(gIndex, oIndex)}
+                            className="text-[9px] text-primary font-bold uppercase tracking-widest hover:underline flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[12px]">add</span> Add Ingredient
+                          </button>
+                        </div>
+                        {opt.ingredients?.map((ing, ingIndex) => (
+                          <div key={ing.id} className="flex gap-2 items-center">
+                            <input 
+                              value={ing.name} 
+                              onChange={e => updateOptionIngredient(gIndex, oIndex, ingIndex, 'name', e.target.value)} 
+                              placeholder="Ingredient" 
+                              className="flex-1 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:border-primary outline-none transition-all" 
+                            />
+                            <input 
+                              type="number" 
+                              value={ing.amount || ''} 
+                              onChange={e => updateOptionIngredient(gIndex, oIndex, ingIndex, 'amount', parseFloat(e.target.value) || 0)} 
+                              placeholder="Amt" 
+                              className="w-16 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:border-primary outline-none transition-all" 
+                            />
+                            <select 
+                              value={ing.unit} 
+                              onChange={e => updateOptionIngredient(gIndex, oIndex, ingIndex, 'unit', e.target.value)} 
+                              className="w-16 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-1 py-1.5 text-[10px] text-on-surface focus:border-primary outline-none transition-all"
+                            >
+                              <option value="g">g</option>
+                              <option value="kg">kg</option>
+                              <option value="ml">ml</option>
+                              <option value="l">l</option>
+                              <option value="pcs">pcs</option>
+                            </select>
+                            <input 
+                              type="number" 
+                              value={ing.wastePercent || ''} 
+                              onChange={e => updateOptionIngredient(gIndex, oIndex, ingIndex, 'wastePercent', parseFloat(e.target.value) || 0)} 
+                              placeholder="W%" 
+                              className="w-12 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:border-primary outline-none transition-all" 
+                            />
+                            <button 
+                              onClick={() => removeOptionIngredient(gIndex, oIndex, ingIndex)}
+                              className="w-6 h-6 rounded-md text-on-surface-variant hover:text-error transition-all flex items-center justify-center shrink-0"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">close</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </React.Fragment>
                     ))}
                     <button 
                       onClick={() => addOption(gIndex)} 
@@ -2396,7 +2594,7 @@ const ProductModal = ({ product, onClose }: { product?: Product, onClose: () => 
             Cancel
           </button>
           <button 
-            onClick={onClose}
+            onClick={handleSave}
             className="flex-1 py-4 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-primary/20"
           >
             {product ? 'Save Changes' : 'Create Product'}

@@ -11,10 +11,19 @@ export const CATEGORIES: ProductCategory[] = [
   { id: 'cat_rolls', name: 'Rolls' },
 ];
 
+export interface Ingredient {
+  id: string;
+  name: string;
+  amount: number;
+  unit: string;
+  wastePercent?: number;
+}
+
 export interface VariationOption {
   id: string;
   name: string;
   priceAdjustment?: number;
+  ingredients?: Ingredient[];
 }
 
 export interface VariationGroup {
@@ -34,6 +43,7 @@ export interface Product {
   stockLevel?: 'Healthy' | 'Low' | 'Critical';
   tags?: string[];
   variations?: VariationGroup[];
+  ingredients?: Ingredient[];
 }
 
 export interface CartItem extends Product {
