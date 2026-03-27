@@ -1,0 +1,65 @@
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import settings
+from app.core.middleware import LoggingMiddleware
+from app.database import connect_db, disconnect_db
+
+# ── Routers ───────────────────────────────────────────────
+from app.routers import auth, products, orders, attendance, payroll, users, roles, inventory
+from app.routers import ingredients, customers, analytics, locations
+from app.routers import settings as settings_router
+from app.routers import ws as ws_router
+from app.routers import public as public_router
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await connect_db()
+    yield
+    await disconnect_db()
+
+
+app = FastAPI(
+    title="ZEN-POS API",
+    description="Backend API for the ZEN-POS omakase restaurant management system",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# ── Middleware ─────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.add_middleware(LoggingMiddleware)
+
+# ── Route registration ─────────────────────────────────────
+app.include_router(auth.router,       prefix="/auth",       tags=["Auth"])
+app.include_router(products.router,   prefix="/products",   tags=["Products"])
+app.include_router(orders.router,     prefix="/orders",     tags=["Orders"])
+app.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
+app.include_router(payroll.router,    prefix="/payroll",    tags=["Payroll"])
+app.include_router(users.router,      prefix="/users",      tags=["Users"])
+app.include_router(roles.router,      prefix="/roles",      tags=["Roles"])
+app.include_router(inventory.router,    prefix="/inventory",    tags=["Inventory"])
+app.include_router(ingredients.router,  prefix="/ingredients",  tags=["Ingredients"])
+app.include_router(customers.router,    prefix="/customers",    tags=["Customers"])
+app.include_router(analytics.router,    prefix="/analytics",    tags=["Analytics"])
+app.include_router(settings_router.router, prefix="/settings",   tags=["Settings"])
+app.include_router(locations.router,       prefix="/locations",   tags=["Locations"])
+app.include_router(public_router.router,   prefix="/public",      tags=["Storefront"])
+app.include_router(ws_router.router,                              tags=["WebSocket"])
+
+
+@app.get("/health", tags=["Health"])
+async def health():
+    return {"status": "ok", "env": settings.app_env}

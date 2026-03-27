@@ -1,0 +1,27 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# MongoDB async ODM
+beanie==1.27.0
+motor==3.6.0
+
+# Auth & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+
+# Settings
+pydantic-settings==2.7.0
+pydantic[email]==2.10.4
+
+# Utils
+python-dateutil==2.9.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.2
+httpx==0.28.1
+
+# Dev tooling
+ruff==0.9.1
