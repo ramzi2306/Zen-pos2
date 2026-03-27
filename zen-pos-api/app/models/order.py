@@ -40,7 +40,7 @@ class CustomerInfo(BaseModel):
 
 
 class Review(BaseModel):
-    stars: int = 5
+    stars: int
     comment: str = ""
 
 

@@ -284,6 +284,6 @@ export async function cancelOnlineOrder(orderId: string, reason: string): Promis
 }
 
 export async function listOnlinePendingOrders(users: User[] = []): Promise<Order[]> {
-  const raw = await apiRequest<ApiOrder[]>('/orders/?channel=online&status=Needs+Verification');
+  const raw = await apiRequest<ApiOrder[]>('/orders/?channel=online&status=Verification');
   return raw.map(o => mapOrder(o, users));
 }

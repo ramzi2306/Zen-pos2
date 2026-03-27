@@ -200,6 +200,7 @@ async def submit_review(order_id: str, stars: int, comment: str) -> OrderDocumen
     order = await OrderDocument.get(order_id)
     if not order:
         raise NotFoundError("Order not found")
+    print(f"DEBUG SERVICE: Submitting review for {order_id}: stars={stars}")
     order.review = Review(stars=stars, comment=comment)
     was_done = order.status == "Done"
     if order.status in ("Served", "Packaging", "Out for delivery"):

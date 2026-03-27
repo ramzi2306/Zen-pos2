@@ -251,6 +251,7 @@ export interface PublicTrackingInfo {
   trackingToken: string;
   estimatedDelivery?: string;
   courier?: { name: string; phone?: string; avatar?: string };
+  review?: Review;
 }
 
 export interface PublicOrder {

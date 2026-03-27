@@ -254,7 +254,8 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       setUi({ view: 'tracking' });
       setOpen(true);
     } else if (location.pathname === '/history') {
-      setUi({ view: 'history_phone' });
+      const hasSession = !!localStorage.getItem('customer_session');
+      setUi({ view: hasSession ? 'history_list' : 'history_phone' });
       setOpen(true);
     } else if (location.pathname === '/') {
       setUi({ view: 'cart' });
@@ -445,7 +446,12 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     if (!placed && !ui.placedOrder) return;
     const orderId = placed?.orderId || ui.placedOrder?.orderId || '';
     const token = localStorage.getItem('customer_session') ?? '';
-    try { await publicApi.submitCustomerReview(orderId, trackingReviewStars, trackingReviewComment, token); } catch {}
+    try { 
+      await publicApi.submitCustomerReview(orderId, trackingReviewStars, trackingReviewComment, token);
+      if (tracking) {
+        setTracking({ ...tracking, review: { stars: trackingReviewStars, comment: trackingReviewComment } });
+      }
+    } catch {}
     setTrackingReviewDone(true); setTrackingReviewOpen(false);
   };
 
@@ -912,7 +918,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
           } as Record<string,[string,string,string]>)[s] ?? ['Your order is being', 'processed', ''];
 
           const status = tracking?.status ?? '';
-          const isVerifying = status === 'Draft' || status === '' || status === 'Verification';
+          const isVerifying = status === 'Draft' || status === '' || status === 'Verification' || status === 'Needs Verification';
           const currentStep = isVerifying ? -1 : stepOf(status);
           const [pre, bold, post] = isVerifying ? ['We will call you soon to','verify','your order'] : statusMsg(status);
           const isDone = currentStep === 3;
@@ -1334,7 +1340,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                 className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-surface-container/50 text-on-surface-variant text-xs font-bold border border-outline-variant/10 hover:bg-error/5 hover:text-error hover:border-error/20 transition-all uppercase tracking-widest"
               >
                 <span className="material-symbols-outlined text-[18px]">logout</span>
-                Logout
+                Log out
               </button>
             </div>
 

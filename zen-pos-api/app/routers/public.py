@@ -188,7 +188,8 @@ async def track_public_order(token: str):
         order_number=order.order_number,
         tracking_token=order.tracking_token,
         status=order.status,
-        estimated_delivery=order.estimated_delivery
+        estimated_delivery=order.estimated_delivery,
+        review=order.review
     )
 
 @router.post("/orders/confirm-delivery/{token}")
@@ -337,6 +338,7 @@ async def post_review(order_id: str, review: PublicReviewInput, x_customer_sessi
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
+    print(f"DEBUG: POST REVIEW {order_id}: stars={review.stars}")
     order.review = Review(
         stars=review.stars,
         comment=review.comment

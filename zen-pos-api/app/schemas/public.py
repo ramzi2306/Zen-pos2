@@ -61,6 +61,7 @@ class PublicOrderResponse(BaseModel):
     status: str
     session_token: Optional[str] = None
     estimated_delivery: Optional[datetime] = None
+    review: Optional[PublicReviewInput] = None
 
 # --- History & Auth (Note: public.ts uses /public/auth/... prefix) ---
 
