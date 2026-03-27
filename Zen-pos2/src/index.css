@@ -52,6 +52,10 @@
     background-size: 32px 32px;
   }
 
+  .fill-1 {
+    font-variation-settings: 'FILL' 1 !important;
+  }
+
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
