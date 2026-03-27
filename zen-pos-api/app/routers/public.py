@@ -177,20 +177,20 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
         session_token=session_token
     )
 
-@router.get("/orders/track/{token}", response_model=PublicOrderResponse)
+@router.get("/orders/track/{token}")
 async def track_public_order(token: str):
     order = await OrderDocument.find_one({"tracking_token": token})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    return PublicOrderResponse(
-        id=str(order.id),
-        order_number=order.order_number,
-        tracking_token=order.tracking_token,
-        status=order.status,
-        estimated_delivery=order.estimated_delivery,
-        review=order.review
-    )
+    return {
+        "id": str(order.id),
+        "order_number": order.order_number,
+        "tracking_token": order.tracking_token,
+        "status": order.status,
+        "estimated_delivery": order.estimated_delivery,
+        "review": order.review.model_dump() if order.review else None,
+    }
 
 @router.post("/orders/confirm-delivery/{token}")
 async def confirm_delivery(token: str):
@@ -323,7 +323,7 @@ async def get_customer_history(x_customer_session: str = Header(None)):
             "items": [
                 {"name": i.product_name, "quantity": i.quantity} for i in o.items
             ],
-            "review": o.review
+            "review": o.review.model_dump() if o.review else None
         })
     
     return result
@@ -338,7 +338,6 @@ async def post_review(order_id: str, review: PublicReviewInput, x_customer_sessi
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    print(f"DEBUG: POST REVIEW {order_id}: stars={review.stars}")
     order.review = Review(
         stars=review.stars,
         comment=review.comment

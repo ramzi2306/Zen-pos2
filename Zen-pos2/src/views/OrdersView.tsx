@@ -579,11 +579,16 @@ export const OrdersView = ({
               </button>
             )}
             {order.review && (
-              <div className="flex-1 flex items-center gap-1 text-tertiary">
+              <div className="flex-1 flex items-center gap-1">
                 {[...Array(5)].map((_, i) => (
-                  <span key={i} className={`material-symbols-outlined text-sm ${i < order.review!.stars ? 'fill-1' : ''}`}>star</span>
+                  <span 
+                    key={i} 
+                    className={`material-symbols-outlined text-sm ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40'}`}
+                  >
+                    star
+                  </span>
                 ))}
-                <span className="text-[9px] font-bold ml-1">Reviewed</span>
+                <span className="text-[9px] font-bold ml-1 text-on-surface-variant">Reviewed</span>
               </div>
             )}
             {/* Online order — Verification button */}

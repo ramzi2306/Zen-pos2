@@ -1322,9 +1322,14 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                       )}
                       
                       {order.review && (
-                        <div className="flex items-center gap-0.5 text-tertiary py-1">
+                        <div className="flex items-center gap-0.5 py-1">
                           {[...Array(5)].map((_, i) => (
-                            <span key={i} className={`material-symbols-outlined text-base ${i < order.review!.stars ? 'fill-1' : ''}`}>star</span>
+                            <span 
+                              key={i} 
+                              className={`material-symbols-outlined text-base ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40'}`}
+                            >
+                              star
+                            </span>
                           ))}
                         </div>
                       )}

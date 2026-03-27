@@ -54,7 +54,15 @@ class OnlineOrderRequest(BaseModel):
     customer: OnlineCustomerInput
     location_id: Optional[str] = None
 
+from pydantic import BaseModel, ConfigDict
+
+class PublicReviewInput(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    stars: int
+    comment: str = ""
+
 class PublicOrderResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: str
     order_number: str
     tracking_token: str
@@ -71,7 +79,3 @@ class OTPRequest(BaseModel):
 class OTPVerify(BaseModel):
     phone: str
     otp: str
-
-class PublicReviewInput(BaseModel):
-    stars: int
-    comment: str = ""
