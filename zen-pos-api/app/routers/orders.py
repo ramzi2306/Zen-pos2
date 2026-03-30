@@ -95,6 +95,22 @@ async def submit_review(order_id: str, body: ReviewSchema):
     return _to_out(order)
 
 
+@router.post("/{order_id}/verify", response_model=OrderOut,
+             dependencies=[Depends(require_permission("view_orders"))])
+async def verify_online_order(order_id: str):
+    """Move an online order from Verification → Queued (cashier confirms order)."""
+    order = await order_service.transition_status(order_id, "Queued")
+    return _to_out(order)
+
+
+@router.post("/{order_id}/add-to-kitchen", response_model=OrderOut,
+             dependencies=[Depends(require_permission("view_orders"))])
+async def add_to_kitchen(order_id: str):
+    """Move an order to Queued status so kitchen can start preparing it."""
+    order = await order_service.transition_status(order_id, "Queued")
+    return _to_out(order)
+
+
 @router.delete("/{order_id}", status_code=204,
                dependencies=[Depends(require_permission("view_orders"))])
 async def cancel_order(order_id: str):

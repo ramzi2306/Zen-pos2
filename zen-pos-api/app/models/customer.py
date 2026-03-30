@@ -18,3 +18,17 @@ class CustomerDocument(Document):
         indexes = [
             IndexModel([("phone", ASCENDING)], unique=True),
         ]
+
+
+class CustomerSessionDocument(Document):
+    token: str
+    phone: str
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    class Settings:
+        name = "customer_sessions"
+        indexes = [
+            IndexModel([("token", ASCENDING)], unique=True),
+            IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
+        ]

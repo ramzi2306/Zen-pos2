@@ -277,7 +277,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [serverError, setServerError] = useState('');
   const [placed, setPlacedState] = useState<publicApi.CreateOrderResponse | null>(ui.placedOrder ? { orderId: ui.placedOrder.orderId, orderNumber: ui.placedOrder.orderNumber, trackingToken: ui.placedOrder.trackingToken } : null);
   const [cartSnapshot, setCartSnapshotState] = useState<PublicCartItem[]>(ui.placedOrder?.items || []);
-  const [firebaseActive, setFirebaseActive] = useState(true);
+  const [firebaseActive, setFirebaseActive] = useState(false);
 
   const setPlaced = (p: publicApi.CreateOrderResponse | null, items?: PublicCartItem[]) => {
     setPlacedState(p);
@@ -300,6 +300,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [tracking, setTracking] = useState<PublicTrackingInfo | null>(null);
 
   // Tracking review
+  const [trackingNotFound, setTrackingNotFound] = useState(false);
   const [trackingReviewOpen, setTrackingReviewOpen] = useState(false);
   const [trackingReviewStars, setTrackingReviewStars] = useState(5);
   const [trackingReviewComment, setTrackingReviewComment] = useState('');
@@ -319,8 +320,10 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
 
   const logout = () => {
     localStorage.removeItem('customer_session');
+    localStorage.removeItem(CUSTOMER_SESSION_KEY);
     setUi({ view: 'history_phone', name: '', phone: '', address: '' });
     setHistOrders([]);
+    setHistPhone(''); 
   };
   const [confirming, setConfirming] = useState(false);
 
@@ -333,7 +336,9 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
 
   // Auto-fetch history if session exists
   useEffect(() => {
-    if (view !== 'history_phone' && view !== 'history_otp') return;
+    if (!view.startsWith('history')) return;
+    if (view === 'history_list' && histOrders.length > 0) return; // Already have them
+    
     const sessionToken = localStorage.getItem('customer_session');
     if (sessionToken) {
       setHistLoading(true);
@@ -343,11 +348,11 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
           setView('history_list');
         })
         .catch(() => {
-          // Token probably expired or invalid, keep on history_phone
           localStorage.removeItem('customer_session');
+          if (view === 'history_list') setView('history_phone');
         })
         .finally(() => setHistLoading(false));
-    } else if (!firebaseActive) {
+    } else if (!firebaseActive && view === 'history_phone') {
       // Try silent login if we have a mock session from a previous order and no SMS is required
       const mock = loadCustomerSession();
       if (mock && mock.phone) {
@@ -399,20 +404,28 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       estimatedDelivery: new Date(Date.now() + 35 * 60000).toISOString(),
     });
 
-    const poll = () => publicApi.getOrderTracking(tToken).then(setTracking).catch(() => {});
+    let stopped = false;
+    const poll = () => publicApi.getOrderTracking(tToken)
+      .then(setTracking)
+      .catch((err: Error) => {
+        if (err.message.includes('404') || err.message.toLowerCase().includes('not found')) {
+          stopped = true;
+          setTrackingNotFound(true);
+        }
+      });
     poll();
 
     // WebSocket for instant updates
     const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
     const wsUrl = apiUrl.replace(/^http/, 'ws') + `/public/ws/track/${tToken}`;
-    
+
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(wsUrl);
-      ws.onmessage = () => poll(); // Refresh on any event on this track topic
+      ws.onmessage = () => { if (!stopped) poll(); };
     } catch {}
 
-    const id = setInterval(poll, 10000); // 10s fallback polling
+    const id = setInterval(() => { if (!stopped) poll(); }, 10000);
     return () => {
       clearInterval(id);
       ws?.close();
@@ -438,6 +451,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const reset = () => {
     resetUi();
     setErrors({}); setServerError(''); setPlaced(null); setTracking(null); setCartSnapshot([]);
+    setTrackingNotFound(false);
     setTrackingReviewOpen(false); setTrackingReviewStars(5); setTrackingReviewComment(''); setTrackingReviewDone(false);
     setFoundCustomer(null); setLookingUp(false); setLookupError('');
   };
@@ -600,9 +614,20 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       >
         {/* Header */}
         <div className="flex-shrink-0 flex items-center gap-3 px-5 py-4 border-b border-outline-variant/10 bg-surface-container-low/80 backdrop-blur-md">
-          {location.pathname !== '/' && (
-            <button 
-              onClick={() => (location.pathname.startsWith('/track/') || view === 'tracking' || view === 'placed') ? navigate('/history') : navigate('/')} 
+          {(location.pathname !== '/' || view === 'tracking' || view === 'placed' || view.startsWith('history')) && (
+            <button
+              onClick={() => {
+                if (location.pathname.startsWith('/track/') || view === 'tracking' || view === 'placed') {
+                  setView('history_phone');
+                  setOpen(true);
+                  navigate('/history');
+                } else if (view.startsWith('history')) {
+                  setView('cart');
+                  navigate('/');
+                } else {
+                  navigate('/');
+                }
+              }}
               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-on-surface-variant flex-shrink-0"
             >
               <span className="material-symbols-outlined text-[18px]">arrow_back_ios_new</span>
@@ -896,7 +921,18 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
         )}
 
         {/* ── TRACKING ─────────────────────────────────────────────────────── */}
-        {view === 'tracking' && (() => {
+        {view === 'tracking' && trackingNotFound && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+            <span className="material-symbols-outlined text-5xl text-outline-variant">search_off</span>
+            <p className="text-on-surface font-semibold">Order not found</p>
+            <p className="text-sm text-on-surface-variant">This tracking link may have expired or the order was removed.</p>
+            <button
+              onClick={() => { setTrackingNotFound(false); navigate('/'); }}
+              className="mt-2 px-5 py-2.5 rounded-full bg-primary text-on-primary text-sm font-semibold"
+            >Back to menu</button>
+          </div>
+        )}
+        {view === 'tracking' && !trackingNotFound && (() => {
           const TIMELINE = [
             { label: 'Queued',    icon: 'receipt_long'    },
             { label: 'Preparing', icon: 'restaurant'       },
@@ -1173,7 +1209,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                       <div className="flex justify-center gap-3">
                         {[1,2,3,4,5].map(s => (
                           <button key={s} onClick={() => setTrackingReviewStars(s)}
-                            className={`material-symbols-outlined text-4xl transition-all ${s <= trackingReviewStars ? 'text-tertiary fill-1 scale-110' : 'text-outline-variant'}`}>star</button>
+                            className={`material-symbols-outlined text-4xl transition-all ${s <= trackingReviewStars ? 'text-tertiary fill-1 scale-110' : 'text-outline-variant fill-0'}`}>star</button>
                         ))}
                       </div>
                       <textarea
@@ -1322,15 +1358,22 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                       )}
                       
                       {order.review && (
-                        <div className="flex items-center gap-0.5 py-1">
-                          {[...Array(5)].map((_, i) => (
-                            <span 
-                              key={i} 
-                              className={`material-symbols-outlined text-base ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40'}`}
-                            >
-                              star
-                            </span>
-                          ))}
+                        <div className="flex flex-col gap-0.5 py-1">
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(5)].map((_, i) => (
+                              <span 
+                                key={i} 
+                                className={`material-symbols-outlined text-base ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40 fill-0'}`}
+                              >
+                                star
+                              </span>
+                            ))}
+                          </div>
+                          {order.review.comment && (
+                            <p className="text-[10px] text-on-surface-variant italic line-clamp-2 px-0.5">
+                              "{order.review.comment}"
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1367,7 +1410,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                     <div className="flex justify-center gap-3">
                       {[1,2,3,4,5].map(s => (
                         <button key={s} onClick={() => setReviewStars(s)}
-                          className={`material-symbols-outlined text-4xl transition-all ${s <= reviewStars ? 'text-tertiary fill-1 scale-110' : 'text-outline-variant scale-100'}`}>
+                          className={`material-symbols-outlined text-4xl transition-all ${s <= reviewStars ? 'text-tertiary fill-1 scale-110' : 'text-outline-variant fill-0 scale-100'}`}>
                           star
                         </button>
                       ))}

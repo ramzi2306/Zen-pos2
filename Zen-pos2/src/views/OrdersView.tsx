@@ -579,16 +579,23 @@ export const OrdersView = ({
               </button>
             )}
             {order.review && (
-              <div className="flex-1 flex items-center gap-1">
-                {[...Array(5)].map((_, i) => (
-                  <span 
-                    key={i} 
-                    className={`material-symbols-outlined text-sm ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40'}`}
-                  >
-                    star
-                  </span>
-                ))}
-                <span className="text-[9px] font-bold ml-1 text-on-surface-variant">Reviewed</span>
+              <div className="flex-1 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1">
+                  {[...Array(5)].map((_, i) => (
+                    <span 
+                      key={i} 
+                      className={`material-symbols-outlined text-sm ${i < order.review!.stars ? 'text-tertiary fill-1' : 'text-outline-variant/40 fill-0'}`}
+                    >
+                      star
+                    </span>
+                  ))}
+                  <span className="text-[9px] font-bold ml-1 text-on-surface-variant/60">Reviewed</span>
+                </div>
+                {order.review.comment && (
+                  <p className="text-[10px] text-on-surface-variant italic line-clamp-1 px-1 mt-0.5">
+                    "{order.review.comment}"
+                  </p>
+                )}
               </div>
             )}
             {/* Online order — Verification button */}

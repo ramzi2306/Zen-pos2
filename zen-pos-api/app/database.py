@@ -13,7 +13,7 @@ from app.models.attendance import AttendanceRecordDocument
 from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
 from app.models.token import RefreshTokenDocument
 from app.models.ingredient import IngredientInventoryDocument, PurchaseLogDocument, UsageLogDocument
-from app.models.customer import CustomerDocument
+from app.models.customer import CustomerDocument, CustomerSessionDocument
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.models.location import LocationDocument
 
@@ -43,6 +43,7 @@ async def connect_db() -> None:
             PurchaseLogDocument,
             UsageLogDocument,
             CustomerDocument,
+            CustomerSessionDocument,
             BrandingDocument,
             LocalizationDocument,
             IntegrationDocument,

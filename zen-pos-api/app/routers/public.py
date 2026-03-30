@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 
 from app.models.product import ProductDocument, CategoryDocument
 from app.models.order import OrderDocument, OrderItem, SelectedVariation, CustomerInfo, Review
-from app.models.customer import CustomerDocument
+from app.models.customer import CustomerDocument, CustomerSessionDocument
 from app.models.settings import IntegrationDocument
 from app.schemas.public import (
     PublicCategory, PublicProduct, PublicVariationGroup, PublicVariationOption,
@@ -18,9 +18,29 @@ from app.routers.ws import manager
 
 router = APIRouter()
 
-# Simple In-memory store (in production use Redis with TTL)
+# Simple In-memory store for short-lived OTPs (5-min TTL, no need for DB persistence)
 OTP_STORE = {}
-CUSTOMER_SESSIONS = {}
+
+
+async def _create_session(phone: str, ttl_minutes: int) -> tuple[str, datetime]:
+    """Insert a new customer session into MongoDB and return (token, expires_at)."""
+    session_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+    await CustomerSessionDocument(token=session_token, phone=phone, expires_at=expires_at).insert()
+    return session_token, expires_at
+
+
+async def _get_session(token: str) -> CustomerSessionDocument | None:
+    """Look up a session by token, delete and return None if expired."""
+    if not token:
+        return None
+    doc = await CustomerSessionDocument.find_one({"token": token})
+    if not doc:
+        return None
+    if doc.expires_at < datetime.now(timezone.utc):
+        await doc.delete()
+        return None
+    return doc
 
 @router.get("/menu", response_model=List[PublicCategory])
 async def get_public_menu():
@@ -68,11 +88,14 @@ async def get_public_menu():
 
 @router.post("/orders", response_model=PublicOrderResponse)
 async def create_public_order(req: OnlineOrderRequest, background_tasks: BackgroundTasks):
-    # 1. Generate order number
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
-    # Get count for today for sequence
-    count = await OrderDocument.find({"created_at": {"$gte": datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)}}).count()
+    # 1. Generate a unique order number using global online-order count to avoid
+    #    date-reset collisions (e.g. ONL-0001 already existing from a previous day).
+    count = await OrderDocument.find({"channel": "online"}).count()
     order_number = f"ONL-{count+1:04d}"
+    # Ensure uniqueness in case of concurrent inserts or existing records
+    while await OrderDocument.find_one({"order_number": order_number}):
+        count += 1
+        order_number = f"ONL-{count+1:04d}"
     
     # 2. Convert items
     order_items = []
@@ -162,12 +185,7 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
     )
     
     # 5. Automatically create a session for the customer so history is "logged in"
-    session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=60)
-    CUSTOMER_SESSIONS[session_token] = {
-        "phone": req.customer.phone,
-        "expires_at": expires_at
-    }
+    session_token, _ = await _create_session(req.customer.phone, ttl_minutes=60)
 
     return PublicOrderResponse(
         id=str(order.id),
@@ -261,17 +279,11 @@ async def verify_otp(req: OTPVerify):
         raise HTTPException(status_code=400, detail="OTP expired")
         
     # Generate session token
-    session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
-    
-    CUSTOMER_SESSIONS[session_token] = {
-        "phone": req.phone,
-        "expires_at": expires_at
-    }
-    
+    session_token, expires_at = await _create_session(req.phone, ttl_minutes=30)
+
     # Clean up OTP
     del OTP_STORE[req.phone]
-    
+
     return {
         "sessionToken": session_token,
         "expiresAt": expires_at.isoformat()
@@ -285,14 +297,8 @@ async def login_no_otp(req: OTPRequest):
         raise HTTPException(status_code=403, detail="SMS Authentication is required.")
         
     # Generate session token immediately
-    session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=60) # Longer TTL for bypass
-    
-    CUSTOMER_SESSIONS[session_token] = {
-        "phone": req.phone,
-        "expires_at": expires_at
-    }
-    
+    session_token, expires_at = await _create_session(req.phone, ttl_minutes=60)
+
     return {
         "sessionToken": session_token,
         "expiresAt": expires_at.isoformat()
@@ -300,15 +306,11 @@ async def login_no_otp(req: OTPRequest):
 
 @router.get("/orders/history")
 async def get_customer_history(x_customer_session: str = Header(None)):
-    if not x_customer_session or x_customer_session not in CUSTOMER_SESSIONS:
-        raise HTTPException(status_code=401, detail="Invalid session")
-        
-    session = CUSTOMER_SESSIONS[x_customer_session]
-    if session["expires_at"] < datetime.now(timezone.utc):
-        del CUSTOMER_SESSIONS[x_customer_session]
-        raise HTTPException(status_code=401, detail="Session expired")
-        
-    phone = session["phone"]
+    session = await _get_session(x_customer_session)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    phone = session.phone
     orders = await OrderDocument.find({"customer.phone": phone}).sort("-created_at").to_list()
     
     result = []
@@ -367,13 +369,13 @@ async def lookup_public_customer(phone: str):
 
 @router.patch("/customers/{customer_id}")
 async def update_public_customer_profile(customer_id: str, data: dict, x_customer_session: str = Header(None)):
-    if not x_customer_session or x_customer_session not in CUSTOMER_SESSIONS:
-        raise HTTPException(status_code=401, detail="Invalid session")
-        
+    session = await _get_session(x_customer_session)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
     # Verify session matches the customer being changed (security)
-    session = CUSTOMER_SESSIONS[x_customer_session]
     customer = await CustomerDocument.get(customer_id)
-    if not customer or customer.phone != session["phone"]:
+    if not customer or customer.phone != session.phone:
          raise HTTPException(status_code=403, detail="Forbidden")
 
     if "name" in data:

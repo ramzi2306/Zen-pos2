@@ -65,6 +65,14 @@ class IntegrationUpdate(BaseModel):
     email_user: Optional[str] = None
     email_password: Optional[str] = None
     email_reports: Optional[dict[str, Any]] = None
+    firebase_enabled: Optional[bool] = None
+    firebase_api_key: Optional[str] = None
+    firebase_auth_domain: Optional[str] = None
+    firebase_project_id: Optional[str] = None
+    firebase_storage_bucket: Optional[str] = None
+    firebase_messaging_sender_id: Optional[str] = None
+    firebase_app_id: Optional[str] = None
+    firebase_measurement_id: Optional[str] = None
 
 
 class IntegrationOut(BaseModel):
@@ -80,3 +88,11 @@ class IntegrationOut(BaseModel):
     email_user: str
     email_password: str
     email_reports: dict[str, Any]
+    firebase_enabled: bool
+    firebase_api_key: str
+    firebase_auth_domain: str
+    firebase_project_id: str
+    firebase_storage_bucket: str
+    firebase_messaging_sender_id: str
+    firebase_app_id: str
+    firebase_measurement_id: str

@@ -2250,6 +2250,12 @@ export const InventoryView = () => {
     return acc;
   }, 0);
 
+  const healthData = [
+    { name: 'Healthy', value: 90, color: 'var(--color-tertiary)' },
+    { name: 'Low Stock', value: 7, color: 'var(--color-secondary)' },
+    { name: 'Critical', value: 3, color: 'var(--color-error)' },
+  ];
+
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
       <div className="max-w-6xl mx-auto">
@@ -3194,8 +3200,11 @@ const SalesView = () => {
                       <td className="px-4 py-3 text-xs text-on-surface-variant">{prepTime(o)}</td>
                       <td className="px-4 py-3 text-center">
                         {o.review ? (
-                          <div className="flex items-center justify-center gap-0.5">
-                            {[1,2,3,4,5].map(s => <span key={s} className={`material-symbols-outlined text-[11px] ${s <= o.review!.stars ? 'text-yellow-400' : 'text-on-surface-variant/20'}`}>star</span>)}
+                          <div className="flex flex-col items-center justify-center gap-0.5 min-w-[60px]">
+                            <div className="flex items-center gap-0.5">
+                              {[1,2,3,4,5].map(s => <span key={s} className={`material-symbols-outlined text-[10px] ${s <= o.review!.stars ? 'text-tertiary fill-1' : 'text-on-surface-variant/20 fill-0'}`}>star</span>)}
+                            </div>
+                            {o.review.comment && <div className="text-[8px] text-on-surface-variant italic truncate max-w-[80px]" title={o.review.comment}>"{o.review.comment}"</div>}
                           </div>
                         ) : <span className="text-on-surface-variant/30">—</span>}
                       </td>
@@ -3403,9 +3412,11 @@ const CustomersView = () => {
                       </div>
                       <div className="text-xs text-on-surface-variant">{formatDate(o.createdAt)} · {o.itemsCount} items · {o.orderType.replace('_','-')}</div>
                       {o.review && (
-                        <div className="flex items-center gap-0.5 mt-1.5">
-                          {[1,2,3,4,5].map(s => <span key={s} className={`material-symbols-outlined text-[12px] ${s <= o.review!.stars ? 'text-yellow-400' : 'text-on-surface-variant/30'}`}>star</span>)}
-                          {o.review.comment && <span className="text-xs text-on-surface-variant ml-1 italic">"{o.review.comment}"</span>}
+                        <div className="flex items-center gap-0.5 mt-1.5 flex-wrap">
+                          <div className="flex items-center gap-0.5">
+                            {[1,2,3,4,5].map(s => <span key={s} className={`material-symbols-outlined text-[12px] ${s <= o.review!.stars ? 'text-tertiary fill-1' : 'text-on-surface-variant/30 fill-0'}`}>star</span>)}
+                          </div>
+                          {o.review.comment && <span className="text-xs text-on-surface-variant ml-1.5 italic">"{o.review.comment}"</span>}
                         </div>
                       )}
                     </div>
