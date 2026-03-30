@@ -1,8 +1,12 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.core.middleware import LoggingMiddleware
@@ -16,6 +20,9 @@ from app.routers import ws as ws_router
 from app.routers import public as public_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
+
+# ── Static frontend path ──────────────────────────────────
+STATIC_DIR = Path(os.getenv("STATIC_DIR", Path(__file__).resolve().parent.parent / "static"))
 
 
 @asynccontextmanager
@@ -63,3 +70,16 @@ app.include_router(ws_router.router,                              tags=["WebSock
 @app.get("/health", tags=["Health"])
 async def health():
     return {"status": "ok", "env": settings.app_env}
+
+
+# ── Serve built frontend (production) ─────────────────────
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="frontend-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """Serve index.html for any path not matched by API routes (SPA client-side routing)."""
+        file = STATIC_DIR / full_path
+        if file.is_file():
+            return FileResponse(file)
+        return FileResponse(STATIC_DIR / "index.html")

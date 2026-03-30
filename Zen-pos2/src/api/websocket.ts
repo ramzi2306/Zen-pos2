@@ -31,7 +31,7 @@ type EventHandler = (event: WsEvent) => void;
 // Derive WS base from the Vite API URL env var (http → ws, https → wss)
 function wsBase(): string {
   const apiUrl: string =
-    (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+    (import.meta as any).env?.VITE_API_URL || window.location.origin;
   return apiUrl.replace(/^http/, 'ws');
 }
 

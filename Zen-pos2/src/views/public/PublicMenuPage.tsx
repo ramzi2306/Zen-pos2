@@ -416,7 +416,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     poll();
 
     // WebSocket for instant updates
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || window.location.origin;
     const wsUrl = apiUrl.replace(/^http/, 'ws') + `/public/ws/track/${tToken}`;
 
     let ws: WebSocket | null = null;
