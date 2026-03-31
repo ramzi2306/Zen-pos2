@@ -39,6 +39,7 @@ class PersonalDocument(BaseModel):
 class RoleDocument(Document):
     name: Annotated[str, Indexed(unique=True)]
     permissions: list[str] = []
+    exclude_from_attendance: bool = False
 
     class Settings:
         name = "roles"

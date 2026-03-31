@@ -84,6 +84,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     image: Optional[str] = None
     base_salary: Optional[float] = None

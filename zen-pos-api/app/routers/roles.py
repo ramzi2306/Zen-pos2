@@ -12,23 +12,26 @@ router = APIRouter()
 class RoleCreate(BaseModel):
     name: str
     permissions: list[str] = []
+    exclude_from_attendance: bool = False
 
 
 class RoleUpdate(BaseModel):
     name: Optional[str] = None
     permissions: Optional[List[str]] = None
+    exclude_from_attendance: Optional[bool] = None
 
 
 class RoleOut(BaseModel):
     id: str
     name: str
     permissions: list[str]
+    exclude_from_attendance: bool
 
 
 @router.get("/", response_model=list[RoleOut])
 async def list_roles():
     roles = await RoleDocument.find_all().to_list()
-    return [RoleOut(id=str(r.id), name=r.name, permissions=r.permissions) for r in roles]
+    return [RoleOut(id=str(r.id), name=r.name, permissions=r.permissions, exclude_from_attendance=r.exclude_from_attendance) for r in roles]
 
 
 @router.post("/", response_model=RoleOut, status_code=201,
@@ -36,9 +39,9 @@ async def list_roles():
 async def create_role(body: RoleCreate):
     if await RoleDocument.find_one(RoleDocument.name == body.name):
         raise ConflictError("Role name already exists")
-    role = RoleDocument(name=body.name, permissions=body.permissions)
+    role = RoleDocument(name=body.name, permissions=body.permissions, exclude_from_attendance=body.exclude_from_attendance)
     await role.insert()
-    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions)
+    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions, exclude_from_attendance=role.exclude_from_attendance)
 
 
 @router.patch("/{role_id}", response_model=RoleOut,
@@ -51,8 +54,10 @@ async def update_role(role_id: str, body: RoleUpdate):
         role.name = body.name
     if body.permissions is not None:
         role.permissions = body.permissions
+    if body.exclude_from_attendance is not None:
+        role.exclude_from_attendance = body.exclude_from_attendance
     await role.save()
-    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions)
+    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions, exclude_from_attendance=role.exclude_from_attendance)
 
 
 @router.delete("/{role_id}", status_code=204,

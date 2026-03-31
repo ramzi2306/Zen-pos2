@@ -64,6 +64,12 @@ class IntegrationDocument(Document):
     firebase_messaging_sender_id: str = ""
     firebase_app_id: str = ""
     firebase_measurement_id: str = ""
+    bunny_enabled: bool = False
+    bunny_api_key: str = ""
+    bunny_storage_zone: str = ""
+    bunny_storage_region: str = ""
+    bunny_cdn_hostname: str = ""
+    bunny_pull_zone_id: str = ""
 
     class Settings:
         name = "settings"

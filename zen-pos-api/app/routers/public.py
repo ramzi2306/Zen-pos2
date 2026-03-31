@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, WebSocket, WebSocketDisconnect
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import uuid
 import secrets
 import random
@@ -22,7 +22,7 @@ router = APIRouter()
 OTP_STORE = {}
 
 
-async def _create_session(phone: str, ttl_minutes: int) -> tuple[str, datetime]:
+async def _create_session(phone: str, ttl_minutes: int) -> Tuple[str, datetime]:
     """Insert a new customer session into MongoDB and return (token, expires_at)."""
     session_token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
@@ -30,7 +30,7 @@ async def _create_session(phone: str, ttl_minutes: int) -> tuple[str, datetime]:
     return session_token, expires_at
 
 
-async def _get_session(token: str) -> CustomerSessionDocument | None:
+async def _get_session(token: str) -> Optional[CustomerSessionDocument]:
     """Look up a session by token, delete and return None if expired."""
     if not token:
         return None
