@@ -82,3 +82,11 @@ async def get_customer(customer_id: str):
         last_order_date=max((o.created_at for o in non_cancelled), default=None) if non_cancelled else None,
         orders=order_outs,
     )
+
+@router.delete("/{customer_id}", status_code=204,
+               dependencies=[Depends(require_permission("view_orders"))])
+async def delete_customer(customer_id: str):
+    customer = await CustomerDocument.get(customer_id)
+    if not customer:
+        raise NotFoundError("Customer not found")
+    await customer.delete()

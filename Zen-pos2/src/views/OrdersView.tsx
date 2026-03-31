@@ -566,6 +566,74 @@ export const OrdersView = ({
                 </button>
               </>
             )}
+            {/* Delivery: after Served → Out for Delivery */}
+            {order.status === 'Served' && order.orderType === 'delivery' && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.orders.updateOrderStatus(order.id, 'Out for delivery');
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
+                    onRefresh?.();
+                  } catch (err: any) { console.error(err.message); }
+                }}
+                className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">local_shipping</span>
+                Out for Delivery
+              </button>
+            )}
+            {/* Delivery: Out for delivery → Done */}
+            {order.status === 'Out for delivery' && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.orders.updateOrderStatus(order.id, 'Done');
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
+                    onRefresh?.();
+                  } catch (err: any) { console.error(err.message); }
+                }}
+                className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                Mark as Done
+              </button>
+            )}
+            {/* Dine-in: after Served → Done */}
+            {order.status === 'Served' && order.orderType === 'dine_in' && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.orders.updateOrderStatus(order.id, 'Done');
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
+                    onRefresh?.();
+                  } catch (err: any) { console.error(err.message); }
+                }}
+                className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                Mark as Done
+              </button>
+            )}
+            {/* Takeaway: after Packaging → Done */}
+            {order.status === 'Packaging' && order.orderType === 'takeaway' && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.orders.updateOrderStatus(order.id, 'Done');
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
+                    onRefresh?.();
+                  } catch (err: any) { console.error(err.message); }
+                }}
+                className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                Mark as Done
+              </button>
+            )}
             {(order.status === 'Served' || order.status === 'Done' || order.status === 'Packaging') && !order.review && (
               <button 
                 onClick={(e) => {

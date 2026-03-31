@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User } from '../data';
+import React, { useState, useEffect, useMemo } from 'react';
+import { User, Role } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 import * as api from '../api';
 
@@ -11,12 +11,18 @@ import * as api from '../api';
  *                        When set, only staff assigned to that attendance group are shown.
  *                        Leave undefined to show all staff (admin tablet).
  */
-export const AttendanceView = ({ setCurrentView, group }: { setCurrentView: (v: string) => void; group?: string }) => {
+export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, group }: { 
+  setCurrentView: (v: string) => void; 
+  onLogout?: () => void;
+  isKioskOnly?: boolean;
+  group?: string 
+}) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [pin, setPin] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [checkedInIds, setCheckedInIds] = useState<Set<string>>(new Set());
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -27,17 +33,29 @@ export const AttendanceView = ({ setCurrentView, group }: { setCurrentView: (v: 
 
   // Load users (filtered by station group if provided) and today's attendance status
   useEffect(() => {
-    api.users.listUsers(group).then(loaded => {
-      setUsers(loaded);
+    // Fetch users and roles in parallel
+    Promise.all([
+      api.users.listUsers(group),
+      api.users.listRoles()
+    ]).then(([loadedUsers, loadedRoles]) => {
+      setUsers(loadedUsers);
+      setRoles(loadedRoles);
       // Load check-in status for each user
-      Promise.all(loaded.map(u => api.attendance.getUserStatus(u.id).then(status => ({ id: u.id, status }))));
+      Promise.all(loadedUsers.map(u => api.attendance.getUserStatus(u.id).then(status => ({ id: u.id, status }))));
     }).catch(console.error);
 
     api.attendance.getTodayRecords().then(records => {
       const ids = new Set(records.filter(r => r.status === 'active').map(r => r.userId));
       setCheckedInIds(ids);
     }).catch(console.error);
-  }, []);
+  }, [group]);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      const role = roles.find(r => r.id === user.roleId);
+      return !role?.excludeFromAttendance;
+    });
+  }, [users, roles]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -104,13 +122,23 @@ export const AttendanceView = ({ setCurrentView, group }: { setCurrentView: (v: 
             {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
           </span>
         </button>
-        <button 
-          onClick={() => setCurrentView('menu')}
-          className="w-12 h-12 rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-surface-container transition-all shadow-lg"
-          title="Exit Attendance"
-        >
-          <span className="material-symbols-outlined">close</span>
-        </button>
+        {isKioskOnly ? (
+          <button 
+            onClick={onLogout}
+            className="w-12 h-12 rounded-full bg-error/10 backdrop-blur-md border border-error/20 flex items-center justify-center text-error hover:bg-error hover:text-white transition-all shadow-lg"
+            title="Logout"
+          >
+            <span className="material-symbols-outlined">logout</span>
+          </button>
+        ) : (
+          <button 
+            onClick={() => setCurrentView('menu')}
+            className="w-12 h-12 rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-surface-container transition-all shadow-lg"
+            title="Exit Attendance"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        )}
       </div>
 
       <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -148,7 +176,7 @@ export const AttendanceView = ({ setCurrentView, group }: { setCurrentView: (v: 
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {users.map((user, idx) => (
+              {filteredUsers.map((user, idx) => (
                 <motion.button
                   key={user.id}
                   initial={{ opacity: 0, scale: 0.9 }}

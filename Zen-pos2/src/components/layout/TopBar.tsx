@@ -118,26 +118,6 @@ export const TopBar = ({
             <span className="material-symbols-outlined text-[18px] mr-2">receipt_long</span> Commandes
           </button>
         )}
-        {hasPermission('view_attendance') && (
-          <button
-            onClick={() => setCurrentView('attendance')}
-            className={`h-full flex items-center px-4 transition-colors font-headline text-[10px] font-bold uppercase tracking-micro ${
-              currentView === 'attendance' ? 'text-secondary border-b-2 border-secondary bg-surface-container/30' : 'text-on-surface-variant hover:text-primary'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px] mr-2">fingerprint</span> Présence
-          </button>
-        )}
-        {hasPermission('view_inventory') && (
-          <button
-            onClick={() => setCurrentView('inventory')}
-            className={`h-full flex items-center px-4 transition-colors font-headline text-[10px] font-bold uppercase tracking-micro ${
-              currentView === 'inventory' ? 'text-secondary border-b-2 border-secondary bg-surface-container/30' : 'text-on-surface-variant hover:text-primary'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px] mr-2">inventory_2</span> Inventaire
-          </button>
-        )}
       </nav>
 
       {/* Right Actions */}

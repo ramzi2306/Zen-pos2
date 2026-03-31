@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import { Sidebar, TopBar, CartSidebar, MobileNav, CartFloatingAction, ProfilePanel } from './components/Layout';
 import { MenuView } from './views/MenuView';
 import { OrdersView } from './views/OrdersView';
-import { InventoryView, SettingsView } from './views/AdminViews';
+import { SettingsView } from './views/AdminViews';
 import { AttendanceView } from './views/AttendanceView';
 import { AdminLoginView } from './views/AdminLoginView';
 import PublicMenuPage from './views/public/PublicMenuPage';
@@ -67,10 +67,18 @@ function AppShell() {
     );
 
     Promise.race([api.auth.me(), timeout])
-      .then(user => setCurrentUser(user as User))
+      .then(user => {
+        setCurrentUser(user as User);
+        // If they land on the root or an unauthorized default like /menu without permission, 
+        // trigger the same landing logic as login.
+        if (location.pathname === '/' || (location.pathname === '/menu' && !user.permissions.includes('view_menu'))) {
+          // Trigger handleLogin-like logic via timeout to avoid double-nav during mount
+          setTimeout(() => handleLogin(user as User), 0);
+        }
+      })
       .catch(() => api.clearTokens())
       .finally(() => setIsAuthLoading(false));
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load branding once on mount (no auth required — public config)
   useEffect(() => {
@@ -230,7 +238,18 @@ function AppShell() {
 
   const hasPermission = (permission: Permission): boolean => {
     if (!currentUser) return false;
-    return currentUser.permissions.includes(permission);
+    if (currentUser.permissions.includes(permission)) return true;
+
+    // Role/Email-based fallback for critical views
+    const roleName = (currentUser.role || '').toLowerCase();
+    const email = (currentUser.email || '').toLowerCase();
+    
+    if (permission === 'view_attendance' && (roleName.includes('attendance') || roleName.includes('pointeur') || email.includes('pointeur'))) return true;
+    if (permission === 'view_hr' && roleName.includes('hr')) return true;
+    if (permission === 'view_staff' && roleName.includes('staff')) return true;
+    if (permission === 'view_settings' && roleName.includes('admin')) return true;
+
+    return false;
   };
 
   // Derive "currentView" from URL so layout components stay in sync
@@ -256,7 +275,8 @@ function AppShell() {
   };
 
   const setCurrentSetting = (section: string) => {
-    if (currentView === 'pos_settings') navigate('/settings/' + section);
+    if (section === 'attendance') navigate('/attendance');
+    else if (currentView === 'pos_settings') navigate('/settings/' + section);
     else navigate('/admin/' + section);
   };
 
@@ -272,14 +292,32 @@ function AppShell() {
     sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
     unlockAudio(); // Unlock AudioContext on first user gesture
     setCurrentUser(user);
-    const perms = user.permissions;
-    if (perms.includes('view_orders') && !perms.includes('view_menu')) {
+    
+    // Prioritize landing page based on permissions OR role/email fallbacks
+    const perms = (user.permissions || []).map(p => p.toLowerCase());
+    const roleName = (user.role || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    
+    const hasPerm = (key: string) => perms.some(p => p.includes(key));
+    const hasRole = (key: string) => roleName.includes(key);
+    const hasEmail = (key: string) => email.includes(key);
+
+    if (hasPerm('view_menu')) {
+      navigate('/menu');
+    } else if (hasPerm('view_orders')) {
       navigate('/orders');
-    } else if (perms.includes('view_attendance') && !perms.includes('view_menu')) {
+    } else if (hasPerm('view_attendance') || hasPerm('attendance') || hasRole('attendance') || hasRole('pointeur') || hasEmail('pointeur')) {
       navigate('/attendance');
-    } else if (perms.includes('view_staff') && !perms.includes('view_menu')) {
-      navigate('/settings/team');
+    } else if (hasPerm('view_staff') || hasPerm('view_hr') || hasRole('staff') || hasRole('hr')) {
+      if (hasPerm('view_staff')) navigate('/settings/team');
+      else navigate('/admin/hr');
+    } else if (hasPerm('view_settings') || hasRole('admin')) {
+      navigate('/settings/branding');
     } else {
+      // Final fallback before /menu if we find any specific permission
+      if (perms.length > 0 && !perms.includes('view_menu')) {
+        if (hasPerm('inventory')) navigate('/admin/inventory');
+      }
       navigate('/menu');
     }
   };
@@ -373,7 +411,8 @@ function AppShell() {
   }
 
   // ── Authenticated main layout ─────────────────────────────────────────────────
-  const showSidebar = currentView === 'pos_settings' || currentView === 'admin_panel';
+  const isAttendance = currentView === 'attendance';
+  const showSidebar = (currentView === 'pos_settings' || currentView === 'admin_panel') && !isAttendance;
 
   return (
     <div className="relative h-screen overflow-hidden bg-background">
@@ -382,7 +421,7 @@ function AppShell() {
           isProfileOpen ? 'blur-xl scale-[0.96] opacity-40 pointer-events-none' : 'blur-0 scale-100 opacity-100'
         }`}
       >
-        {currentView !== 'attendance' && (
+        {!isAttendance && (
           <TopBar
             currentView={currentView}
             setCurrentView={setCurrentView}
@@ -433,15 +472,15 @@ function AppShell() {
                   : <AccessDenied />
               } />
 
-              <Route path="/inventory" element={
-                hasPermission('view_inventory')
-                  ? <InventoryView />
-                  : <AccessDenied />
-              } />
+
 
               <Route path="/attendance" element={
                 hasPermission('view_attendance')
-                  ? <AttendanceView setCurrentView={setCurrentView} />
+                  ? <AttendanceView 
+                      setCurrentView={setCurrentView} 
+                      onLogout={handleLogout}
+                      isKioskOnly={currentUser?.permissions.includes('view_attendance') && !currentUser?.permissions.includes('view_menu')}
+                    />
                   : <AccessDenied />
               } />
 
@@ -476,12 +515,14 @@ function AppShell() {
           )}
         </div>
 
-        <MobileNav
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-          onOpenCart={() => setIsCartOpen(true)}
-          hasPermission={hasPermission}
-        />
+        {!isAttendance && (
+          <MobileNav
+            currentView={currentView}
+            setCurrentView={setCurrentView}
+            onOpenCart={() => setIsCartOpen(true)}
+            hasPermission={hasPermission}
+          />
+        )}
       </div>
 
       <ProfilePanel

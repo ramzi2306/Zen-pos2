@@ -12,6 +12,8 @@ class LocationDocument(Document):
     email: str = ""
     tables_count: int = 0
     bar_count: int = 0
+    opening_time: str = ""
+    closing_time: str = ""
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

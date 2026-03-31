@@ -58,13 +58,13 @@ export const MobileNav = ({
         </div>
       )}
 
-      {hasPermission('view_attendance') && (
+      {(hasPermission('view_attendance') || hasPermission('view_inventory') || hasPermission('view_hr')) && (
         <div
-          onClick={() => setCurrentView('attendance')}
-          className={`${itemClass} ${currentView === 'attendance' ? activeClass : inactiveClass}`}
+          onClick={() => setCurrentView('admin_panel')}
+          className={`${itemClass} ${currentView === 'admin_panel' ? activeClass : inactiveClass}`}
         >
-          <span className="material-symbols-outlined">fingerprint</span>
-          <span className="font-body text-[10px] font-medium tracking-tight">Staff</span>
+          <span className="material-symbols-outlined">admin_panel_settings</span>
+          <span className="font-body text-[10px] font-medium tracking-tight">Admin</span>
         </div>
       )}
     </nav>

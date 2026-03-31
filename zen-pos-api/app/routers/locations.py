@@ -63,5 +63,7 @@ def _to_out(loc: LocationDocument) -> LocationOut:
         email=loc.email,
         tables_count=loc.tables_count,
         bar_count=loc.bar_count,
+        opening_time=loc.opening_time,
+        closing_time=loc.closing_time,
         is_active=loc.is_active,
     )

@@ -158,3 +158,7 @@ export async function getCustomer(id: string): Promise<CustomerDetail> {
     return { ...mapCustomer(mock), orders: customerOrders };
   }
 }
+
+export async function deleteCustomer(id: string): Promise<void> {
+  await apiRequest(`/customers/${id}`, { method: 'DELETE' });
+}

@@ -53,7 +53,7 @@ function mapUserPublic(raw: ApiUserPublic): User {
     phone: raw.phone,
     roleId: raw.role_id,
     role: raw.role_name,
-    permissions: raw.permissions || [],
+    permissions: (raw.permissions || []).map(p => p.toLowerCase()),
     image: raw.image,
     baseSalary: raw.base_salary,
     attendanceScore: raw.attendance_score || 0,
@@ -82,7 +82,7 @@ export function mapUserDetail(raw: ApiUserDetail): User {
     phone: raw.phone,
     roleId: raw.role_id,
     role: raw.role_name,
-    permissions: raw.permissions || [],
+    permissions: (raw.permissions || []).map(p => p.toLowerCase()),
     image: raw.image,
     baseSalary: raw.base_salary,
     attendanceScore: raw.attendance_score || 0,
@@ -186,25 +186,39 @@ export async function updateUser(id: string, payload: UserUpdatePayload): Promis
 }
 
 export async function listRoles(): Promise<Role[]> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[] }[]>('/roles/');
-  return raw.map(r => ({ id: r.id, name: r.name, permissions: r.permissions as any }));
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance?: boolean }[]>('/roles/');
+  return raw.map(r => ({ 
+    id: r.id, 
+    name: r.name, 
+    permissions: r.permissions as any,
+    excludeFromAttendance: r.exclude_from_attendance || false
+  }));
 }
 
 export async function createRole(name: string): Promise<Role> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[] }>('/roles/', {
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance: boolean }>('/roles/', {
     method: 'POST',
-    body: JSON.stringify({ name, permissions: [] }),
+    body: JSON.stringify({ name, permissions: [], exclude_from_attendance: false }),
   });
-  return { id: raw.id, name: raw.name, permissions: raw.permissions as any };
+  return { 
+    id: raw.id, 
+    name: raw.name, 
+    permissions: raw.permissions as any,
+    excludeFromAttendance: raw.exclude_from_attendance
+  };
 }
 
-export async function updateRole(id: string, permissions: string[]): Promise<void> {
+export async function updateRole(id: string, payload: { permissions?: string[]; exclude_from_attendance?: boolean }): Promise<void> {
   await apiRequest(`/roles/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ permissions }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function deleteRole(id: string): Promise<void> {
   await apiRequest(`/roles/${id}`, { method: 'DELETE' });
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await apiRequest(`/users/${id}`, { method: 'DELETE' });
 }

@@ -168,3 +168,15 @@ export async function listPurchases(): Promise<PurchaseLog[]> {
     date: r.date,
   }));
 }
+
+export async function updateIngredient(id: string, payload: Partial<IngredientCreatePayload>): Promise<IngredientItem> {
+  const raw = await apiRequest<ApiIngredient>(`/ingredients/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return mapIngredient(raw);
+}
+
+export async function deleteIngredient(id: string): Promise<void> {
+  await apiRequest(`/ingredients/${id}`, { method: 'DELETE' });
+}

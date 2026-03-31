@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AttendanceView } from './AttendanceView';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary } from '../data';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie } from 'recharts';
@@ -1569,7 +1570,7 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
                                 type="time"
                                 value={checkIn}
                                 onChange={e => updateShiftField(user.id, day, 'checkIn', e.target.value)}
-                                className="flex-1 bg-surface-container-highest border border-tertiary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-tertiary outline-none transition-all [&::-webkit-calendar-picker-indicator]:hidden"
+                                className="flex-1 bg-surface-container-highest border border-tertiary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-tertiary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                               />
                             </div>
                             <div className="flex items-center gap-1">
@@ -1578,7 +1579,7 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
                                 type="time"
                                 value={checkOut}
                                 onChange={e => updateShiftField(user.id, day, 'checkOut', e.target.value)}
-                                className="flex-1 bg-surface-container-highest border border-secondary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-secondary outline-none transition-all [&::-webkit-calendar-picker-indicator]:hidden"
+                                className="flex-1 bg-surface-container-highest border border-secondary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-secondary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                               />
                             </div>
                             <button
@@ -1666,7 +1667,15 @@ const RoleManagementView = () => {
       }
       return role;
     }));
-    api.users.updateRole(roleId, nextPermissions).catch(console.error);
+    api.users.updateRole(roleId, { permissions: nextPermissions }).catch(console.error);
+  };
+
+  const handleToggleAttendanceExclude = (roleId: string, val: boolean) => {
+    setRoles(prev => prev.map(role => {
+      if (role.id === roleId) return { ...role, excludeFromAttendance: val };
+      return role;
+    }));
+    api.users.updateRole(roleId, { exclude_from_attendance: val }).catch(console.error);
   };
 
   const handleAddRole = async () => {
@@ -1781,6 +1790,25 @@ const RoleManagementView = () => {
                     </button>
                   );
                 })}
+              </div>
+
+              {/* Exclusion Toggle Section */}
+              <div className="mx-8 p-6 bg-surface-container-highest/20 rounded-2xl border border-outline-variant/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+                      <span className="material-symbols-outlined">person_off</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-wider text-on-surface">Exclude from Attendance</p>
+                      <p className="text-[10px] text-on-surface-variant">Hide personnel with this role from the kiosk clock-in screen.</p>
+                    </div>
+                  </div>
+                  <Switch 
+                    enabled={roles.find(r => r.id === selectedRole.id)?.excludeFromAttendance || false}
+                    onChange={(val) => handleToggleAttendanceExclude(selectedRole.id, val)}
+                  />
+                </div>
               </div>
 
               <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex justify-between items-center">
@@ -2086,13 +2114,13 @@ const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => 
   );
 };
 
-const CreateIngredientModal = ({ onClose, onCreated }: { onClose: () => void, onCreated?: () => void }) => {
-  const [name, setName] = useState('');
-  const [sku, setSku] = useState('');
-  const [category, setCategory] = useState('');
-  const [unit, setUnit] = useState('kg');
-  const [price, setPrice] = useState('');
-  const [capacity, setCapacity] = useState('');
+const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: () => void, onCreated?: () => void, ingredient?: IngredientItem }) => {
+  const [name, setName] = useState(ingredient?.name || '');
+  const [sku, setSku] = useState(ingredient?.sku || '');
+  const [category, setCategory] = useState(ingredient?.category?.join(', ') || '');
+  const [unit, setUnit] = useState(ingredient?.unit || 'kg');
+  const [price, setPrice] = useState(ingredient?.pricePerUnit?.toString() || '');
+  const [capacity, setCapacity] = useState(ingredient?.capacity?.toString() || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2100,7 +2128,11 @@ const CreateIngredientModal = ({ onClose, onCreated }: { onClose: () => void, on
     if (!name || !sku || !unit || !capacity) { setError('Name, SKU, unit, capacity required.'); return; }
     setIsLoading(true);
     try {
-      await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0 });
+      if (ingredient) {
+        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0 });
+      } else {
+        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0 });
+      }
       if (onCreated) onCreated();
       onClose();
     } catch (err: any) { setError(err.message || 'Failed.'); }
@@ -2113,8 +2145,8 @@ const CreateIngredientModal = ({ onClose, onCreated }: { onClose: () => void, on
       <div className="relative w-full max-w-lg bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
         <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low">
           <div>
-            <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">New Ingredient</h2>
-            <p className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mt-1">Initialize master data for a new stock item</p>
+            <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">{ingredient ? 'Edit Ingredient' : 'New Ingredient'}</h2>
+            <p className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mt-1">{ingredient ? 'Modify ingredient data' : 'Initialize master data for a new stock item'}</p>
           </div>
           <button onClick={onClose} className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all">
             <span className="material-symbols-outlined">close</span>
@@ -2215,7 +2247,7 @@ const CreateIngredientModal = ({ onClose, onCreated }: { onClose: () => void, on
             disabled={isLoading}
             className="flex-1 py-4 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all shadow-lg shadow-primary/20"
           >
-            {isLoading ? 'Creating...' : 'Create Ingredient'}
+            {isLoading ? 'Saving...' : ingredient ? 'Save Changes' : 'Create Ingredient'}
           </button>
         </div>
       </div>
@@ -2228,6 +2260,7 @@ export const InventoryView = () => {
   const [isAddUsageOpen, setIsAddUsageOpen] = useState(false);
   const [isLogPurchaseOpen, setIsLogPurchaseOpen] = useState(false);
   const [isCreateIngredientOpen, setIsCreateIngredientOpen] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<IngredientItem | null>(null);
   const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
   const [deliveries, setDeliveries] = useState<PurchaseLog[]>([]);
 
@@ -2237,6 +2270,14 @@ export const InventoryView = () => {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  const handleDeleteIngredient = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this ingredient?')) return;
+    try {
+      await api.inventory.deleteIngredient(id);
+      loadData();
+    } catch(err) { console.error('Delete failed:', err); }
+  };
 
   const totalValue = ingredients.reduce((acc, item) => acc + (item.inStock * item.pricePerUnit), 0);
   const lowStockCount = ingredients.filter(item => item.stockLevel === 'Critical' || item.stockLevel === 'Low').length;
@@ -2356,6 +2397,7 @@ export const InventoryView = () => {
                   <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">In Stock / Capacity</th>
                   <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Stock Level</th>
                   <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-right">Unit Price</th>
+                  <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
@@ -2400,6 +2442,22 @@ export const InventoryView = () => {
                     </td>
                     <td className="px-8 py-6 text-right">
                       <p className="text-sm font-bold text-on-surface">{formatCurrency(item.pricePerUnit)}/{item.unit}</p>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => setEditingIngredient(item)}
+                          className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all hover:text-secondary"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteIngredient(item.id)}
+                          className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center text-error hover:bg-error/20 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2484,6 +2542,7 @@ export const InventoryView = () => {
         {isLogPurchaseOpen && <LogPurchaseModal ingredients={ingredients} onClose={() => setIsLogPurchaseOpen(false)} onSuccess={loadData} />}
 
         {isCreateIngredientOpen && <CreateIngredientModal onClose={() => setIsCreateIngredientOpen(false)} onCreated={loadData} />}
+        {editingIngredient && <CreateIngredientModal ingredient={editingIngredient} onClose={() => setEditingIngredient(null)} onCreated={loadData} />}
       </div>
     </div>
   );
@@ -2982,6 +3041,27 @@ const ProductManagementView = () => {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleProductSelect = (id: string) => {
+    const next = new Set(selectedProductIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedProductIds(next);
+  };
+  const toggleSelectAllProducts = () => {
+    if (selectedProductIds.size === products.length && products.length > 0) setSelectedProductIds(new Set());
+    else setSelectedProductIds(new Set(products.map(p => p.id)));
+  };
+  const deleteSelectedProducts = async () => {
+    if (!confirm(`Delete ${selectedProductIds.size} product(s)?`)) return;
+    try {
+      for (const id of Array.from(selectedProductIds)) {
+        await api.products.deleteProduct(id);
+      }
+      setSelectedProductIds(new Set());
+      loadProducts();
+    } catch(err) { console.error('Delete failed', err); }
+  };
 
   const loadProducts = () => { api.products.listProducts().then(setProducts).catch(console.error); };
 
@@ -2995,6 +3075,15 @@ const ProductManagementView = () => {
           <p className="text-on-surface-variant text-sm">Manage your menu items and categories.</p>
         </div>
         <div className="flex gap-4">
+          {selectedProductIds.size > 0 && (
+            <button 
+              onClick={deleteSelectedProducts}
+              className="px-6 py-3 bg-error/10 text-error rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">delete</span>
+              DELETE ({selectedProductIds.size})
+            </button>
+          )}
           <button 
             onClick={() => setIsAddCategoryOpen(true)}
             className="px-6 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center gap-2"
@@ -3016,27 +3105,33 @@ const ProductManagementView = () => {
         <table className="w-full">
           <thead>
             <tr className="bg-surface-container-low/30">
-              <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-left">Product</th>
-              <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-left">Category</th>
-              <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-right">Price</th>
+              <th className="px-6 py-6 w-12 text-center">
+                <input type="checkbox" checked={products.length > 0 && selectedProductIds.size === products.length} onChange={toggleSelectAllProducts} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+              </th>
+              <th className="px-4 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-left">Product</th>
+              <th className="px-4 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-left">Category</th>
+              <th className="px-4 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-right">Price</th>
               <th className="px-8 py-6 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5">
             {products.map((product) => (
               <tr key={product.id} className="hover:bg-surface-container-high/50 transition-colors">
-                <td className="px-8 py-6">
+                <td className="px-6 py-6 text-center">
+                  <input type="checkbox" checked={selectedProductIds.has(product.id)} onChange={() => toggleProductSelect(product.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                </td>
+                <td className="px-4 py-6">
                   <div className="flex items-center gap-4">
                     <img src={product.image} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
                     <p className="font-bold text-on-surface">{product.name}</p>
                   </div>
                 </td>
-                <td className="px-8 py-6">
+                <td className="px-4 py-6">
                   <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded-md">
                     {product.category}
                   </span>
                 </td>
-                <td className="px-8 py-6 text-right font-bold text-on-surface">{formatCurrency(product.price)}</td>
+                <td className="px-4 py-6 text-right font-bold text-on-surface">{formatCurrency(product.price)}</td>
                 <td className="px-8 py-6 text-right">
                   <button 
                     onClick={() => setEditingProduct(product)}
@@ -3281,6 +3376,27 @@ const CustomersView = () => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<CustomerDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+
+  const toggleCustomerSelect = (id: string) => {
+    const next = new Set(selectedCustomerIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedCustomerIds(next);
+  };
+  const toggleSelectAllCustomers = () => {
+    if (selectedCustomerIds.size === customers.length && customers.length > 0) setSelectedCustomerIds(new Set());
+    else setSelectedCustomerIds(new Set(customers.map(c => c.id)));
+  };
+  const deleteSelectedCustomers = async () => {
+    if (!confirm(`Delete ${selectedCustomerIds.size} customer(s)?`)) return;
+    try {
+      for (const id of Array.from(selectedCustomerIds)) {
+        await api.customers.deleteCustomer(id);
+      }
+      setSelectedCustomerIds(new Set());
+      loadCustomers(search || undefined);
+    } catch(err) { console.error('Delete failed', err); }
+  };
 
   const loadCustomers = (q?: string) => {
     setLoading(true);
@@ -3318,16 +3434,27 @@ const CustomersView = () => {
         <p className="text-on-surface-variant text-sm mb-6">All registered customers and their purchase history.</p>
 
         {/* Search bar */}
-        <div className="flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant/20 mb-6">
-          <span className="material-symbols-outlined text-on-surface-variant">search</span>
-          <input
-            type="text"
-            value={search}
-            onChange={e => handleSearch(e.target.value)}
-            placeholder="Search by name or phone…"
-            className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface"
-          />
-          {search && <button onClick={() => handleSearch('')} className="text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined text-[18px]">close</span></button>}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 flex items-center gap-3 bg-surface-container rounded-xl px-4 py-3 border border-outline-variant/20">
+            <span className="material-symbols-outlined text-on-surface-variant">search</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => handleSearch(e.target.value)}
+              placeholder="Search by name or phone…"
+              className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface"
+            />
+            {search && <button onClick={() => handleSearch('')} className="text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined text-[18px]">close</span></button>}
+          </div>
+          {selectedCustomerIds.size > 0 && (
+            <button 
+              onClick={deleteSelectedCustomers}
+              className="px-6 py-3 bg-error/10 text-error rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">delete</span>
+              DELETE ({selectedCustomerIds.size})
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -3342,6 +3469,9 @@ const CustomersView = () => {
             <table className="w-full text-sm">
               <thead className="bg-surface-container-high">
                 <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant">
+                  <th className="px-5 py-3 w-12 text-center">
+                    <input type="checkbox" checked={customers.length > 0 && selectedCustomerIds.size === customers.length} onChange={toggleSelectAllCustomers} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                  </th>
                   <th className="text-left px-5 py-3">Name</th>
                   <th className="text-left px-5 py-3">Phone</th>
                   <th className="text-right px-5 py-3">Orders</th>
@@ -3353,6 +3483,9 @@ const CustomersView = () => {
               <tbody>
                 {customers.map(c => (
                   <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
+                    <td className="px-5 py-4 text-center">
+                      <input type="checkbox" checked={selectedCustomerIds.has(c.id)} onChange={() => toggleCustomerSelect(c.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">{c.name[0]?.toUpperCase()}</div>
@@ -3627,6 +3760,9 @@ const DEFAULT_INTEGRATION = {
   firebaseApiKey: '', firebaseAuthDomain: '', firebaseProjectId: '',
   firebaseStorageBucket: '', firebaseMessagingSenderId: '', firebaseAppId: '',
   firebaseMeasurementId: '',
+  bunnyEnabled: false,
+  bunnyApiKey: '', bunnyStorageZone: '', bunnyStorageRegion: '',
+  bunnyCdnHostname: '', bunnyPullZoneId: '',
 };
 
 const IntegrationView = () => {
@@ -3833,6 +3969,62 @@ const IntegrationView = () => {
               <div>
                 <label className={labelClass}>Storage Bucket</label>
                 <input type="text" value={cfg.firebaseStorageBucket} onChange={e => update('firebaseStorageBucket', e.target.value)} placeholder="project-id.appspot.com" className={inputClass} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* BunnyNet CDN Storage */}
+        <div className="bg-surface-container rounded-2xl p-8 border border-outline-variant/10">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#ff6600]/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[#ff6600]">cloud_upload</span>
+              </div>
+              <div>
+                <div className="font-headline font-bold text-on-surface">BunnyNet CDN</div>
+                <div className="text-xs text-on-surface-variant">Store and serve product images via Bunny.net edge storage</div>
+              </div>
+            </div>
+            <Toggle value={cfg.bunnyEnabled} onChange={v => update('bunnyEnabled', v)} />
+          </div>
+
+          <div className={`space-y-4 transition-opacity duration-200 ${cfg.bunnyEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className={labelClass}>API Key</label>
+                <input type="password" value={cfg.bunnyApiKey} onChange={e => update('bunnyApiKey', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">Your Bunny.net account API key from the dashboard</p>
+              </div>
+              <div>
+                <label className={labelClass}>Storage Zone Name</label>
+                <input type="text" value={cfg.bunnyStorageZone} onChange={e => update('bunnyStorageZone', e.target.value)} placeholder="my-storage-zone" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">The name of your Bunny Storage zone</p>
+              </div>
+              <div>
+                <label className={labelClass}>Storage Region</label>
+                <select value={cfg.bunnyStorageRegion} onChange={e => update('bunnyStorageRegion', e.target.value)} className={inputClass}>
+                  <option value="">Default (Falkenstein)</option>
+                  <option value="de">🇩🇪 Germany (Falkenstein)</option>
+                  <option value="uk">🇬🇧 United Kingdom (London)</option>
+                  <option value="ny">🇺🇸 US East (New York)</option>
+                  <option value="la">🇺🇸 US West (Los Angeles)</option>
+                  <option value="sg">🇸🇬 Asia (Singapore)</option>
+                  <option value="syd">🇦🇺 Oceania (Sydney)</option>
+                  <option value="br">🇧🇷 South America (São Paulo)</option>
+                  <option value="jh">🇿🇦 Africa (Johannesburg)</option>
+                  <option value="se">🇸🇪 Europe North (Stockholm)</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>CDN Hostname</label>
+                <input type="text" value={cfg.bunnyCdnHostname} onChange={e => update('bunnyCdnHostname', e.target.value)} placeholder="myzone.b-cdn.net" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">Your Pull Zone hostname for serving files</p>
+              </div>
+              <div>
+                <label className={labelClass}>Pull Zone ID</label>
+                <input type="text" value={cfg.bunnyPullZoneId} onChange={e => update('bunnyPullZoneId', e.target.value)} placeholder="123456" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">Optional — used for cache purging</p>
               </div>
             </div>
           </div>
@@ -4213,6 +4405,34 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+
+  const toggleUserSelect = (id: string) => {
+    const next = new Set(selectedUserIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedUserIds(next);
+  };
+  const toggleSelectAllUsers = () => {
+    if (selectedUserIds.size === users.length && users.length > 0) setSelectedUserIds(new Set());
+    else setSelectedUserIds(new Set(users.map(u => u.id)));
+  };
+  const fireSelectedUsers = async () => {
+    if (!confirm(`Fire ${selectedUserIds.size} personnel? This will deactivate their access.`)) return;
+    try {
+      for (const id of Array.from(selectedUserIds)) {
+        await api.users.deleteUser(id);
+      }
+      setSelectedUserIds(new Set());
+      loadUsers();
+    } catch(err) { console.error('Fire failed', err); }
+  };
+  const fireUser = async (id: string) => {
+    if (!confirm(`Fire this personnel? This will deactivate their access.`)) return;
+    try {
+      await api.users.deleteUser(id);
+      loadUsers();
+    } catch(err) { console.error('Fire failed', err); }
+  };
 
   const loadUsers = () => { api.users.listUsers().then(setUsers).catch(console.error); };
 
@@ -4267,7 +4487,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   const [locations, setLocations] = useState<import('../api/locations').Location[]>([]);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<import('../api/locations').Location | null>(null);
-  const [locationForm, setLocationForm] = useState({ name: '', subtitle: '', address: '', phone: '', email: '', tablesCount: 0, barCount: 0 });
+  const [locationForm, setLocationForm] = useState({ name: '', subtitle: '', address: '', phone: '', email: '', tablesCount: 0, barCount: 0, openingTime: '09:00', closingTime: '22:00' });
   const [locationSaving, setLocationSaving] = useState(false);
 
   const loadLocations = () => { api.locations.listLocations().then(setLocations).catch(console.error); };
@@ -4275,13 +4495,13 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
   const openAddLocation = () => {
     setEditingLocation(null);
-    setLocationForm({ name: '', subtitle: '', address: '', phone: '', email: '', tablesCount: 0, barCount: 0 });
+    setLocationForm({ name: '', subtitle: '', address: '', phone: '', email: '', tablesCount: 0, barCount: 0, openingTime: '09:00', closingTime: '22:00' });
     setLocationModalOpen(true);
   };
 
   const openEditLocation = (loc: import('../api/locations').Location) => {
     setEditingLocation(loc);
-    setLocationForm({ name: loc.name, subtitle: loc.subtitle ?? '', address: loc.address, phone: loc.phone, email: loc.email, tablesCount: loc.tablesCount, barCount: loc.barCount });
+    setLocationForm({ name: loc.name, subtitle: loc.subtitle ?? '', address: loc.address, phone: loc.phone, email: loc.email, tablesCount: loc.tablesCount, barCount: loc.barCount, openingTime: loc.openingTime || '09:00', closingTime: loc.closingTime || '22:00' });
     setLocationModalOpen(true);
   };
 
@@ -4327,6 +4547,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         {currentSetting === 'sales' && <SalesView />}
         {currentSetting === 'customers' && <CustomersView />}
         {currentSetting === 'products' && <ProductManagementView />}
+        {currentSetting === 'inventory' && <InventoryView />}
         {currentSetting === 'localization' && <LocalizationView />}
         {currentSetting === 'integration' && <IntegrationView />}
         {currentSetting === 'notifications' && <NotificationsSettingsView />}
@@ -4703,7 +4924,18 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             {/* Personnel Registry */}
             <div className="bg-surface-container rounded-xl border border-outline-variant/10 mb-10 overflow-hidden">
               <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">PERSONNEL REGISTRY</h3>
+                <div className="flex items-center gap-4">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">PERSONNEL REGISTRY</h3>
+                  {selectedUserIds.size > 0 && (
+                    <button 
+                      onClick={fireSelectedUsers}
+                      className="px-4 py-2 bg-error/10 text-error rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">person_remove</span>
+                      FIRE SELECTED ({selectedUserIds.size})
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">search</span>
                   <input 
@@ -4716,15 +4948,21 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-surface-container-low">
+                    <th className="px-6 py-4 w-12 text-center border-b border-outline-variant/10">
+                      <input type="checkbox" checked={users.length > 0 && selectedUserIds.size === users.length} onChange={toggleSelectAllUsers} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                    </th>
                     <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10">PERSONNEL</th>
                     <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10">ROLE</th>
                     <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10">ATTENDANCE SCORE</th>
-                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10 text-right">EDIT</th>
+                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10 text-right">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
                   {users.map(user => (
                     <tr key={user.id} className="hover:bg-surface-container-high transition-colors group">
+                      <td className="px-6 py-6 text-center">
+                        <input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                      </td>
                       <td className="px-6 py-6">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 rounded bg-surface-container-high border border-outline-variant/30 overflow-hidden flex items-center justify-center text-on-surface-variant">
@@ -4751,12 +4989,22 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         </div>
                       </td>
                       <td className="px-6 py-6 text-right">
-                        <button 
-                          onClick={() => setSelectedDossierUser({ user, edit: true })}
-                          className="p-2 hover:bg-surface-container-highest rounded transition-colors text-on-surface-variant hover:text-on-surface"
-                        >
-                          <span className="material-symbols-outlined text-sm">edit_note</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => setSelectedDossierUser({ user, edit: true })}
+                            className="p-2 bg-surface-container-highest hover:bg-surface-variant rounded-lg transition-colors text-on-surface flex items-center justify-center"
+                            title="Edit Dossier"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit_note</span>
+                          </button>
+                          <button 
+                            onClick={() => fireUser(user.id)}
+                            className="p-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors flex items-center justify-center"
+                            title="Fire Personnel"
+                          >
+                            <span className="material-symbols-outlined text-sm">person_remove</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -5127,6 +5375,18 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Bar Seats</label>
                         <input type="number" min={0} value={locationForm.barCount} onChange={e => setLocationForm(f => ({ ...f, barCount: parseInt(e.target.value) || 0 }))}
                           className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Opening Time</label>
+                        <input type="time" value={locationForm.openingTime} onChange={e => setLocationForm(f => ({ ...f, openingTime: e.target.value }))}
+                          className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Closing Time</label>
+                        <input type="time" value={locationForm.closingTime} onChange={e => setLocationForm(f => ({ ...f, closingTime: e.target.value }))}
+                          className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer" />
                       </div>
                     </div>
                   </div>

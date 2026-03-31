@@ -47,6 +47,12 @@ export interface IntegrationData {
   firebaseMessagingSenderId: string;
   firebaseAppId: string;
   firebaseMeasurementId: string;
+  bunnyEnabled: boolean;
+  bunnyApiKey: string;
+  bunnyStorageZone: string;
+  bunnyStorageRegion: string;
+  bunnyCdnHostname: string;
+  bunnyPullZoneId: string;
 }
 
 export const DEFAULT_BRANDING: BrandingData = {
@@ -117,6 +123,12 @@ function mapIntegration(raw: any): IntegrationData {
     firebaseMessagingSenderId: raw.firebase_messaging_sender_id ?? '',
     firebaseAppId:      raw.firebase_app_id     ?? '',
     firebaseMeasurementId: raw.firebase_measurement_id ?? '',
+    bunnyEnabled:       raw.bunny_enabled       ?? false,
+    bunnyApiKey:        raw.bunny_api_key       ?? '',
+    bunnyStorageZone:   raw.bunny_storage_zone  ?? '',
+    bunnyStorageRegion: raw.bunny_storage_region ?? '',
+    bunnyCdnHostname:   raw.bunny_cdn_hostname  ?? '',
+    bunnyPullZoneId:    raw.bunny_pull_zone_id  ?? '',
   };
 }
 
@@ -206,6 +218,12 @@ export async function updateIntegration(data: IntegrationData): Promise<Integrat
       firebase_messaging_sender_id: data.firebaseMessagingSenderId,
       firebase_app_id:      data.firebaseAppId,
       firebase_measurement_id: data.firebaseMeasurementId,
+      bunny_enabled:        data.bunnyEnabled,
+      bunny_api_key:        data.bunnyApiKey,
+      bunny_storage_zone:   data.bunnyStorageZone,
+      bunny_storage_region: data.bunnyStorageRegion,
+      bunny_cdn_hostname:   data.bunnyCdnHostname,
+      bunny_pull_zone_id:   data.bunnyPullZoneId,
     }),
   });
   return mapIntegration(raw);

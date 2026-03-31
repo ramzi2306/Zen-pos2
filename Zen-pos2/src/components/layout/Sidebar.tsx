@@ -38,10 +38,12 @@ export const Sidebar = ({
     { id: 'profile',       icon: 'manage_accounts',      label: 'My Profile',      category: 'pos_settings', permission: 'view_settings' },
 
     // Administration
-    { id: 'sales',      icon: 'bar_chart',       label: 'Sales',           category: 'admin_panel', permission: 'view_orders'   },
-    { id: 'customers',  icon: 'groups',          label: 'Customers',       category: 'admin_panel', permission: 'view_orders'   },
-    { id: 'products',   icon: 'restaurant_menu', label: 'Products',        category: 'admin_panel', permission: 'view_settings' },
-    { id: 'hr',         icon: 'badge',           label: 'Human Resources', category: 'admin_panel', permission: 'view_hr'       },
+    { id: 'sales',      icon: 'bar_chart',       label: 'Sales',           category: 'admin_panel', permission: 'view_orders'     },
+    { id: 'customers',  icon: 'groups',          label: 'Customers',       category: 'admin_panel', permission: 'view_orders'     },
+    { id: 'products',   icon: 'restaurant_menu', label: 'Products',        category: 'admin_panel', permission: 'view_settings'   },
+    { id: 'inventory',  icon: 'inventory_2',     label: 'Inventory',       category: 'admin_panel', permission: 'view_inventory'  },
+    { id: 'attendance', icon: 'fingerprint',     label: 'Attendance',      category: 'admin_panel', permission: 'view_attendance' },
+    { id: 'hr',         icon: 'badge',           label: 'Human Resources', category: 'admin_panel', permission: 'view_hr'         },
   ];
 
   const filteredItems = navItems.filter(

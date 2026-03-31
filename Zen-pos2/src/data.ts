@@ -61,6 +61,7 @@ export interface Role {
   id: string;
   name: string;
   permissions: Permission[];
+  excludeFromAttendance: boolean;
 }
 
 export interface User {
