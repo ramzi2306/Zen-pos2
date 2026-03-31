@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+import httpx
 
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.schemas.settings import (
@@ -74,3 +75,33 @@ async def update_integration(data: IntegrationUpdate):
         setattr(doc, field, value)
     await doc.save()
     return doc
+
+
+@router.post("/integration/test-bunny")
+async def test_bunny_connection():
+    doc = await _get_integration()
+
+    if not doc.bunny_api_key:
+        return {"ok": False, "message": "No API key configured."}
+    if not doc.bunny_storage_zone:
+        return {"ok": False, "message": "No Storage Zone name configured."}
+
+    region = doc.bunny_storage_region or ""
+    host = f"{region}.storage.bunnycdn.com" if region and region != "de" else "storage.bunnycdn.com"
+    url = f"https://{host}/{doc.bunny_storage_zone}/"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers={"AccessKey": doc.bunny_api_key})
+        if resp.status_code == 200:
+            return {"ok": True, "message": f"Connected to {host}/{doc.bunny_storage_zone}"}
+        elif resp.status_code == 401:
+            return {"ok": False, "message": "Authentication failed — check your API key (use the Storage Zone Password, not the account API key)."}
+        elif resp.status_code == 404:
+            return {"ok": False, "message": f"Storage zone '{doc.bunny_storage_zone}' not found on region '{host}'."}
+        else:
+            return {"ok": False, "message": f"HTTP {resp.status_code}: {resp.text[:300]}"}
+    except httpx.ConnectError:
+        return {"ok": False, "message": f"Could not reach {host} — check your region setting."}
+    except httpx.TimeoutException:
+        return {"ok": False, "message": "Connection timed out."}

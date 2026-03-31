@@ -73,6 +73,12 @@ class IntegrationUpdate(BaseModel):
     firebase_messaging_sender_id: Optional[str] = None
     firebase_app_id: Optional[str] = None
     firebase_measurement_id: Optional[str] = None
+    bunny_enabled: Optional[bool] = None
+    bunny_api_key: Optional[str] = None
+    bunny_storage_zone: Optional[str] = None
+    bunny_storage_region: Optional[str] = None
+    bunny_cdn_hostname: Optional[str] = None
+    bunny_pull_zone_id: Optional[str] = None
 
 
 class IntegrationOut(BaseModel):
@@ -96,3 +102,9 @@ class IntegrationOut(BaseModel):
     firebase_messaging_sender_id: str
     firebase_app_id: str
     firebase_measurement_id: str
+    bunny_enabled: bool
+    bunny_api_key: str
+    bunny_storage_zone: str
+    bunny_storage_region: str
+    bunny_cdn_hostname: str
+    bunny_pull_zone_id: str

@@ -194,6 +194,10 @@ export async function getIntegration(): Promise<IntegrationData> {
   return mapIntegration(raw);
 }
 
+export async function testBunnyConnection(): Promise<{ ok: boolean; message: string }> {
+  return apiRequest<{ ok: boolean; message: string }>('/settings/integration/test-bunny', { method: 'POST' });
+}
+
 export async function updateIntegration(data: IntegrationData): Promise<IntegrationData> {
   const raw = await apiRequest<any>('/settings/integration', {
     method: 'PUT',

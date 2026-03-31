@@ -3769,6 +3769,8 @@ const IntegrationView = () => {
   const [cfg, setCfg] = useState<api.settings.IntegrationData>(DEFAULT_INTEGRATION as api.settings.IntegrationData);
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState<'telegram' | 'email' | null>(null);
+  const [bunnyTestStatus, setBunnyTestStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [bunnyTesting, setBunnyTesting] = useState(false);
 
   useEffect(() => {
     api.settings.getIntegration().then(d => setCfg(d)).catch(() => {
@@ -3798,6 +3800,19 @@ const IntegrationView = () => {
     setTesting(channel);
     await new Promise(r => setTimeout(r, 1800));
     setTesting(null);
+  };
+
+  const handleTestBunny = async () => {
+    setBunnyTesting(true);
+    setBunnyTestStatus(null);
+    try {
+      const result = await api.settings.testBunnyConnection();
+      setBunnyTestStatus(result);
+    } catch (err: any) {
+      setBunnyTestStatus({ ok: false, message: err.message ?? 'Request failed' });
+    } finally {
+      setBunnyTesting(false);
+    }
   };
 
   const inputClass = "w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 text-sm";
@@ -4026,6 +4041,25 @@ const IntegrationView = () => {
                 <input type="text" value={cfg.bunnyPullZoneId} onChange={e => update('bunnyPullZoneId', e.target.value)} placeholder="123456" className={inputClass} />
                 <p className="text-xs text-on-surface-variant mt-1">Optional — used for cache purging</p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-4 pt-2">
+              <button
+                onClick={handleTestBunny}
+                disabled={bunnyTesting || !cfg.bunnyApiKey || !cfg.bunnyStorageZone}
+                className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors disabled:opacity-40"
+              >
+                {bunnyTesting
+                  ? <><span className="material-symbols-outlined text-sm animate-spin">sync</span>Testing…</>
+                  : <><span className="material-symbols-outlined text-sm">wifi_tethering</span>Test Connection</>
+                }
+              </button>
+              {bunnyTestStatus && (
+                <div className={`flex items-center gap-2 text-sm font-semibold ${bunnyTestStatus.ok ? 'text-tertiary' : 'text-error'}`}>
+                  <span className="material-symbols-outlined text-[18px]">{bunnyTestStatus.ok ? 'check_circle' : 'error'}</span>
+                  {bunnyTestStatus.message}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -5296,7 +5330,36 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       {loc.address && (
                         <p className="text-xs text-on-surface-variant mb-1 leading-relaxed">{loc.address.split('\n')[0]}</p>
                       )}
-                      {loc.phone && <p className="text-xs text-on-surface-variant mb-3">{loc.phone}</p>}
+                      {loc.phone && <p className="text-xs text-on-surface-variant mb-1">{loc.phone}</p>}
+                      {(loc.openingTime || loc.closingTime) && (() => {
+                        const fmt = (t?: string) => {
+                          if (!t) return '';
+                          const [h, m] = t.split(':').map(Number);
+                          const ampm = h >= 12 ? 'PM' : 'AM';
+                          return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${ampm}`;
+                        };
+                        const isOpen = (() => {
+                          if (!loc.openingTime || !loc.closingTime) return null;
+                          const now = new Date();
+                          const cur = now.getHours() * 60 + now.getMinutes();
+                          const [oh, om] = loc.openingTime.split(':').map(Number);
+                          const [ch, cm] = loc.closingTime.split(':').map(Number);
+                          const open = oh * 60 + om;
+                          const close = ch * 60 + cm;
+                          return close <= open ? cur >= open || cur < close : cur >= open && cur < close;
+                        })();
+                        return (
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="material-symbols-outlined text-sm text-on-surface-variant">schedule</span>
+                            <span className="text-xs text-on-surface-variant">{fmt(loc.openingTime)} – {fmt(loc.closingTime)}</span>
+                            {isOpen !== null && (
+                              <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isOpen ? 'bg-tertiary/15 text-tertiary' : 'bg-error/15 text-error'}`}>
+                                {isOpen ? 'OPEN' : 'CLOSED'}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-wrap gap-2 mb-4">
                         {loc.tablesCount > 0 && (
                           <span className="bg-surface-container-high text-on-surface text-[10px] px-2 py-1 rounded font-bold uppercase tracking-micro">{loc.tablesCount} Tables</span>
