@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -76,9 +76,30 @@ async def health():
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="frontend-assets")
 
+    # Paths that must never be intercepted and sent to the SPA
+    _PASS_THROUGH = ("/assets", "/docs", "/redoc", "/openapi.json", "/ws")
+
+    @app.middleware("http")
+    async def spa_browser_fallback(request: Request, call_next):
+        """
+        Browser page refreshes send Accept: text/html — serve index.html so the
+        React SPA can boot and handle client-side routing.
+        Fetch / XHR calls from the frontend send Accept: */* and are unaffected.
+        """
+        accept = request.headers.get("accept", "")
+        path = request.url.path
+        is_browser_nav = request.method == "GET" and "text/html" in accept
+        is_pass_through = any(path.startswith(p) for p in _PASS_THROUGH)
+        index = STATIC_DIR / "index.html"
+
+        if is_browser_nav and not is_pass_through and index.is_file():
+            return FileResponse(index)
+
+        return await call_next(request)
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        """Serve index.html for any path not matched by API routes (SPA client-side routing)."""
+        """Serve static files or index.html for any unmatched path."""
         file = STATIC_DIR / full_path
         if file.is_file():
             return FileResponse(file)

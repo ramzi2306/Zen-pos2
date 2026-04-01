@@ -82,9 +82,9 @@ async def test_bunny_connection():
     doc = await _get_integration()
 
     if not doc.bunny_api_key:
-        return {"ok": False, "message": "No API key configured."}
+        return {"ok": False, "message": "Storage Zone Password is empty — enter the FTP password from your Storage Zone."}
     if not doc.bunny_storage_zone:
-        return {"ok": False, "message": "No Storage Zone name configured."}
+        return {"ok": False, "message": "Storage Zone Name is empty — enter your FTP username (e.g. unagisushi)."}
 
     region = doc.bunny_storage_region or ""
     host = f"{region}.storage.bunnycdn.com" if region and region != "de" else "storage.bunnycdn.com"
@@ -94,14 +94,14 @@ async def test_bunny_connection():
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, headers={"AccessKey": doc.bunny_api_key})
         if resp.status_code == 200:
-            return {"ok": True, "message": f"Connected to {host}/{doc.bunny_storage_zone}"}
+            return {"ok": True, "message": f"Connected — {host}/{doc.bunny_storage_zone}"}
         elif resp.status_code == 401:
-            return {"ok": False, "message": "Authentication failed — check your API key (use the Storage Zone Password, not the account API key)."}
+            return {"ok": False, "message": "Wrong password — use the Storage Zone Password (FTP password), not your account API key."}
         elif resp.status_code == 404:
-            return {"ok": False, "message": f"Storage zone '{doc.bunny_storage_zone}' not found on region '{host}'."}
+            return {"ok": False, "message": f"Zone '{doc.bunny_storage_zone}' not found on {host} — check zone name matches your FTP username."}
         else:
-            return {"ok": False, "message": f"HTTP {resp.status_code}: {resp.text[:300]}"}
+            return {"ok": False, "message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
     except httpx.ConnectError:
-        return {"ok": False, "message": f"Could not reach {host} — check your region setting."}
+        return {"ok": False, "message": f"Cannot reach {host} — check your region setting."}
     except httpx.TimeoutException:
         return {"ok": False, "message": "Connection timed out."}

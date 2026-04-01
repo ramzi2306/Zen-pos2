@@ -4007,14 +4007,14 @@ const IntegrationView = () => {
           <div className={`space-y-4 transition-opacity duration-200 ${cfg.bunnyEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className={labelClass}>API Key</label>
-                <input type="password" value={cfg.bunnyApiKey} onChange={e => update('bunnyApiKey', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className={inputClass} />
-                <p className="text-xs text-on-surface-variant mt-1">Your Bunny.net account API key from the dashboard</p>
+                <label className={labelClass}>Storage Zone Password</label>
+                <input type="password" value={cfg.bunnyApiKey} onChange={e => update('bunnyApiKey', e.target.value)} placeholder="Your Storage Zone password (FTP password)" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">Found in your Storage Zone → FTP &amp; API Access. <strong className="text-error">Not</strong> the account API key.</p>
               </div>
               <div>
                 <label className={labelClass}>Storage Zone Name</label>
-                <input type="text" value={cfg.bunnyStorageZone} onChange={e => update('bunnyStorageZone', e.target.value)} placeholder="my-storage-zone" className={inputClass} />
-                <p className="text-xs text-on-surface-variant mt-1">The name of your Bunny Storage zone</p>
+                <input type="text" value={cfg.bunnyStorageZone} onChange={e => update('bunnyStorageZone', e.target.value)} placeholder="e.g. unagisushi" className={inputClass} />
+                <p className="text-xs text-on-surface-variant mt-1">Your FTP username — this is the zone name used in the API URL.</p>
               </div>
               <div>
                 <label className={labelClass}>Storage Region</label>
@@ -4042,25 +4042,25 @@ const IntegrationView = () => {
                 <p className="text-xs text-on-surface-variant mt-1">Optional — used for cache purging</p>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center gap-4 pt-2">
-              <button
-                onClick={handleTestBunny}
-                disabled={bunnyTesting || !cfg.bunnyApiKey || !cfg.bunnyStorageZone}
-                className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors disabled:opacity-40"
-              >
-                {bunnyTesting
-                  ? <><span className="material-symbols-outlined text-sm animate-spin">sync</span>Testing…</>
-                  : <><span className="material-symbols-outlined text-sm">wifi_tethering</span>Test Connection</>
-                }
-              </button>
-              {bunnyTestStatus && (
-                <div className={`flex items-center gap-2 text-sm font-semibold ${bunnyTestStatus.ok ? 'text-tertiary' : 'text-error'}`}>
-                  <span className="material-symbols-outlined text-[18px]">{bunnyTestStatus.ok ? 'check_circle' : 'error'}</span>
-                  {bunnyTestStatus.message}
-                </div>
-              )}
-            </div>
+          <div className="flex items-center gap-4 pt-4 border-t border-outline-variant/10 mt-4">
+            <button
+              onClick={handleTestBunny}
+              disabled={bunnyTesting || !cfg.bunnyApiKey || !cfg.bunnyStorageZone}
+              className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-highest text-on-surface rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {bunnyTesting
+                ? <><span className="material-symbols-outlined text-sm animate-spin">sync</span>Testing…</>
+                : <><span className="material-symbols-outlined text-sm">wifi_tethering</span>Test Connection</>
+              }
+            </button>
+            {bunnyTestStatus && (
+              <div className={`flex items-center gap-2 text-sm font-semibold ${bunnyTestStatus.ok ? 'text-tertiary' : 'text-error'}`}>
+                <span className="material-symbols-outlined text-[18px]">{bunnyTestStatus.ok ? 'check_circle' : 'error'}</span>
+                {bunnyTestStatus.message}
+              </div>
+            )}
           </div>
         </div>
       </div>
