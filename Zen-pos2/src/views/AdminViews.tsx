@@ -1653,6 +1653,7 @@ const RoleManagementView = () => {
     { id: 'view_inventory', label: 'View Inventory', description: 'Monitor and manage stock levels and inventory items.' },
     { id: 'view_settings', label: 'View Settings', description: 'Access to POS branding, hardware, and general settings.' },
     { id: 'manage_roles', label: 'Manage Roles', description: 'Create and edit user roles and their associated permissions.' },
+    { id: 'manage_locations', label: 'Manage Locations', description: 'Create, edit, and assign physical business locations.' },
   ];
 
   const handleTogglePermission = (roleId: string, permission: Permission) => {

@@ -243,11 +243,28 @@ function AppShell() {
     // Role/Email-based fallback for critical views
     const roleName = (currentUser.role || '').toLowerCase();
     const email = (currentUser.email || '').toLowerCase();
-    
+
+    // Cashier roles → menu + orders access
+    const isCashier = roleName.includes('cashier') || roleName.includes('caissier') || roleName.includes('caissière');
+    if (isCashier && (permission === 'view_menu' || permission === 'view_orders')) return true;
+
+    // Manager roles → broad access
+    const isManager = roleName.includes('manager') || roleName.includes('gérant') || roleName.includes('responsable');
+    if (isManager && (permission === 'view_menu' || permission === 'view_orders' || permission === 'view_staff' || permission === 'view_inventory' || permission === 'view_attendance')) return true;
+
+    // Chef / kitchen roles → menu + orders
+    const isChef = roleName.includes('chef') || roleName.includes('cook') || roleName.includes('cuisinier') || roleName.includes('kitchen');
+    if (isChef && (permission === 'view_menu' || permission === 'view_orders')) return true;
+
+    // Admin / owner roles → full access
+    const isAdmin = roleName.includes('admin') || roleName.includes('owner') || roleName.includes('propriétaire');
+    if (isAdmin) return true;
+
+    // Attendance / pointeur roles
     if (permission === 'view_attendance' && (roleName.includes('attendance') || roleName.includes('pointeur') || email.includes('pointeur'))) return true;
-    if (permission === 'view_hr' && roleName.includes('hr')) return true;
-    if (permission === 'view_staff' && roleName.includes('staff')) return true;
-    if (permission === 'view_settings' && roleName.includes('admin')) return true;
+    if (permission === 'view_hr' && (roleName.includes('hr') || isManager)) return true;
+    if (permission === 'view_staff' && (roleName.includes('staff') || isManager)) return true;
+    if (permission === 'view_settings' && isAdmin) return true;
 
     return false;
   };
@@ -302,7 +319,13 @@ function AppShell() {
     const hasRole = (key: string) => roleName.includes(key);
     const hasEmail = (key: string) => email.includes(key);
 
-    if (hasPerm('view_menu')) {
+    // Cashier / chef / manager role-based fast-paths (even if explicit permissions are empty)
+    const isCashier = hasRole('cashier') || hasRole('caissier') || hasRole('caissière');
+    const isChef = hasRole('chef') || hasRole('cook') || hasRole('cuisinier') || hasRole('kitchen');
+    const isManager = hasRole('manager') || hasRole('gérant') || hasRole('responsable');
+    const isAdmin = hasRole('admin') || hasRole('owner') || hasRole('propriétaire');
+
+    if (hasPerm('view_menu') || isCashier || isChef || isManager || isAdmin) {
       navigate('/menu');
     } else if (hasPerm('view_orders')) {
       navigate('/orders');
@@ -311,13 +334,12 @@ function AppShell() {
     } else if (hasPerm('view_staff') || hasPerm('view_hr') || hasRole('staff') || hasRole('hr')) {
       if (hasPerm('view_staff')) navigate('/settings/team');
       else navigate('/admin/hr');
-    } else if (hasPerm('view_settings') || hasRole('admin')) {
+    } else if (hasPerm('view_settings')) {
       navigate('/settings/branding');
+    } else if (hasPerm('view_inventory')) {
+      navigate('/admin/inventory');
     } else {
-      // Final fallback before /menu if we find any specific permission
-      if (perms.length > 0 && !perms.includes('view_menu')) {
-        if (hasPerm('inventory')) navigate('/admin/inventory');
-      }
+      // Absolute fallback: go to menu (hasPermission fallbacks will handle role-based access)
       navigate('/menu');
     }
   };
