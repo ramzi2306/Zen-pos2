@@ -2551,46 +2551,99 @@ export const InventoryView = () => {
 
 const CategoryModal = ({ onClose }: { onClose: () => void }) => {
   const [name, setName] = useState('');
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadCategories = () => {
+    api.products.listCategories().then(setCategories).catch(console.error);
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    setLoading(true);
+    try {
+      await api.products.createCategory(name.trim());
+      setName('');
+      loadCategories();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string, catName: string) => {
+    if (!confirm(`Delete category "${catName}"?`)) return;
+    try {
+      await api.products.deleteCategory(id);
+      loadCategories();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 lg:p-8">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
-        <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low">
+      <div className="relative w-full max-w-md bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500 max-h-[85vh]">
+        <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low shrink-0">
           <div>
-            <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">New Category</h2>
-            <p className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mt-1">Add a new product category</p>
+            <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">Categories</h2>
+            <p className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mt-1">Manage product categories</p>
           </div>
           <button onClick={onClose} className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <div className="p-8 space-y-6">
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Category Name</label>
+        <div className="p-8 space-y-6 overflow-y-auto flex-1">
+          <div className="flex gap-2">
             <input 
               type="text" 
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Beverages"
-              className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              onKeyDown={e => e.key === 'Enter' && handleCreate()}
+              placeholder="New category name..."
+              className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
             />
+            <button 
+              onClick={handleCreate}
+              disabled={loading || !name.trim()}
+              className="px-6 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add
+            </button>
+          </div>
+
+          <div className="space-y-2 mt-4 border-t border-outline-variant/10 pt-4">
+            {categories.map(c => (
+              <div key={c.id} className="flex items-center justify-between bg-surface-container-highest/30 border border-outline-variant/10 rounded-xl p-3">
+                <span className="text-sm font-bold text-on-surface ml-3">{c.name}</span>
+                <button 
+                  onClick={() => handleDelete(c.id, c.name)}
+                  className="w-8 h-8 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-all flex items-center justify-center shrink-0"
+                  title="Delete Category"
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                </button>
+              </div>
+            ))}
+            {categories.length === 0 && (
+              <p className="text-center py-4 text-[10px] text-on-surface-variant uppercase tracking-widest italic my-4">No categories created yet</p>
+            )}
           </div>
         </div>
 
-        <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex gap-4">
+        <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex gap-4 shrink-0">
           <button 
             onClick={onClose}
-            className="flex-1 py-4 bg-surface-container-highest text-on-surface rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all"
+            className="w-full py-4 bg-surface-container-highest text-on-surface rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all"
           >
-            Cancel
-          </button>
-          <button 
-            onClick={onClose}
-            className="flex-1 py-4 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-          >
-            Create Category
+            Done
           </button>
         </div>
       </div>

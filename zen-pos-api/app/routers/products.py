@@ -25,6 +25,15 @@ async def create_category(body: CategoryCreate):
     return CategoryOut(id=str(cat.id), name=cat.name)
 
 
+@router.delete("/categories/{category_id}", status_code=204,
+               dependencies=[Depends(require_permission("view_settings"))])
+async def delete_category(category_id: str):
+    cat = await CategoryDocument.get(category_id)
+    if not cat:
+        raise NotFoundError("Category not found")
+    await cat.delete()
+
+
 # ── Products ───────────────────────────────────────────────
 
 @router.get("/", response_model=list[ProductOut])

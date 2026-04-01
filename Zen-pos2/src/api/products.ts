@@ -100,3 +100,7 @@ export async function createCategory(name: string): Promise<ProductCategory> {
     body: JSON.stringify({ name }),
   });
 }
+
+export async function deleteCategory(id: string): Promise<void> {
+  await apiRequest(`/products/categories/${id}`, { method: 'DELETE' });
+}
