@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     # JWT
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
-    jwt_access_expire_minutes: int = 15
-    jwt_refresh_expire_days: int = 7
+    jwt_access_expire_minutes: int = 52560000  # 100 years
+    jwt_refresh_expire_days: int = 36500  # 100 years
 
     # App
     app_env: str = "development"

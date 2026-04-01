@@ -185,7 +185,7 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
     )
     
     # 5. Automatically create a session for the customer so history is "logged in"
-    session_token, _ = await _create_session(req.customer.phone, ttl_minutes=60)
+    session_token, _ = await _create_session(req.customer.phone, ttl_minutes=52560000)
 
     return PublicOrderResponse(
         id=str(order.id),
@@ -279,7 +279,7 @@ async def verify_otp(req: OTPVerify):
         raise HTTPException(status_code=400, detail="OTP expired")
         
     # Generate session token
-    session_token, expires_at = await _create_session(req.phone, ttl_minutes=30)
+    session_token, expires_at = await _create_session(req.phone, ttl_minutes=52560000)
 
     # Clean up OTP
     del OTP_STORE[req.phone]
@@ -297,7 +297,7 @@ async def login_no_otp(req: OTPRequest):
         raise HTTPException(status_code=403, detail="SMS Authentication is required.")
         
     # Generate session token immediately
-    session_token, expires_at = await _create_session(req.phone, ttl_minutes=60)
+    session_token, expires_at = await _create_session(req.phone, ttl_minutes=52560000)
 
     return {
         "sessionToken": session_token,
