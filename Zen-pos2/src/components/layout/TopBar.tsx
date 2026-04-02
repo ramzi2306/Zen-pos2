@@ -118,7 +118,7 @@ export const TopBar = ({
             <span className="material-symbols-outlined text-[18px] mr-2">receipt_long</span> Commandes
           </button>
         )}
-        {(hasPermission('view_attendance') || hasPermission('view_inventory') || hasPermission('view_hr') || hasPermission('view_staff') || hasPermission('view_settings') || hasPermission('view_orders')) && (
+        {(hasPermission('view_attendance') || hasPermission('view_inventory') || hasPermission('view_hr') || hasPermission('view_staff') || hasPermission('view_settings')) && (
           <button
             onClick={() => setCurrentView('admin_panel')}
             className={`h-full flex items-center px-4 transition-colors font-headline text-[10px] font-bold uppercase tracking-micro ${
