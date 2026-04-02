@@ -2,6 +2,7 @@ import { apiRequest, API_BASE, getAccessToken } from './client';
 
 export interface BrandingData {
   restaurantName: string;
+  metaTitle: string;
   logo: string;
   primaryColor: string;
   secondaryColor: string;
@@ -57,6 +58,7 @@ export interface IntegrationData {
 
 export const DEFAULT_BRANDING: BrandingData = {
   restaurantName: 'Omakase POS',
+  metaTitle: '',
   logo: '',
   primaryColor: '#C0C7D4',
   secondaryColor: '#FFB4A5',
@@ -74,6 +76,7 @@ export const DEFAULT_BRANDING: BrandingData = {
 function mapBranding(raw: any): BrandingData {
   return {
     restaurantName: raw.restaurant_name ?? DEFAULT_BRANDING.restaurantName,
+    metaTitle:      raw.meta_title      ?? '',
     logo:           raw.logo            ?? '',
     primaryColor:   raw.primary_color   ?? DEFAULT_BRANDING.primaryColor,
     secondaryColor: raw.secondary_color ?? DEFAULT_BRANDING.secondaryColor,
@@ -142,6 +145,7 @@ export async function getBranding(): Promise<BrandingData> {
 export async function updateBranding(data: Partial<BrandingData>): Promise<BrandingData> {
   const keyMap: [keyof BrandingData, string][] = [
     ['restaurantName', 'restaurant_name'],
+    ['metaTitle',      'meta_title'],
     ['logo',           'logo'],
     ['primaryColor',   'primary_color'],
     ['secondaryColor', 'secondary_color'],

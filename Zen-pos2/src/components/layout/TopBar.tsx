@@ -29,6 +29,7 @@ export const TopBar = ({
   currentUser,
   hasPermission,
   restaurantName,
+  restaurantLogo,
   locations = [],
   activeLocationId,
   notifications = [],
@@ -42,6 +43,7 @@ export const TopBar = ({
   currentUser: any;
   hasPermission: (p: any) => boolean;
   restaurantName?: string;
+  restaurantLogo?: string;
   locations?: Location[];
   activeLocationId?: string | null;
   notifications?: AppNotification[];
@@ -79,8 +81,14 @@ export const TopBar = ({
     <header className="w-full h-16 flex-shrink-0 bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant/20 flex items-center justify-between px-6 z-[90] relative">
       {/* Brand */}
       <div className="flex items-center gap-4">
-        <div className="w-8 h-8 bg-primary-container rounded hidden md:flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary text-lg">architecture</span>
+        <div className="w-8 h-8 rounded hidden md:flex items-center justify-center overflow-hidden">
+          {restaurantLogo ? (
+            <img src={restaurantLogo} alt="Logo" className="w-full h-full object-contain" />
+          ) : (
+            <div className="w-full h-full bg-primary-container flex items-center justify-center">
+              <span className="material-symbols-outlined text-primary text-lg">architecture</span>
+            </div>
+          )}
         </div>
         <div>
           <h1 className="font-headline font-extrabold text-primary tracking-tight leading-none text-lg">{restaurantName || 'ZEN POS'}</h1>

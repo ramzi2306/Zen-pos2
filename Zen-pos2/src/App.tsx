@@ -88,7 +88,10 @@ function AppShell() {
     root.style.setProperty('--color-primary', branding.primaryColor);
     root.style.setProperty('--color-secondary', branding.secondaryColor);
     root.style.setProperty('--color-tertiary', branding.accentColor);
-  }, [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
+    
+    // Update document title
+    document.title = branding.metaTitle || branding.restaurantName || 'ZEN POS';
+  }, [branding]);
 
   // Load locations once logged in (needed for TopBar switcher)
   useEffect(() => {
@@ -449,6 +452,7 @@ function AppShell() {
             currentUser={currentUser}
             hasPermission={hasPermission}
             restaurantName={branding.restaurantName}
+            restaurantLogo={branding.logo}
             locations={locations}
             activeLocationId={activeLocationId}
             notifications={notifications}

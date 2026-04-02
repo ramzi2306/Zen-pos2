@@ -4667,6 +4667,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   }, [currentSetting, hrDateRange]);
   const [branding, setBranding] = useState(() => appBranding ?? {
     restaurantName: 'Omakase POS',
+    metaTitle: '',
     logo: '',
     primaryColor: '#C0C7D4',
     secondaryColor: '#FFB4A5',
@@ -4851,7 +4852,17 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       onChange={(e) => setBranding({...branding, restaurantName: e.target.value})}
                       className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl px-6 py-4 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-bold text-lg mb-4"
                     />
-                    <p className="text-xs text-on-surface-variant leading-relaxed">The global restaurant name shown in the top bar. Each location has its own subtitle set in POS Settings → Locations.</p>
+                    <p className="text-xs text-on-surface-variant leading-relaxed mb-6">The global restaurant name shown in the top bar. Each location has its own subtitle set in POS Settings → Locations.</p>
+                    
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Site Meta Title</label>
+                    <input
+                      type="text"
+                      value={branding.metaTitle || ''}
+                      onChange={(e) => setBranding({...branding, metaTitle: e.target.value})}
+                      placeholder={branding.restaurantName}
+                      className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl px-6 py-4 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-bold text-lg mb-4"
+                    />
+                    <p className="text-xs text-on-surface-variant leading-relaxed">The name of the site shown in the browser tab.</p>
                   </div>
                 </div>
               </div>

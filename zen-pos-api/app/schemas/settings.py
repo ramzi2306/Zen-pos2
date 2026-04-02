@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 class BrandingUpdate(BaseModel):
     restaurant_name: Optional[str] = None
+    meta_title: Optional[str] = None
     logo: Optional[str] = None
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
@@ -20,6 +21,7 @@ class BrandingUpdate(BaseModel):
 
 class BrandingOut(BaseModel):
     restaurant_name: str
+    meta_title: str = ""
     logo: str = ""
     primary_color: str
     secondary_color: str
