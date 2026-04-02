@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, API_BASE, getAccessToken } from './client';
 
 export interface BrandingData {
   restaurantName: string;
@@ -236,9 +236,8 @@ export async function updateIntegration(data: IntegrationData): Promise<Integrat
 export async function uploadFile(file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  const token = localStorage.getItem('zenpos_token');
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  const res = await fetch(`${apiUrl}/settings/upload`, {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/settings/upload`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
