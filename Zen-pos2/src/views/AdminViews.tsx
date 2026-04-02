@@ -5372,17 +5372,15 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
                     <div className="p-6 grid grid-cols-2 gap-8">
                       {/* Attendance Chart */}
-                      <div className="w-full flex-1">
-                        <ActivityChartCard 
-                          title=""
-                          dropdownOptions={['This Period']}
-                          totalValue={`${filteredAttendance.reduce((sum, a) => sum + (a.hours || 0), 0).toFixed(1)} HRS`}
+                      <div className="w-full min-w-0">
+                        <ActivityChartCard
+                          title="Hours worked"
+                          totalValue={`${filteredAttendance.reduce((sum, a) => sum + (a.hours || 0), 0).toFixed(1)} hrs`}
                           data={filteredAttendance.map(d => ({ day: d.day, value: d.hours || 0 }))}
-                          trend={{ 
-                            value: workedDays > 0 ? Math.round((filteredAttendance.filter(a => a.isLate).length / workedDays) * 100) * -1 : 0, 
-                            label: "% lateness rate" 
-                          }}
-                          className="w-full max-w-full bg-transparent border-none shadow-none p-0"
+                          trend={workedDays > 0 ? {
+                            value: Math.round((filteredAttendance.filter(a => a.isLate).length / workedDays) * 100) * -1,
+                            label: "lateness rate"
+                          } : undefined}
                         />
                       </div>
 

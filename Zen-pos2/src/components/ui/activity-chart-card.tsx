@@ -1,30 +1,13 @@
 import * as React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, TrendingUp } from "lucide-react";
-
+import { motion } from "framer-motion";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 
-// Prop definition for individual data points
 interface ActivityDataPoint {
   day: string;
   value: number;
 }
 
-// Prop definition for the component
 interface ActivityChartCardProps {
   title?: string;
   totalValue: string;
@@ -38,131 +21,119 @@ interface ActivityChartCardProps {
 }
 
 /**
- * A responsive and animated card component to display weekly activity data.
- * Features a bar chart animated with Framer Motion and supports shadcn theming.
+ * Compact attendance bar chart — always stacks vertically.
+ * Handles 1–31 bars gracefully: skips labels when crowded,
+ * uses pixel-thin bars so the chart never overflows its column.
  */
 export const ActivityChartCard = ({
-  title = "Activity",
+  title,
   totalValue,
   data,
   className,
-  dropdownOptions = ["Weekly", "Monthly", "Yearly"],
   trend,
 }: ActivityChartCardProps) => {
-  const [selectedRange, setSelectedRange] = React.useState(
-    dropdownOptions[0] || ""
+  const maxValue = React.useMemo(
+    () => data.reduce((m, d) => (d.value > m ? d.value : m), 0),
+    [data]
   );
 
-  // Find the maximum value in the data to normalize bar heights
-  const maxValue = React.useMemo(() => {
-    return data.reduce((max, item) => (item.value > max ? item.value : max), 0);
-  }, [data]);
+  // Show a day label every N bars to avoid crowding
+  const labelEvery = data.length <= 7 ? 1 : data.length <= 14 ? 2 : data.length <= 21 ? 3 : 7;
 
-  // Framer Motion variants for animations
-  const chartVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1, // Animate each child (bar) with a delay
-      },
-    },
-  };
-
-  const barVariants = {
-    hidden: { scaleY: 0, opacity: 0, transformOrigin: "bottom" },
-    visible: {
-      scaleY: 1,
-      opacity: 1,
-      transformOrigin: "bottom",
-      transition: {
-        duration: 0.5,
-        ease: [0.4, 0, 0.2, 1] as any, // Cubic bezier for a smooth bounce effect
-      },
-    },
-  };
+  const isPositive = !trend || trend.value >= 0;
 
   return (
-    <Card
-      className={cn("w-full max-w-md", className)}
-      aria-labelledby="activity-card-title"
-    >
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle id="activity-card-title">{title}</CardTitle>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-1 text-sm"
-                aria-haspopup="true"
-              >
-                {selectedRange}
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {dropdownOptions.map((option) => (
-                <DropdownMenuItem
-                  key={option}
-                  onSelect={() => setSelectedRange(option)}
-                >
-                  {option}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-          {/* Total Value */}
-          <div className="flex flex-col">
-            <p className="text-5xl font-bold tracking-tighter text-foreground">
-              {totalValue}
+    <div className={cn("flex flex-col gap-3 w-full", className)}>
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col min-w-0">
+          {title && (
+            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">
+              {title}
             </p>
-            <CardDescription className="flex items-center gap-1 font-sans">
-              {trend && (
-                <>
-                  <TrendingUp className={cn("h-4 w-4", trend.value < 0 ? "text-red-500 rotate-180" : "text-emerald-500")} />
-                  {trend.value > 0 ? '+' : ''}{trend.value}% {trend.label}
-                </>
-              )}
-            </CardDescription>
-          </div>
+          )}
+          <p className="text-2xl font-headline font-extrabold text-on-surface leading-none tracking-tight truncate">
+            {totalValue}
+          </p>
+          {trend && (
+            <div className="flex items-center gap-1 mt-1">
+              {isPositive
+                ? <TrendingUp className="h-3 w-3 text-tertiary shrink-0" />
+                : <TrendingDown className="h-3 w-3 text-error shrink-0" />
+              }
+              <span className={cn(
+                "text-[10px] font-semibold leading-none",
+                isPositive ? "text-tertiary" : "text-error"
+              )}>
+                {trend.value > 0 ? "+" : ""}{trend.value}%
+              </span>
+              <span className="text-[10px] text-on-surface-variant leading-none truncate">
+                {trend.label}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
-          {/* Bar Chart */}
+      {/* Bar chart */}
+      {data.length > 0 ? (
+        <div className="flex flex-col gap-1 w-full">
+          {/* Bars */}
           <motion.div
-            key={selectedRange} // Re-trigger animation when range changes
-            className="flex h-28 w-full items-end justify-between gap-2"
-            variants={chartVariants}
+            key={data.length}
+            className="flex items-end w-full gap-px"
+            style={{ height: 56 }}
             initial="hidden"
             animate="visible"
-            aria-label="Activity chart"
+            variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
           >
-            {data.map((item, index) => (
-              <div
-                key={index}
-                className="flex h-full w-full flex-col items-center justify-end gap-2"
-                role="presentation"
-              >
+            {data.map((item, i) => {
+              const heightPct = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+              const hasValue = item.value > 0;
+              return (
                 <motion.div
-                  className="w-full rounded-md bg-primary"
+                  key={i}
+                  className="flex-1 min-w-0 rounded-sm"
                   style={{
-                    height: `${maxValue > 0 ? (item.value / maxValue) * 100 : 0}%`,
+                    height: `${Math.max(heightPct, hasValue ? 6 : 2)}%`,
+                    backgroundColor: hasValue
+                      ? item.value === maxValue
+                        ? "var(--color-primary)"
+                        : "color-mix(in srgb, var(--color-primary) 50%, transparent)"
+                      : "color-mix(in srgb, var(--color-primary) 12%, transparent)",
                   }}
-                  variants={barVariants}
-                  aria-label={`${item.day}: ${item.value} hours`}
+                  variants={{
+                    hidden: { scaleY: 0, originY: 1 },
+                    visible: {
+                      scaleY: 1,
+                      originY: 1,
+                      transition: { duration: 0.35, ease: [0.4, 0, 0.2, 1] },
+                    },
+                  }}
+                  title={`Day ${item.day}: ${item.value}h`}
                 />
-                <span className="text-xs text-muted-foreground">
-                  {item.day}
-                </span>
+              );
+            })}
+          </motion.div>
+
+          {/* Day labels — shown only every N bars */}
+          <div className="flex items-center w-full gap-px">
+            {data.map((item, i) => (
+              <div key={i} className="flex-1 min-w-0 flex justify-center">
+                {i % labelEvery === 0 ? (
+                  <span className="text-[8px] text-on-surface-variant leading-none truncate">
+                    {item.day}
+                  </span>
+                ) : null}
               </div>
             ))}
-          </motion.div>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      ) : (
+        <div className="h-14 flex items-center justify-center">
+          <span className="text-[10px] text-on-surface-variant">No data</span>
+        </div>
+      )}
+    </div>
   );
 };
