@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-export const API_BASE = (import.meta as any).env?.VITE_API_URL || '';
+export const API_BASE = (import.meta as any).env?.PROD ? '' : ((import.meta as any).env?.VITE_API_URL || '');
 
 export function getAccessToken(): string | null {
   return localStorage.getItem('access_token');

@@ -75,9 +75,13 @@ async def health():
 # ── Serve built frontend (production) ─────────────────────
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="frontend-assets")
+    # Serve uploaded files (logos, avatars, etc.) stored locally
+    uploads_dir = STATIC_DIR / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     # Paths that must never be intercepted and sent to the SPA
-    _PASS_THROUGH = ("/assets", "/docs", "/redoc", "/openapi.json", "/ws")
+    _PASS_THROUGH = ("/assets", "/uploads", "/docs", "/redoc", "/openapi.json", "/ws")
 
     @app.middleware("http")
     async def spa_browser_fallback(request: Request, call_next):

@@ -4777,17 +4777,25 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={e => {
+                      onChange={async e => {
                         const file = e.target.files?.[0];
                         if (!file) return;
                         setBrandingSaving(true);
-                        api.settings.uploadFile(file)
-                          .then(({ url }) => setBranding(b => ({ ...b, logo: url })))
-                          .catch((err) => {
-                            console.error('Logo upload failed:', err);
-                            alert('Logo upload failed');
-                          })
-                          .finally(() => setBrandingSaving(false));
+                        try {
+                          const { url } = await api.settings.uploadFile(file);
+                          const updatedBranding = { ...branding, logo: url };
+                          setBranding(updatedBranding);
+                          // Auto-save to backend so logo persists on reload
+                          const saved = await api.settings.updateBranding(updatedBranding);
+                          onBrandingUpdate?.(saved);
+                          setBrandingSaved(true);
+                          setTimeout(() => setBrandingSaved(false), 2500);
+                        } catch (err: any) {
+                          console.error('Logo upload failed:', err);
+                          alert('Logo upload failed');
+                        } finally {
+                          setBrandingSaving(false);
+                        }
                         e.target.value = '';
                       }}
                     />
@@ -4815,7 +4823,19 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     {branding.logo && (
                       <button
                         type="button"
-                        onClick={() => setBranding(b => ({ ...b, logo: '' }))}
+                        onClick={async () => {
+                          const updatedBranding = { ...branding, logo: '' };
+                          setBranding(updatedBranding);
+                          setBrandingSaving(true);
+                          try {
+                            const saved = await api.settings.updateBranding(updatedBranding);
+                            onBrandingUpdate?.(saved);
+                          } catch (err: any) {
+                            console.error('Failed to remove logo:', err);
+                          } finally {
+                            setBrandingSaving(false);
+                          }
+                        }}
                         className="mt-2 w-full text-[10px] font-bold uppercase tracking-widest text-error/60 hover:text-error transition-colors"
                       >
                         Remove
