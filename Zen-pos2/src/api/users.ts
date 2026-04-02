@@ -18,6 +18,10 @@ interface ApiUserPublic {
   location_id?: string;
   location_name?: string;
   shifts?: Record<string, string>;
+  start_date?: string;
+  contract_type?: string;
+  contract_date?: string;
+  contract_expiration?: string;
 }
 
 export interface ApiUserDetail extends ApiUserPublic {
@@ -27,10 +31,6 @@ export interface ApiUserDetail extends ApiUserPublic {
   payroll_due: string;
   rewards: number;
   sanctions: number;
-  start_date: string;
-  contract_type: string;
-  contract_date: string;
-  contract_expiration?: string;
   monthly_attendance: {
     day: string;
     hours: number;
@@ -65,9 +65,10 @@ function mapUserPublic(raw: ApiUserPublic): User {
     monthlyAttendance: [],
     rewards: 0,
     sanctions: 0,
-    startDate: '',
-    contractType: '',
-    contractDate: '',
+    startDate: raw.start_date || '',
+    contractType: raw.contract_type || '',
+    contractDate: raw.contract_date || '',
+    contractExpiration: raw.contract_expiration,
     withdrawalLogs: [],
     personalDocuments: [],
     locationId: raw.location_id,

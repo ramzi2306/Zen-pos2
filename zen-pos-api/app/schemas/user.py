@@ -26,6 +26,10 @@ class UserPublic(BaseModel):
     location_id: Optional[str] = None
     location_name: Optional[str] = None
     shifts: dict[str, str] = {}
+    start_date: str = ""
+    contract_type: str = ""
+    contract_date: str = ""
+    contract_expiration: Optional[str] = None
 
 
 class AttendanceDayOut(BaseModel):
@@ -59,10 +63,6 @@ class UserDetail(UserPublic):
     payroll_due: str
     rewards: int
     sanctions: int
-    start_date: str
-    contract_type: str
-    contract_date: str
-    contract_expiration: Optional[str]
     monthly_attendance: list[AttendanceDayOut]
     withdrawal_logs: list[WithdrawalLogOut]
     personal_documents: list[PersonalDocumentOut]

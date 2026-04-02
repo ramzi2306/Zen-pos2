@@ -1112,7 +1112,7 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
                     </div>
                   </div>
                 </div>
-                <div className="h-64 w-full">
+                <div className="h-64 w-full min-h-[250px]" style={{ minHeight: '250px' }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={filteredAttendance}>
                       <XAxis 
@@ -1823,6 +1823,23 @@ const RoleManagementView = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: {selectedRole.id}</span>
+                  <button 
+                    onClick={() => {
+                        const btn = document.getElementById('save-role-btn');
+                        if (btn) {
+                            btn.textContent = 'SAVED';
+                            btn.classList.add('bg-green-600', 'text-white');
+                            setTimeout(() => {
+                                btn.textContent = 'SAVE CONFIGURATION';
+                                btn.classList.remove('bg-green-600', 'text-white');
+                            }, 2000);
+                        }
+                    }}
+                    id="save-role-btn"
+                    className="px-4 py-2 bg-on-surface text-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-on-surface-variant transition-colors"
+                  >
+                    SAVE CONFIGURATION
+                  </button>
                 </div>
               </div>
               
@@ -5265,7 +5282,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       {/* Attendance Chart */}
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">MONTHLY HOURS DISTRIBUTION</p>
-                        <div className="h-48 w-full">
+                        <div className="h-48 w-full min-h-[200px]" style={{ minHeight: '200px' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={filteredAttendance}>
                               <XAxis 

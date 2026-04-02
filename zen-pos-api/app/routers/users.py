@@ -141,13 +141,17 @@ async def _to_public(user: UserDocument) -> UserPublic:
         permissions=role.permissions if role else [],
         image=user.image,
         base_salary=user.base_salary,
-        attendance_score=user.attendance_score,
+        attendance_score=user.attendance_score if user.monthly_attendance else 0,
         attendance_group=user.attendance_group,
         has_pin=user.hashed_pin is not None,
         is_active=user.is_active,
         location_id=user.location_id,
         location_name=location_name,
         shifts=user.shifts,
+        start_date=user.start_date,
+        contract_type=user.contract_type,
+        contract_date=user.contract_date,
+        contract_expiration=user.contract_expiration,
     )
 
 
@@ -164,7 +168,7 @@ async def _to_detail(user: UserDocument) -> UserDetail:
         permissions=role.permissions if role else [],
         image=user.image,
         base_salary=user.base_salary,
-        attendance_score=user.attendance_score,
+        attendance_score=user.attendance_score if user.monthly_attendance else 0,
         attendance_group=user.attendance_group,
         has_pin=user.hashed_pin is not None,
         is_active=user.is_active,
@@ -188,14 +192,14 @@ async def _to_detail(user: UserDocument) -> UserDetail:
                 reward_note=a.reward_note,
                 sanction_note=a.sanction_note,
             )
-            for a in user.monthly_attendance
+            for a in (user.monthly_attendance or [])
         ],
         withdrawal_logs=[
             WithdrawalLogOut(id=w.id, amount=w.amount, date=w.date, status=w.status)
-            for w in user.withdrawal_logs
+            for w in (user.withdrawal_logs or [])
         ],
         personal_documents=[
             PersonalDocumentOut(id=d.id, name=d.name, type=d.type, url=d.url)
-            for d in user.personal_documents
+            for d in (user.personal_documents or [])
         ],
     )

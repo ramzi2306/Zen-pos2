@@ -59,7 +59,7 @@ class UserDocument(Document):
     image: str = ""
     base_salary: float = 0
     payroll_due: str = ""
-    attendance_score: float = 100
+    attendance_score: float = 0
     shifts: dict[str, str] = Field(default_factory=dict)
     monthly_attendance: list[AttendanceDay] = Field(default_factory=list)
     rewards: int = 0
