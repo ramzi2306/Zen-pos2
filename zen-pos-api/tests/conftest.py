@@ -13,9 +13,10 @@ from app.models.attendance import AttendanceRecordDocument
 from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
 from app.models.token import RefreshTokenDocument
 from app.models.ingredient import IngredientInventoryDocument, PurchaseLogDocument, UsageLogDocument
-from app.models.customer import CustomerDocument
+from app.models.customer import CustomerDocument, CustomerSessionDocument
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.models.location import LocationDocument
+from app.models.otp import OTPDocument
 from app.core.security import hash_password
 
 TEST_MONGO_URL = "mongodb://localhost:27017"
@@ -32,8 +33,8 @@ async def setup_test_db():
             OrderDocument, AttendanceRecordDocument,
             PayrollWithdrawalDocument, PerformanceLogDocument, RefreshTokenDocument,
             IngredientInventoryDocument, PurchaseLogDocument, UsageLogDocument,
-            CustomerDocument, BrandingDocument, LocalizationDocument,
-            IntegrationDocument, LocationDocument,
+            CustomerDocument, CustomerSessionDocument, BrandingDocument, LocalizationDocument,
+            IntegrationDocument, LocationDocument, OTPDocument,
         ],
     )
     # Prevent the app lifespan from re-initializing Beanie with a different Motor client

@@ -34,8 +34,17 @@ async def list_orders(
         query = query.find(OrderDocument.status == status)
     if date:
         from datetime import datetime
-        day_start = datetime.fromisoformat(date).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
-        day_end = datetime.fromisoformat(date).replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        from app.models.settings import LocalizationDocument
+        localization = await LocalizationDocument.find_one({"key": "localization"})
+        tz_name = localization.timezone if localization and localization.timezone else "UTC"
+        try:
+            tz = ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            tz = timezone.utc
+        local_date = datetime.fromisoformat(date)
+        day_start = local_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz).astimezone(timezone.utc)
+        day_end   = local_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz).astimezone(timezone.utc)
         query = query.find(OrderDocument.created_at >= day_start, OrderDocument.created_at <= day_end)
     orders = await query.sort("-created_at").to_list()
     return [_to_out(o) for o in orders]

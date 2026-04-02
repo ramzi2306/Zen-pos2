@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar, TopBar, CartSidebar, MobileNav, CartFloatingAction, ProfilePanel } from './components/Layout';
-import { MenuView } from './views/MenuView';
-import { OrdersView } from './views/OrdersView';
-import { SettingsView } from './views/AdminViews';
-import { AttendanceView } from './views/AttendanceView';
 import { AdminLoginView } from './views/AdminLoginView';
-import PublicMenuPage from './views/public/PublicMenuPage';
+
+// Heavy views are lazy-loaded so cashiers/chefs never download the admin bundle
+const MenuView       = lazy(() => import('./views/MenuView').then(m => ({ default: m.MenuView })));
+const OrdersView     = lazy(() => import('./views/OrdersView').then(m => ({ default: m.OrdersView })));
+const SettingsView   = lazy(() => import('./views/AdminViews').then(m => ({ default: m.SettingsView })));
+const AttendanceView = lazy(() => import('./views/AttendanceView').then(m => ({ default: m.AttendanceView })));
+const PublicMenuPage = lazy(() => import('./views/public/PublicMenuPage'));
 import { PublicCartProvider } from './context/PublicCartContext';
 import { Product, CartItem, VariationOption, Order, User, Permission } from './data';
 import { BrandingData, DEFAULT_BRANDING } from './api/settings';
@@ -50,14 +52,20 @@ function AppShell() {
   // Refs so WS event handler always sees current values without re-registering
   const usersRef = useRef(users);
   const activeLocationIdRef = useRef(activeLocationId);
+  // Debounce ref: rapid WS events collapse into a single listOrders fetch
+  const wsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { usersRef.current = users; }, [users]);
   useEffect(() => { activeLocationIdRef.current = activeLocationId; }, [activeLocationId]);
 
   // Restore session on mount — race against a 5s timeout so a dead backend
   // never leaves the app stuck on the loading spinner indefinitely.
+  // A `cancelled` flag prevents stale responses from updating state after
+  // the timeout fires and clears tokens.
   useEffect(() => {
     const token = api.getAccessToken();
     if (!token) { setIsAuthLoading(false); return; }
+
+    let cancelled = false;
 
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('auth_timeout')), 5000)
@@ -65,16 +73,16 @@ function AppShell() {
 
     Promise.race([api.auth.me(), timeout])
       .then(user => {
+        if (cancelled) return;
         setCurrentUser(user as User);
-        // If they land on the root or an unauthorized default like /menu without permission, 
-        // trigger the same landing logic as login.
-        if (location.pathname === '/' || (location.pathname === '/menu' && !user.permissions.includes('view_menu'))) {
-          // Trigger handleLogin-like logic via timeout to avoid double-nav during mount
+        if (location.pathname === '/' || (location.pathname === '/menu' && !(user as User).permissions.includes('view_menu'))) {
           setTimeout(() => handleLogin(user as User), 0);
         }
       })
-      .catch(() => api.clearTokens())
-      .finally(() => setIsAuthLoading(false));
+      .catch(() => { if (!cancelled) api.clearTokens(); })
+      .finally(() => { if (!cancelled) setIsAuthLoading(false); });
+
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load branding once on mount (no auth required — public config)
@@ -121,13 +129,16 @@ function AppShell() {
       };
       setNotifications(prev => [notif, ...prev].slice(0, 50));
 
-      // Auto-refresh the orders list so UI stays in sync without manual reload
+      // Debounced order refresh — collapses rapid WS events into one fetch
       if (currentUser?.permissions.includes('view_orders')) {
-        api.orders.listOrders(
-          usersRef.current,
-          undefined,
-          activeLocationIdRef.current ?? undefined,
-        ).then(setOrders).catch(console.error);
+        if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
+        wsRefreshTimerRef.current = setTimeout(() => {
+          api.orders.listOrders(
+            usersRef.current,
+            undefined,
+            activeLocationIdRef.current ?? undefined,
+          ).then(setOrders).catch(console.error);
+        }, 300);
       }
 
       // Toast pop-up (auto-dismiss after 4 s)
@@ -171,11 +182,14 @@ function AppShell() {
 
     const refreshOrders = () => {
       if (currentUser.permissions.includes('view_orders')) {
-        api.orders.listOrders(
-          usersRef.current,
-          undefined,
-          activeLocationIdRef.current ?? undefined,
-        ).then(setOrders).catch(console.error);
+        if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
+        wsRefreshTimerRef.current = setTimeout(() => {
+          api.orders.listOrders(
+            usersRef.current,
+            undefined,
+            activeLocationIdRef.current ?? undefined,
+          ).then(setOrders).catch(console.error);
+        }, 300);
       }
     };
 
@@ -214,19 +228,23 @@ function AppShell() {
     };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load orders + users once logged in
+  // Load users first, then orders once — avoids the double-fetch where orders
+  // were called immediately with an empty users array and then again after users loaded.
   useEffect(() => {
     if (!currentUser) return;
-    if (hasPermission('view_orders')) {
-      api.orders.listOrders(users, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
-    }
-    if (hasPermission('view_staff')) {
+    const canOrders = hasPermission('view_orders');
+    const canStaff  = hasPermission('view_staff');
+
+    if (canStaff) {
       api.users.listUsers().then(u => {
         setUsers(u);
-        if (hasPermission('view_orders')) {
+        if (canOrders) {
           api.orders.listOrders(u, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
         }
       }).catch(console.error);
+    } else if (canOrders) {
+      // No staff permission — fetch orders directly (users array stays empty)
+      api.orders.listOrders([], undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -406,21 +424,16 @@ function AppShell() {
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname) || location.pathname.startsWith('/track/');
   if (isPublicPath) {
     return (
-      <PublicCartProvider>
-        <PublicMenuPage />
-      </PublicCartProvider>
+      <Suspense fallback={<AppSpinner />}>
+        <PublicCartProvider>
+          <PublicMenuPage />
+        </PublicCartProvider>
+      </Suspense>
     );
   }
 
 
-  // ── Loading spinner ──────────────────────────────────────────────────────────
-  if (isAuthLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-background">
-        <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
-      </div>
-    );
-  }
+  if (isAuthLoading) return <AppSpinner />;
 
   // ── Unauthenticated: show login page ─────────────────────────────────────────
   if (!currentUser) {
@@ -472,51 +485,51 @@ function AppShell() {
           )}
 
           <main className="flex-1 flex flex-col overflow-hidden relative">
-            <Routes>
-              <Route path="/admin" element={<Navigate to="/menu" replace />} />
+            <Suspense fallback={<AppSpinner />}>
+              <Routes>
+                <Route path="/admin" element={<Navigate to="/menu" replace />} />
 
-              <Route path="/menu" element={
-                hasPermission('view_menu')
-                  ? <MenuView addToCart={addToCart} />
-                  : <AccessDenied />
-              } />
+                <Route path="/menu" element={
+                  hasPermission('view_menu')
+                    ? <MenuView addToCart={addToCart} />
+                    : <AccessDenied />
+                } />
 
-              <Route path="/orders" element={
-                hasPermission('view_orders')
-                  ? <OrdersView
-                      orders={orders}
-                      setOrders={setOrders}
-                      cart={cart}
-                      onEditOrder={handleEditOrder}
-                      users={users}
-                      onRefresh={refreshOrders}
-                      branding={branding}
-                    />
-                  : <AccessDenied />
-              } />
+                <Route path="/orders" element={
+                  hasPermission('view_orders')
+                    ? <OrdersView
+                        orders={orders}
+                        setOrders={setOrders}
+                        cart={cart}
+                        onEditOrder={handleEditOrder}
+                        users={users}
+                        onRefresh={refreshOrders}
+                        branding={branding}
+                      />
+                    : <AccessDenied />
+                } />
 
+                <Route path="/attendance" element={
+                  hasPermission('view_attendance')
+                    ? <AttendanceView
+                        setCurrentView={setCurrentView}
+                        onLogout={handleLogout}
+                        isKioskOnly={currentUser?.permissions.includes('view_attendance') && !currentUser?.permissions.includes('view_menu')}
+                      />
+                    : <AccessDenied />
+                } />
 
+                <Route path="/settings/:section" element={
+                  <SettingsView currentSetting={currentSetting} hasPermission={hasPermission} branding={branding} onBrandingUpdate={setBranding} currentUser={currentUser ?? undefined} onUserUpdate={u => setCurrentUser(u)} />
+                } />
 
-              <Route path="/attendance" element={
-                hasPermission('view_attendance')
-                  ? <AttendanceView 
-                      setCurrentView={setCurrentView} 
-                      onLogout={handleLogout}
-                      isKioskOnly={currentUser?.permissions.includes('view_attendance') && !currentUser?.permissions.includes('view_menu')}
-                    />
-                  : <AccessDenied />
-              } />
+                <Route path="/admin/:section" element={
+                  <SettingsView currentSetting={currentSetting} hasPermission={hasPermission} branding={branding} onBrandingUpdate={setBranding} currentUser={currentUser ?? undefined} onUserUpdate={u => setCurrentUser(u)} />
+                } />
 
-              <Route path="/settings/:section" element={
-                <SettingsView currentSetting={currentSetting} hasPermission={hasPermission} branding={branding} onBrandingUpdate={setBranding} currentUser={currentUser ?? undefined} onUserUpdate={u => setCurrentUser(u)} />
-              } />
-
-              <Route path="/admin/:section" element={
-                <SettingsView currentSetting={currentSetting} hasPermission={hasPermission} branding={branding} onBrandingUpdate={setBranding} currentUser={currentUser ?? undefined} onUserUpdate={u => setCurrentUser(u)} />
-              } />
-
-              <Route path="*" element={<Navigate to="/menu" replace />} />
-            </Routes>
+                <Route path="*" element={<Navigate to="/menu" replace />} />
+              </Routes>
+            </Suspense>
 
             <VirtualKeyboard />
           </main>
@@ -621,6 +634,14 @@ function _notifTitle(event: WsEvent): string {
     case 'order_done':   return `Order ${event.order_number || ''} Completed`;
     default:             return 'Notification';
   }
+}
+
+function AppSpinner() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-background">
+      <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+    </div>
+  );
 }
 
 function AccessDenied() {

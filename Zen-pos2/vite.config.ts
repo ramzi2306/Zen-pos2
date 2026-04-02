@@ -7,6 +7,24 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test/setup.ts'],
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
+            'vendor-charts':  ['recharts'],
+            'vendor-motion':  ['motion', 'framer-motion'],
+            'vendor-qr':      ['react-qr-code'],
+            'vendor-radix':   ['@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
+          },
+        },
+      },
+    },
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },

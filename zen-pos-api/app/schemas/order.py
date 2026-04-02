@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SelectedVariationSchema(BaseModel):
@@ -16,7 +16,7 @@ class OrderItemSchema(BaseModel):
     product_name: str
     category: str = ""
     unit_price: float
-    quantity: int = 1
+    quantity: int = Field(default=1, ge=1, description="Must be at least 1")
     notes: Optional[str] = None
     discount: float = 0
     selected_variations: list[SelectedVariationSchema] = []

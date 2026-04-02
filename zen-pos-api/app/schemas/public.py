@@ -75,6 +75,7 @@ class PublicOrderResponse(BaseModel):
 
 class OTPRequest(BaseModel):
     phone: str
+    recaptcha_token: Optional[str] = None  # Required for Firebase SMS; if absent, Firebase path is skipped
 
 class OTPVerify(BaseModel):
     phone: str
