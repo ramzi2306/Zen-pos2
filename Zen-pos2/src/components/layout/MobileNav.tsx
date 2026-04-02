@@ -58,15 +58,7 @@ export const MobileNav = ({
         </div>
       )}
 
-      {(hasPermission('view_attendance') || hasPermission('view_inventory') || hasPermission('view_hr') || hasPermission('view_staff') || hasPermission('view_settings')) && (
-        <div
-          onClick={() => setCurrentView('admin_panel')}
-          className={`${itemClass} ${currentView === 'admin_panel' ? activeClass : inactiveClass}`}
-        >
-          <span className="material-symbols-outlined">admin_panel_settings</span>
-          <span className="font-body text-[10px] font-medium tracking-tight">Admin</span>
-        </div>
-      )}
+
     </nav>
   );
 };

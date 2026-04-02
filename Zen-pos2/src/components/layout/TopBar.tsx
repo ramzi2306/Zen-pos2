@@ -118,16 +118,7 @@ export const TopBar = ({
             <span className="material-symbols-outlined text-[18px] mr-2">receipt_long</span> Commandes
           </button>
         )}
-        {(hasPermission('view_attendance') || hasPermission('view_inventory') || hasPermission('view_hr') || hasPermission('view_staff') || hasPermission('view_settings')) && (
-          <button
-            onClick={() => setCurrentView('admin_panel')}
-            className={`h-full flex items-center px-4 transition-colors font-headline text-[10px] font-bold uppercase tracking-micro ${
-              currentView === 'admin_panel' || currentView === 'pos_settings' ? 'text-secondary border-b-2 border-secondary bg-surface-container/30' : 'text-on-surface-variant hover:text-primary'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px] mr-2">admin_panel_settings</span> Administration
-          </button>
-        )}
+
       </nav>
 
       {/* Right Actions */}
