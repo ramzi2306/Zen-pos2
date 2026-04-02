@@ -5064,7 +5064,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
                           <td key={day} className="px-6 py-6 text-center">
                             {user.shifts[day] ? (
-                              <span className="bg-surface-container-highest text-on-surface text-[9px] px-3 py-1.5 rounded font-bold tracking-widest">
+                              <span className="bg-surface-container-highest text-on-surface text-[9px] px-3 py-1.5 rounded font-bold tracking-widest whitespace-nowrap">
                                 {user.shifts[day]}
                               </span>
                             ) : (
