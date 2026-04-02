@@ -54,24 +54,24 @@ class UserDocument(Document):
     hashed_password: str
     hashed_pin: Optional[str] = None          # 4-digit kiosk PIN (bcrypt)
     attendance_group: str = ""                # "kitchen" | "cashier" | "admin" | "" (all)
-    phone: str = ""
-    role: Link[RoleDocument]
-    image: str = ""
-    base_salary: float = 0
-    payroll_due: str = ""
-    attendance_score: float = 0
-    shifts: dict[str, str] = Field(default_factory=dict)
-    monthly_attendance: list[AttendanceDay] = Field(default_factory=list)
-    rewards: int = 0
-    sanctions: int = 0
-    start_date: str = ""
-    contract_type: str = ""
-    contract_date: str = ""
+    phone: Optional[str] = ""
+    role: Optional[Link[RoleDocument]] = None
+    image: Optional[str] = ""
+    base_salary: Optional[float] = 0
+    payroll_due: Optional[str] = ""
+    attendance_score: Optional[float] = 0
+    shifts: Optional[dict[str, str]] = Field(default_factory=dict)
+    monthly_attendance: Optional[list[AttendanceDay]] = Field(default_factory=list)
+    rewards: Optional[int] = 0
+    sanctions: Optional[int] = 0
+    start_date: Optional[str] = ""
+    contract_type: Optional[str] = ""
+    contract_date: Optional[str] = ""
     contract_expiration: Optional[str] = None
-    withdrawal_logs: list[WithdrawalLog] = Field(default_factory=list)
-    personal_documents: list[PersonalDocument] = Field(default_factory=list)
+    withdrawal_logs: Optional[list[WithdrawalLog]] = Field(default_factory=list)
+    personal_documents: Optional[list[PersonalDocument]] = Field(default_factory=list)
     location_id: Optional[str] = None        # ID of the assigned LocationDocument
-    is_active: bool = True
+    is_active: Optional[bool] = True
 
     class Settings:
         name = "users"

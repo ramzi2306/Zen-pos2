@@ -13,6 +13,7 @@ import { VariationModal } from '../../components/product/VariationModal';
 import * as publicApi from '../../api/public';
 import { saveMockCustomer } from '../../api/customers';
 import type { Product, VariationOption, PublicCartItem, PublicTrackingInfo, PublicOrder } from '../../data';
+import orderBagIcon from '../../assets/order-bag.png';
 
 function getBranding() {
   try { const b = localStorage.getItem('zenpos_branding'); if (b) return JSON.parse(b); } catch {}
@@ -981,7 +982,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                     transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
                     className="w-48 h-48 flex items-center justify-center drop-shadow-2xl"
                   >
-                    <img src="/src/assets/order-bag.png" alt="Order bag" className="w-full h-full object-contain" />
+                    <img src={orderBagIcon} alt="Order bag" className="w-full h-full object-contain" />
                   </motion.div>
                   {isDone && (
                     <div className="absolute -bottom-1 -right-1 w-10 h-10 bg-tertiary rounded-full flex items-center justify-center border-2 border-surface-container-lowest shadow-lg">

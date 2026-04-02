@@ -596,19 +596,37 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
           </div>
           <div className="flex-1 overflow-y-auto p-8 space-y-8">
             <div className="flex gap-6 items-center border-b border-outline-variant/10 pb-6 mb-6">
-              <div className="relative group w-24 h-24 rounded-full bg-surface-container overflow-hidden flex items-center justify-center border-2 border-dashed border-outline-variant/30 hover:border-primary transition-colors cursor-pointer shrink-0">
+              <div 
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                onDrop={async (e) => {
+                  e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (!file) return;
+                  setUploadingAvatar(true);
+                  try {
+                    const { url } = await api.settings.uploadFile(file);
+                    setEditData(prev => ({ ...prev, image: url }));
+                  } catch {
+                    alert('Avatar upload failed');
+                  } finally {
+                    setUploadingAvatar(false);
+                  }
+                }}
+                className={`relative group w-24 h-24 rounded-full bg-surface-container overflow-hidden flex items-center justify-center border-2 border-dashed transition-colors cursor-pointer shrink-0 ${isDragging ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary'}`}
+              >
                 {editData.image ? (
-                  <img src={editData.image} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={editData.image} alt="Profile" className="w-full h-full object-cover pointer-events-none" />
                 ) : (
-                  <span className="material-symbols-outlined text-3xl text-on-surface-variant">person</span>
+                  <span className="material-symbols-outlined text-3xl text-on-surface-variant pointer-events-none">person</span>
                 )}
-                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   {uploadingAvatar ? (
                     <span className="material-symbols-outlined text-white animate-spin">sync</span>
                   ) : (
                     <>
                       <span className="material-symbols-outlined text-white text-xl">cloud_upload</span>
-                      <span className="text-[8px] font-bold uppercase text-white mt-1">Upload</span>
+                      <span className="text-[8px] font-bold uppercase text-white mt-1 text-center leading-tight">Drop or<br />Upload</span>
                     </>
                   )}
                 </div>
@@ -1602,7 +1620,7 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
               <tr>
                 <th className="px-8 py-5 text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold border-b border-outline-variant/10 min-w-[200px]">Personnel</th>
                 {days.map(day => (
-                  <th key={day} className="px-3 py-5 text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold border-b border-outline-variant/10 text-center min-w-[130px]">
+                  <th key={day} className="px-3 py-5 text-[10px] uppercase tracking-[0.2em] text-on-surface-variant font-bold border-b border-outline-variant/10 text-center min-w-[160px]">
                     {day}
                   </th>
                 ))}
@@ -1637,7 +1655,7 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
                           </div>
                         ) : (
                           <div className="flex flex-col gap-1.5 w-full max-w-[120px] mx-auto relative pt-4">
-                            <div className="flex items-center justify-between px-1 absolute top-0 w-full text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">
+                            <div className="flex items-center justify-between px-1 absolute top-0 w-full text-[9px] font-bold text-on-surface-variant uppercase tracking-widest whitespace-nowrap">
                               <span>{checkIn}</span>
                               <span>{checkOut}</span>
                             </div>
@@ -1723,18 +1741,16 @@ const RoleManagementView = () => {
   ];
 
   const handleTogglePermission = (roleId: string, permission: Permission) => {
-    let nextPermissions: string[] = [];
     setRoles(prev => prev.map(role => {
       if (role.id === roleId) {
         const hasPermission = role.permissions.includes(permission);
-        nextPermissions = hasPermission
+        const nextPermissions = hasPermission
           ? role.permissions.filter(p => p !== permission)
           : [...role.permissions, permission];
         return { ...role, permissions: nextPermissions as Permission[] };
       }
       return role;
     }));
-    api.users.updateRole(roleId, { permissions: nextPermissions }).catch(console.error);
   };
 
   const handleToggleAttendanceExclude = (roleId: string, val: boolean) => {
@@ -1742,7 +1758,28 @@ const RoleManagementView = () => {
       if (role.id === roleId) return { ...role, excludeFromAttendance: val };
       return role;
     }));
-    api.users.updateRole(roleId, { exclude_from_attendance: val }).catch(console.error);
+  };
+
+  const handleSaveRoleConfig = async (roleId: string) => {
+    const role = roles.find(r => r.id === roleId);
+    if (!role) return;
+    try {
+      await api.users.updateRole(roleId, { 
+        permissions: role.permissions, 
+        exclude_from_attendance: role.excludeFromAttendance 
+      });
+      const btn = document.getElementById('save-role-btn');
+      if (btn) {
+          btn.textContent = 'SAVED';
+          btn.classList.add('bg-green-600', 'text-white');
+          setTimeout(() => {
+              btn.textContent = 'SAVE CONFIGURATION';
+              btn.classList.remove('bg-green-600', 'text-white');
+          }, 2000);
+      }
+    } catch (err: any) {
+      console.error('Failed to update role:', err.message);
+    }
   };
 
   const handleAddRole = async () => {
@@ -1824,17 +1861,7 @@ const RoleManagementView = () => {
                 <div className="flex items-center gap-4">
                   <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: {selectedRole.id}</span>
                   <button 
-                    onClick={() => {
-                        const btn = document.getElementById('save-role-btn');
-                        if (btn) {
-                            btn.textContent = 'SAVED';
-                            btn.classList.add('bg-green-600', 'text-white');
-                            setTimeout(() => {
-                                btn.textContent = 'SAVE CONFIGURATION';
-                                btn.classList.remove('bg-green-600', 'text-white');
-                            }, 2000);
-                        }
-                    }}
+                    onClick={() => handleSaveRoleConfig(selectedRole.id)}
                     id="save-role-btn"
                     className="px-4 py-2 bg-on-surface text-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-on-surface-variant transition-colors"
                   >
@@ -4371,9 +4398,14 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
+    setSaving(true);
+    api.settings.uploadFile(file)
+      .then(({ url }) => setImagePreview(url))
+      .catch((err) => {
+        console.error('Avatar upload failed:', err);
+        setError('Avatar upload failed');
+      })
+      .finally(() => setSaving(false));
   };
 
   const handleSave = async () => {
@@ -4748,18 +4780,26 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       onChange={e => {
                         const file = e.target.files?.[0];
                         if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = () => setBranding(b => ({ ...b, logo: reader.result as string }));
-                        reader.readAsDataURL(file);
+                        setBrandingSaving(true);
+                        api.settings.uploadFile(file)
+                          .then(({ url }) => setBranding(b => ({ ...b, logo: url })))
+                          .catch((err) => {
+                            console.error('Logo upload failed:', err);
+                            alert('Logo upload failed');
+                          })
+                          .finally(() => setBrandingSaving(false));
                         e.target.value = '';
                       }}
                     />
                     <button
                       type="button"
                       onClick={() => logoFileInputRef.current?.click()}
-                      className="w-48 h-48 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/30 flex items-center justify-center relative group cursor-pointer overflow-hidden hover:border-primary/40 transition-colors"
+                      disabled={brandingSaving}
+                      className={`w-48 h-48 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/30 flex items-center justify-center relative group overflow-hidden transition-colors ${brandingSaving ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-primary/40'}`}
                     >
-                      {branding.logo ? (
+                      {brandingSaving ? (
+                        <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
+                      ) : branding.logo ? (
                         <img src={branding.logo} alt="Logo" className="w-full h-full object-contain p-4" />
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-on-surface-variant/50">
@@ -5221,36 +5261,46 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
             <div className="grid grid-cols-1 gap-8">
               {users.map(user => {
-                // Prefer live attendance report data; fall back to embedded monthly_attendance
+                let liveScore = 0;
+                let filteredAttendance: any[] = [];
+                const startDt = new Date(hrDateRange.start);
+                const endDt = new Date(hrDateRange.end);
                 const reportSummary = attendanceReport?.summaries.find(s => s.userId === user.id);
-                const filteredAttendance = reportSummary
-                  ? reportSummary.records.map(r => ({
-                      day: r.date.split('-')[2].replace(/^0/, ''),  // "2024-03-05" → "5"
-                      hours: r.hours,
-                      isLate: r.isLate,
-                      isEarlyDeparture: r.isEarlyDeparture,
-                      isOvertime: r.isOvertime,
-                      checkIn: r.checkIn,
-                      checkOut: r.checkOut,
-                      rewardNote: undefined as string | undefined,
-                      sanctionNote: undefined as string | undefined,
-                    }))
-                  : (() => {
-                      const startDay = new Date(hrDateRange.start).getDate();
-                      const endDay = new Date(hrDateRange.end).getDate();
-                      return user.monthlyAttendance.filter(a => {
-                        const parts = a.day.split('-');
-                        const dayNum = parseInt(parts[parts.length - 1]);
-                        return dayNum >= startDay && dayNum <= endDay;
-                      });
-                    })();
-
+                
+                if (startDt.getTime() <= endDt.getTime()) {
+                  // Pad all days in the range
+                  for (let d = new Date(startDt); d <= endDt; d.setDate(d.getDate() + 1)) {
+                    const lookupDate = d.toISOString().split('T')[0];
+                    const dayLabel = String(d.getDate());
+                    
+                    if (reportSummary) {
+                      const rec = reportSummary.records.find(r => r.date === lookupDate);
+                      filteredAttendance.push(rec ? {
+                        day: dayLabel, hours: rec.hours || 0, isLate: rec.isLate,
+                        isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
+                        checkIn: rec.checkIn, checkOut: rec.checkOut,
+                        rewardNote: undefined as string | undefined, sanctionNote: undefined as string | undefined
+                      } : { day: dayLabel, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+                    } else {
+                      const rec = user.monthlyAttendance.find(a => a.day === lookupDate);
+                      filteredAttendance.push(rec ? { ...rec, day: dayLabel } : { day: dayLabel, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+                    }
+                  }
+                }
+                
                 const lateDeduction = filteredAttendance.filter(a => a.isLate).length * 20;
                 const earlyDeduction = filteredAttendance.filter(a => a.isEarlyDeparture).length * 20;
                 const overtimeBonus = filteredAttendance.reduce((acc, a) => acc + (a.isOvertime && a.hours > 8 ? a.hours - 8 : 0), 0) * 30;
                 const attendanceAdjustments = overtimeBonus - lateDeduction - earlyDeduction;
-
                 const totalSalary = user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments;
+                
+                const workedDays = filteredAttendance.filter(a => a.checkIn).length;
+                if (workedDays > 0) {
+                  const perfectDays = filteredAttendance.filter(a => a.checkIn && !a.isLate && !a.isEarlyDeparture).length;
+                  liveScore = Math.round((perfectDays / workedDays) * 100);
+                } else {
+                  liveScore = 0;
+                }
                 return (
                   <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
@@ -5263,7 +5313,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">ATTENDANCE SCORE</p>
-                        <p className={`text-2xl font-headline font-extrabold ${user.attendanceScore > 90 ? 'text-tertiary' : 'text-secondary'}`}>{user.attendanceScore}%</p>
+                        <p className={`text-2xl font-headline font-extrabold ${workedDays === 0 ? 'text-on-surface-variant' : liveScore > 90 ? 'text-tertiary' : 'text-secondary'}`}>{workedDays === 0 ? 'N/A' : `${liveScore}%`}</p>
                       </div>
                     </div>
 

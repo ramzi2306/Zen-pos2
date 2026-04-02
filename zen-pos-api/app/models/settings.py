@@ -6,6 +6,7 @@ from pymongo import IndexModel, ASCENDING
 class BrandingDocument(Document):
     key: str = "branding"
     restaurant_name: str = "Omakase POS"
+    logo: str = ""
     primary_color: str = "#C0C7D4"
     secondary_color: str = "#FFB4A5"
     accent_color: str = "#9DD761"

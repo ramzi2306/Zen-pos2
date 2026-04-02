@@ -125,60 +125,72 @@ async def deactivate_user(user_id: str):
 
 
 async def _to_public(user: UserDocument) -> UserPublic:
-    await user.fetch_all_links()
-    role: RoleDocument = user.role
+    try:
+        await user.fetch_all_links()
+        role = user.role
+    except Exception:
+        role = None
+
     location_name: Optional[str] = None
     if user.location_id:
-        loc = await LocationDocument.get(user.location_id)
-        location_name = loc.name if loc else None
+        try:
+            loc = await LocationDocument.get(user.location_id)
+            location_name = loc.name if loc else None
+        except Exception:
+            pass
+
     return UserPublic(
         id=str(user.id),
-        name=user.name,
-        email=user.email,
-        phone=user.phone,
-        role_id=str(role.id) if role else "",
-        role_name=role.name if role else "",
-        permissions=role.permissions if role else [],
-        image=user.image,
-        base_salary=user.base_salary,
-        attendance_score=user.attendance_score if user.monthly_attendance else 0,
-        attendance_group=user.attendance_group,
+        name=user.name or "Unknown",
+        email=user.email or "",
+        phone=user.phone or "",
+        role_id=str(role.id) if role and getattr(role, "id", None) else "",
+        role_name=role.name if role and getattr(role, "name", None) else "Deleted Role",
+        permissions=role.permissions if role and getattr(role, "permissions", None) else [],
+        image=user.image or "",
+        base_salary=user.base_salary or 0.0,
+        attendance_score=user.attendance_score or 0.0,
+        attendance_group=user.attendance_group or "",
         has_pin=user.hashed_pin is not None,
-        is_active=user.is_active,
+        is_active=user.is_active if user.is_active is not None else True,
         location_id=user.location_id,
         location_name=location_name,
-        shifts=user.shifts,
-        start_date=user.start_date,
-        contract_type=user.contract_type,
-        contract_date=user.contract_date,
+        shifts=user.shifts or {},
+        start_date=user.start_date or "",
+        contract_type=user.contract_type or "",
+        contract_date=user.contract_date or "",
         contract_expiration=user.contract_expiration,
     )
 
 
 async def _to_detail(user: UserDocument) -> UserDetail:
-    await user.fetch_all_links()
-    role: RoleDocument = user.role
+    try:
+        await user.fetch_all_links()
+        role = user.role
+    except Exception:
+        role = None
+
     return UserDetail(
         id=str(user.id),
-        name=user.name,
-        email=user.email,
-        phone=user.phone,
-        role_id=str(role.id) if role else "",
-        role_name=role.name if role else "",
-        permissions=role.permissions if role else [],
-        image=user.image,
-        base_salary=user.base_salary,
-        attendance_score=user.attendance_score if user.monthly_attendance else 0,
-        attendance_group=user.attendance_group,
+        name=user.name or "Unknown",
+        email=user.email or "",
+        phone=user.phone or "",
+        role_id=str(role.id) if role and getattr(role, "id", None) else "",
+        role_name=role.name if role and getattr(role, "name", None) else "Deleted Role",
+        permissions=role.permissions if role and getattr(role, "permissions", None) else [],
+        image=user.image or "",
+        base_salary=user.base_salary or 0.0,
+        attendance_score=user.attendance_score or 0.0,
+        attendance_group=user.attendance_group or "",
         has_pin=user.hashed_pin is not None,
-        is_active=user.is_active,
-        shifts=user.shifts,
-        payroll_due=user.payroll_due,
-        rewards=user.rewards,
-        sanctions=user.sanctions,
-        start_date=user.start_date,
-        contract_type=user.contract_type,
-        contract_date=user.contract_date,
+        is_active=user.is_active if user.is_active is not None else True,
+        shifts=user.shifts or {},
+        payroll_due=user.payroll_due or "",
+        rewards=user.rewards or 0,
+        sanctions=user.sanctions or 0,
+        start_date=user.start_date or "",
+        contract_type=user.contract_type or "",
+        contract_date=user.contract_date or "",
         contract_expiration=user.contract_expiration,
         monthly_attendance=[
             AttendanceDayOut(
