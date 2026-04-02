@@ -1550,11 +1550,6 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
       await Promise.all(
         schedule.map(s => api.users.updateUser(s.id, { shifts: s.shifts }))
       );
-      // Reflect changes in parent users array so the shift table updates
-      schedule.forEach(s => {
-        const user = users.find(u => u.id === s.id);
-        if (user) user.shifts = s.shifts;
-      });
       onClose();
     } catch (err) {
       console.error('Failed to save schedule', err);
@@ -5618,7 +5613,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
         {isEditScheduleOpen && (
           <EditScheduleModal
-            onClose={() => setIsEditScheduleOpen(false)}
+            onClose={() => { setIsEditScheduleOpen(false); loadUsers(); }}
             users={users}
           />
         )}

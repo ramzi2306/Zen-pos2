@@ -147,6 +147,7 @@ async def _to_public(user: UserDocument) -> UserPublic:
         is_active=user.is_active,
         location_id=user.location_id,
         location_name=location_name,
+        shifts=user.shifts,
     )
 
 

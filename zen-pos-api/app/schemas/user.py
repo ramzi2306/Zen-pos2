@@ -25,6 +25,7 @@ class UserPublic(BaseModel):
     is_active: bool
     location_id: Optional[str] = None
     location_name: Optional[str] = None
+    shifts: dict[str, str] = {}
 
 
 class AttendanceDayOut(BaseModel):
@@ -55,7 +56,6 @@ class PersonalDocumentOut(BaseModel):
 
 class UserDetail(UserPublic):
     """Full user info for admin views — includes HR data."""
-    shifts: dict[str, str]
     payroll_due: str
     rewards: int
     sanctions: int

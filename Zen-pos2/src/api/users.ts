@@ -17,6 +17,7 @@ interface ApiUserPublic {
   is_active: boolean;
   location_id?: string;
   location_name?: string;
+  shifts?: Record<string, string>;
 }
 
 export interface ApiUserDetail extends ApiUserPublic {
@@ -60,7 +61,7 @@ function mapUserPublic(raw: ApiUserPublic): User {
     attendanceGroup: raw.attendance_group || '',
     hasPin: raw.has_pin || false,
     payrollDue: '',
-    shifts: {},
+    shifts: raw.shifts || {},
     monthlyAttendance: [],
     rewards: 0,
     sanctions: 0,
