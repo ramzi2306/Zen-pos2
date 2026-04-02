@@ -232,3 +232,20 @@ export async function updateIntegration(data: IntegrationData): Promise<Integrat
   });
   return mapIntegration(raw);
 }
+
+export async function uploadFile(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const token = localStorage.getItem('zenpos_token');
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${apiUrl}/settings/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Upload failed');
+  }
+  return res.json();
+}

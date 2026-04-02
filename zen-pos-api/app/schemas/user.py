@@ -88,6 +88,7 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     image: Optional[str] = None
     base_salary: Optional[float] = None
+    start_date: Optional[str] = None
     contract_type: Optional[str] = None
     contract_date: Optional[str] = None
     contract_expiration: Optional[str] = None
@@ -95,6 +96,7 @@ class UserUpdate(BaseModel):
     attendance_group: Optional[str] = None
     location_id: Optional[str] = None
     is_active: Optional[bool] = None
+    personal_documents: Optional[list[PersonalDocumentOut]] = None
 
 
 class UpdatePinRequest(BaseModel):

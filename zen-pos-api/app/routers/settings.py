@@ -105,3 +105,46 @@ async def test_bunny_connection():
         return {"ok": False, "message": f"Cannot reach {host} — check your region setting."}
     except httpx.TimeoutException:
         return {"ok": False, "message": "Connection timed out."}
+
+from fastapi import UploadFile, File, HTTPException
+import uuid
+import mimetypes
+
+@router.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    doc = await _get_integration()
+    if not doc.bunny_api_key or not doc.bunny_storage_zone or not doc.bunny_cdn_hostname:
+        raise HTTPException(400, "Bunny CDN integration is not configured.")
+
+    region = doc.bunny_storage_region or ""
+    host = f"{region}.storage.bunnycdn.com" if region and region != "de" else "storage.bunnycdn.com"
+    
+    ext = mimetypes.guess_extension(file.content_type) or ""
+    if not ext and getattr(file, 'filename', None):
+        if "." in file.filename:
+            ext = "." + file.filename.split(".")[-1]
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    url = f"https://{host}/{doc.bunny_storage_zone}/{filename}"
+    
+    content = await file.read()
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.put(
+                url,
+                headers={
+                    "AccessKey": doc.bunny_api_key,
+                    "Content-Type": "application/octet-stream"
+                },
+                content=content
+            )
+        if resp.status_code not in (200, 201):
+            raise HTTPException(500, f"Upload failed: {resp.text}")
+    except Exception as e:
+        raise HTTPException(500, f"Upload error: {str(e)}")
+        
+    cdn_hostname = doc.bunny_cdn_hostname
+    if not cdn_hostname.startswith("http"):
+        cdn_hostname = f"https://{cdn_hostname}"
+        
+    return {"url": f"{cdn_hostname}/{filename}"}

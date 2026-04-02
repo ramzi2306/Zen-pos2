@@ -170,12 +170,14 @@ export interface UserUpdatePayload {
   phone?: string;
   image?: string;
   base_salary?: number;
+  start_date?: string;
   contract_type?: string;
   contract_date?: string;
   contract_expiration?: string;
   shifts?: Record<string, string>;
   attendance_group?: string;
   is_active?: boolean;
+  personal_documents?: any[];
 }
 
 export async function updateUser(id: string, payload: UserUpdatePayload): Promise<void> {

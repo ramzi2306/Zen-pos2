@@ -502,6 +502,14 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { 
     }
   };
 
+  const handleCloseEditing = () => {
+    if (initialIsEditing) {
+      onClose();
+    } else {
+      setIsEditing(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       await api.users.updateUser(user.id, {
@@ -511,30 +519,59 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { 
         contract_type: editData.contractType,
         contract_date: editData.contractDate,
         contract_expiration: editData.contractExpiration,
+        start_date: editData.startDate,
         attendance_group: editData.attendanceGroup,
+        image: editData.image,
+        personal_documents: editData.personalDocuments,
       });
       Object.assign(user, editData);
     } catch {
+      alert("Failed to save personnel details");
       // fall through — apply locally so UI reflects intent even if API is unreachable
       Object.assign(user, editData);
     }
-    setIsEditing(false);
+    handleCloseEditing();
   };
 
-  const handleFiles = (files: FileList | null) => {
+  const [uploadingDocs, setUploadingDocs] = useState(false);
+  const handleFiles = async (files: FileList | null) => {
     if (!files) return;
-    
-    const newDocs = Array.from(files).map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      type: file.type.includes('pdf') ? 'PDF' : 'IMG',
-      url: URL.createObjectURL(file)
-    }));
+    setUploadingDocs(true);
+    try {
+      const newDocs = [];
+      for (const file of Array.from(files)) {
+        const { url } = await api.settings.uploadFile(file);
+        newDocs.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: file.name,
+          type: file.type.includes('pdf') ? 'PDF' : 'IMG',
+          url: url
+        });
+      }
+      setEditData(prev => ({
+        ...prev,
+        personalDocuments: [...prev.personalDocuments, ...newDocs]
+      }));
+    } catch(err) {
+      alert("Failed to upload document");
+    } finally {
+      setUploadingDocs(false);
+    }
+  };
 
-    setEditData(prev => ({
-      ...prev,
-      personalDocuments: [...prev.personalDocuments, ...newDocs]
-    }));
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const { url } = await api.settings.uploadFile(file);
+      setEditData(prev => ({ ...prev, image: url }));
+    } catch {
+      alert('Avatar upload failed');
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const removeDoc = (id: string) => {
@@ -547,15 +584,39 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { 
   if (isEditing) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:p-8">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setIsEditing(false)} />
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={handleCloseEditing} />
         <div className="relative w-full max-w-2xl bg-surface-container rounded-3xl border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
           <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low">
             <h2 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight">Edit Personnel Details</h2>
-            <button onClick={() => setIsEditing(false)} className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all">
+            <button onClick={handleCloseEditing} className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all">
               <span className="material-symbols-outlined">close</span>
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-8 space-y-8">
+            <div className="flex gap-6 items-center border-b border-outline-variant/10 pb-6 mb-6">
+              <div className="relative group w-24 h-24 rounded-full bg-surface-container overflow-hidden flex items-center justify-center border-2 border-dashed border-outline-variant/30 hover:border-primary transition-colors cursor-pointer shrink-0">
+                {editData.image ? (
+                  <img src={editData.image} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="material-symbols-outlined text-3xl text-on-surface-variant">person</span>
+                )}
+                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? (
+                    <span className="material-symbols-outlined text-white animate-spin">sync</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-white text-xl">cloud_upload</span>
+                      <span className="text-[8px] font-bold uppercase text-white mt-1">Upload</span>
+                    </>
+                  )}
+                </div>
+                <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+              </div>
+              <div>
+                <h3 className="text-lg font-headline font-bold text-on-surface">Profile Picture</h3>
+                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Upload a professional photo for the staff ID.</p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Full Name</label>
@@ -719,13 +780,22 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { 
                   multiple 
                   accept="image/*,.pdf"
                   onChange={(e) => handleFiles(e.target.files)}
+                  disabled={uploadingDocs}
                 />
                 <div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-primary">
-                  <span className="material-symbols-outlined text-3xl">upload_file</span>
+                  {uploadingDocs ? (
+                    <span className="material-symbols-outlined text-3xl animate-spin">sync</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-3xl">upload_file</span>
+                  )}
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-bold text-on-surface uppercase tracking-tight">Click or Drag & Drop</p>
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">IMG or PDF (Max 10MB)</p>
+                  <p className="text-sm font-bold text-on-surface uppercase tracking-tight">
+                    {uploadingDocs ? 'Uploading...' : 'Click or Drag & Drop'}
+                  </p>
+                  <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">
+                    IMG or PDF (Max 10MB)
+                  </p>
                 </div>
               </div>
 
