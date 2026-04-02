@@ -10,6 +10,8 @@ const DEFAULT_LOCALIZATION: LocalizationData = {
   taxEnabled: true,
   taxRate: 8,
   timezone: 'Africa/Algiers',
+  decimalSeparator: 'dot',
+  currencyDecimals: 2,
 };
 
 // Symbol overrides for currencies that have recognizable glyphs.
@@ -58,8 +60,15 @@ export function LocalizationProvider({ children }: { children: React.ReactNode }
 
   const formatCurrency = (amount: number): string => {
     const symbol = CURRENCY_SYMBOLS[localization.currency] ?? localization.currency;
-    const decimals = localization.currency === 'JPY' || localization.currency === 'CNY' ? 0 : 2;
-    const formatted = amount.toFixed(decimals);
+    const useComma = localization.decimalSeparator === 'comma';
+    
+    let formatted = new Intl.NumberFormat(useComma ? 'de-DE' : 'en-US', {
+      minimumFractionDigits: localization.currencyDecimals,
+      maximumFractionDigits: localization.currencyDecimals
+    }).format(Math.abs(amount));
+
+    if (amount < 0) formatted = '-' + formatted;
+
     return localization.currencyPosition === 'left'
       ? `${symbol}${formatted}`
       : `${formatted} ${symbol}`;

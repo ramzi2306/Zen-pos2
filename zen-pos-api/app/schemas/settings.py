@@ -44,6 +44,8 @@ class LocalizationUpdate(BaseModel):
     tax_enabled: Optional[bool] = None
     tax_rate: Optional[float] = None
     timezone: Optional[str] = None
+    decimal_separator: Optional[str] = None
+    currency_decimals: Optional[int] = None
 
 
 class LocalizationOut(BaseModel):
@@ -54,6 +56,8 @@ class LocalizationOut(BaseModel):
     tax_enabled: bool
     tax_rate: float
     timezone: str
+    decimal_separator: str
+    currency_decimals: int
 
 
 class IntegrationUpdate(BaseModel):

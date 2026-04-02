@@ -36,6 +36,8 @@ class LocalizationDocument(Document):
     tax_enabled: bool = True
     tax_rate: float = 8.0
     timezone: str = "Africa/Algiers"
+    decimal_separator: str = "dot"
+    currency_decimals: int = 2
 
     class Settings:
         name = "settings"

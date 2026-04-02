@@ -10,6 +10,7 @@ import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
 import type { SoundConfig } from '../utils/sounds';
 import { useLocalization } from '../context/LocalizationContext';
 import { TimeRangeSlider } from '../components/ui/TimeRangeSlider';
+import { ActivityChartCard } from '../components/ui/activity-chart-card';
 
 const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void }) => {
   const { formatCurrency } = useLocalization();
@@ -1116,39 +1117,13 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
               </div>
 
               {/* Performance Trend Chart */}
-              <div className="bg-surface-container-low p-8 rounded-3xl border border-outline-variant/10">
-                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">PERFORMANCE TREND</h3>
-                  <div className="flex gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-secondary" />
-                      <span className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant">Hours</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-tertiary" />
-                      <span className="text-[8px] font-bold uppercase tracking-widest text-on-surface-variant">Score</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="h-64 w-full min-h-[250px]" style={{ minHeight: '250px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={filteredAttendance}>
-                      <XAxis 
-                        dataKey="day" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{ fontSize: 9, fill: 'var(--on-surface-variant)', fontWeight: 'bold' }}
-                      />
-                      <YAxis hide />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '12px', padding: '12px' }}
-                        itemStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }}
-                      />
-                      <Area type="monotone" dataKey="hours" fill="var(--color-secondary)" fillOpacity={0.1} stroke="var(--color-secondary)" strokeWidth={3} />
-                      <Line type="monotone" dataKey="hours" stroke="var(--color-tertiary)" strokeWidth={2} dot={{ r: 4, fill: 'var(--color-tertiary)' }} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="flex justify-center w-full mb-8">
+                <ActivityChartCard 
+                  title="Performance Trend"
+                  totalValue={`${user.attendanceScore}%`}
+                  data={filteredAttendance.map(d => ({ day: d.day, value: d.hours || 0 }))}
+                  className="w-full max-w-full bg-surface-container-low border-outline-variant/10"
+                />
               </div>
 
               {/* Performance Logs */}
@@ -3832,25 +3807,67 @@ const LocalizationView = () => {
               {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
             </select>
           </Field>
-          <Field label="Currency Symbol Position">
-            <div className="flex gap-3 mt-1">
-              {(['left', 'right'] as const).map(pos => (
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Currency Symbol Position">
+              <div className="flex gap-3 mt-1">
+                {(['left', 'right'] as const).map(pos => (
+                  <button
+                    key={pos}
+                    onClick={() => update('currencyPosition', pos)}
+                    className={`flex-1 py-3 rounded-xl border text-sm font-bold capitalize transition-all ${settings.currencyPosition === pos ? 'border-secondary bg-secondary/10 text-secondary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/30'}`}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field label="Decimal Separator">
+              <div className="flex gap-2 mt-1">
                 <button
-                  key={pos}
-                  onClick={() => update('currencyPosition', pos)}
-                  className={`flex-1 py-3 rounded-xl border text-sm font-bold capitalize transition-all ${settings.currencyPosition === pos ? 'border-secondary bg-secondary/10 text-secondary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/30'}`}
+                  onClick={() => update('decimalSeparator', 'dot')}
+                  className={`flex-1 py-3 rounded-xl border text-sm font-bold capitalize transition-all ${settings.decimalSeparator === 'dot' ? 'border-secondary bg-secondary/10 text-secondary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/30'}`}
                 >
-                  {pos === 'left' ? '$ 1,200' : '1,200 $'} — {pos}
+                  Dot (.)
+                </button>
+                <button
+                  onClick={() => update('decimalSeparator', 'comma')}
+                  className={`flex-1 py-3 rounded-xl border text-sm font-bold capitalize transition-all ${settings.decimalSeparator === 'comma' ? 'border-secondary bg-secondary/10 text-secondary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/30'}`}
+                >
+                  Comma (,)
+                </button>
+              </div>
+            </Field>
+          </div>
+
+          <Field label="Decimals">
+            <div className="flex gap-2 mt-1">
+              {[0, 2, 3].map(dec => (
+                <button
+                  key={dec}
+                  onClick={() => update('currencyDecimals', dec)}
+                  className={`flex-1 py-3 rounded-xl border text-sm font-bold capitalize transition-all ${settings.currencyDecimals === dec ? 'border-secondary bg-secondary/10 text-secondary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/30'}`}
+                >
+                  {dec}
                 </button>
               ))}
             </div>
           </Field>
+
           <div className="p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/10">
             <div className="text-xs text-on-surface-variant mb-1">Preview</div>
             <div className="text-2xl font-bold text-on-surface">
-              {settings.currencyPosition === 'left'
-                ? `${settings.currency} 1,200.00`
-                : `1,200.00 ${settings.currency}`}
+              {(() => {
+                const useComma = settings.decimalSeparator === 'comma';
+                const formatted = new Intl.NumberFormat(useComma ? 'de-DE' : 'en-US', {
+                  minimumFractionDigits: settings.currencyDecimals ?? 2,
+                  maximumFractionDigits: settings.currencyDecimals ?? 2
+                }).format(1234.567);
+                return settings.currencyPosition === 'left'
+                  ? `${settings.currency} ${formatted}`
+                  : `${formatted} ${settings.currency}`;
+              })()}
             </div>
           </div>
         </div>

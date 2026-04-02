@@ -63,8 +63,7 @@ export const CartSidebar = ({
   }, 0);
   const taxRate = localization.taxEnabled ? localization.taxRate / 100 : 0;
   const taxAmount = subtotal * taxRate;
-  const gratuityAmount = subtotal * 0.20;
-  const total = subtotal + taxAmount + gratuityAmount;
+  const total = subtotal + taxAmount;
 
   // ── State ───────────────────────────────────────────────────────────────────
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
@@ -128,8 +127,8 @@ export const CartSidebar = ({
             .flex { display: flex; justify-content: space-between; }
             .border-b { border-bottom: 1px dashed #ccc; margin: 10px 0; }
             .font-bold { font-weight: bold; }
-            .text-sm { font-size: 12px; }
-            .text-xs { font-size: 10px; color: #666; }
+            .text-sm { font-size: 14px; }
+            .text-xs { font-size: 12px; color: #666; }
           </style>
         </head>
         <body>
@@ -166,23 +165,23 @@ export const CartSidebar = ({
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
       @page { size: 100mm auto; margin: 0; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #000; width: 100mm; }
+      body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; width: 100mm; }
       .receipt { width: 100mm; padding: 6mm 5mm 8mm; }
       .header { text-align: center; margin-bottom: 8px; }
-      .store-name { font-size: 15px; font-weight: bold; margin-bottom: 3px; }
-      .store-sub { font-size: 9px; color: #555; margin-bottom: 1px; }
-      .meta { display: flex; justify-content: space-between; font-size: 9px; color: #555; text-transform: uppercase; margin: 4px 0; }
+      .store-name { font-size: 20px; font-weight: bold; margin-bottom: 3px; }
+      .store-sub { font-size: 12px; color: #555; margin-bottom: 1px; }
+      .meta { display: flex; justify-content: space-between; font-size: 12px; color: #555; text-transform: uppercase; margin: 4px 0; }
       hr.dashed { border: none; border-top: 1px dashed #bbb; margin: 6px 0; }
-      .info { font-size: 9px; text-transform: uppercase; margin: 2px 0; }
+      .info { font-size: 12px; text-transform: uppercase; margin: 2px 0; }
       .item { margin: 4px 0; }
-      .item-row { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; }
-      .item-sub { font-size: 9px; color: #666; padding-left: 4px; }
-      .note { font-size: 9px; color: #555; text-transform: uppercase; }
-      .total-row { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin: 2px 0; }
-      .grand-total { display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; border-top: 1px dashed #bbb; padding-top: 5px; margin-top: 4px; }
-      .cash-row { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin: 2px 0; }
-      .change-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #16a34a; }
-      .footer { text-align: center; margin-top: 10px; font-size: 9px; color: #777; font-style: italic; letter-spacing: 0.06em; }
+      .item-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; }
+      .item-sub { font-size: 12px; color: #666; padding-left: 4px; }
+      .note { font-size: 12px; color: #555; text-transform: uppercase; }
+      .total-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin: 2px 0; }
+      .grand-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; border-top: 1px dashed #bbb; padding-top: 5px; margin-top: 4px; }
+      .cash-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin: 2px 0; }
+      .change-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; color: #16a34a; }
+      .footer { text-align: center; margin-top: 10px; font-size: 12px; color: #777; font-style: italic; letter-spacing: 0.06em; }
     </style></head><body><div class="receipt">
       <div class="header">
         <div class="store-name">${storeName}</div>
@@ -199,7 +198,6 @@ export const CartSidebar = ({
       <hr class="dashed">
       <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
       ${taxAmount > 0 ? `<div class="total-row"><span>Tax (${localization.taxRate}%)</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
-      <div class="total-row"><span>Gratuity (20%)</span><span>${formatCurrency(gratuityAmount)}</span></div>
       <div class="grand-total"><span>TOTAL</span><span>${formatCurrency(total)}</span></div>
       <div class="cash-row"><span>Cash Paid</span><span>${formatCurrency(receiptModal.paidAmount)}</span></div>
       <div class="change-row"><span>Change</span><span>${formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span></div>
@@ -512,7 +510,6 @@ export const CartSidebar = ({
                 <div className="border-t border-dashed border-gray-300 pt-3 space-y-2 text-sm">
                   <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
                   {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
-                  <div className="flex justify-between text-gray-600"><span>Gratuity (20%)</span><span>{formatCurrency(gratuityAmount)}</span></div>
                   <div className="flex justify-between text-lg font-bold mt-3 pt-3 border-t border-dashed border-gray-300">
                     <span>TOTAL</span>
                     <span>{formatCurrency(total)}</span>

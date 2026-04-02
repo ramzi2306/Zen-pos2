@@ -25,6 +25,8 @@ export interface LocalizationData {
   taxEnabled: boolean;
   taxRate: number;
   timezone: string;
+  decimalSeparator: string;
+  currencyDecimals: number;
 }
 
 export interface IntegrationData {
@@ -101,6 +103,8 @@ function mapLocalization(raw: any): LocalizationData {
     taxEnabled:       raw.tax_enabled       ?? true,
     taxRate:          raw.tax_rate          ?? 8,
     timezone:         raw.timezone          ?? 'Africa/Algiers',
+    decimalSeparator: raw.decimal_separator ?? 'dot',
+    currencyDecimals: raw.currency_decimals ?? 2,
   };
 }
 
@@ -188,6 +192,8 @@ export async function updateLocalization(data: LocalizationData): Promise<Locali
       tax_enabled:       data.taxEnabled,
       tax_rate:          data.taxRate,
       timezone:          data.timezone,
+      decimal_separator: data.decimalSeparator,
+      currency_decimals: data.currencyDecimals,
     }),
   });
   return mapLocalization(raw);
