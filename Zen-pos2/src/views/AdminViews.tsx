@@ -9,6 +9,7 @@ import type { IngredientItem, PurchaseLog } from '../api/inventory';
 import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
 import type { SoundConfig } from '../utils/sounds';
 import { useLocalization } from '../context/LocalizationContext';
+import { TimeRangeSlider } from '../components/ui/TimeRangeSlider';
 
 const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void }) => {
   const { formatCurrency } = useLocalization();
@@ -1519,16 +1520,22 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
     return { checkIn: ci?.trim() ?? '', checkOut: co?.trim() ?? '' };
   };
 
-  const updateShiftField = (userId: string, day: string, field: 'checkIn' | 'checkOut', value: string) => {
-    setSchedule(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      const current = parseShift(u.shifts[day] || '');
-      current[field] = value;
-      const combined = current.checkIn && current.checkOut
-        ? `${current.checkIn}-${current.checkOut}`
-        : '';
-      return { ...u, shifts: { ...u.shifts, [day]: combined } };
-    }));
+  const setShift = (userId: string, day: string, newShift: string) => {
+    setSchedule(prev => prev.map(u => 
+      u.id === userId ? { ...u, shifts: { ...u.shifts, [day]: newShift } } : u
+    ));
+  };
+
+  const formatTime = (val: number) => {
+    const h = Math.floor(val).toString().padStart(2, '0');
+    const m = Math.round((val % 1) * 60).toString().padStart(2, '0');
+    return `${h}:${m}`;
+  };
+
+  const parseTime = (time: string) => {
+    if (!time) return 0;
+    const [h, m] = time.split(':').map(Number);
+    return Math.round((h + (m / 60)) * 2) / 2; // round to nearest half hour
   };
 
   const clearDay = (userId: string, day: string) => {
@@ -1628,34 +1635,27 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
                           <div className="flex flex-col items-center gap-1.5">
                             <span className="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-widest">OFF</span>
                             <button
-                              onClick={() => updateShiftField(user.id, day, 'checkIn', '09:00')}
+                              onClick={() => setShift(user.id, day, '09:00-17:00')}
                               className="text-[8px] font-bold text-secondary/60 hover:text-secondary uppercase tracking-widest transition-colors"
                             >+ Add shift</button>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[8px] font-bold text-tertiary uppercase tracking-wider w-4">IN</span>
-                              <input
-                                type="time"
-                                value={checkIn}
-                                onChange={e => updateShiftField(user.id, day, 'checkIn', e.target.value)}
-                                className="flex-1 bg-surface-container-highest border border-tertiary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-tertiary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                              />
+                          <div className="flex flex-col gap-1.5 w-full max-w-[120px] mx-auto relative pt-4">
+                            <div className="flex items-center justify-between px-1 absolute top-0 w-full text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">
+                              <span>{checkIn}</span>
+                              <span>{checkOut}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[8px] font-bold text-secondary uppercase tracking-wider w-4">OUT</span>
-                              <input
-                                type="time"
-                                value={checkOut}
-                                onChange={e => updateShiftField(user.id, day, 'checkOut', e.target.value)}
-                                className="flex-1 bg-surface-container-highest border border-secondary/20 rounded-lg px-2 py-1.5 text-[10px] font-bold text-on-surface focus:border-secondary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                              />
+                            <TimeRangeSlider 
+                              min={0} max={24} step={0.5}
+                              value={[parseTime(checkIn) || 9, parseTime(checkOut) || 17]} 
+                              onChange={(val) => setShift(user.id, day, `${formatTime(val[0])}-${formatTime(val[1])}`)}
+                            />
+                            <div className="flex items-center justify-center mt-1">
+                              <button
+                                onClick={() => clearDay(user.id, day)}
+                                className="text-[8px] font-bold text-on-surface-variant/50 hover:text-error uppercase tracking-widest transition-colors text-center"
+                              >Clear</button>
                             </div>
-                            <button
-                              onClick={() => clearDay(user.id, day)}
-                              className="text-[8px] font-bold text-on-surface-variant/30 hover:text-error uppercase tracking-widest transition-colors text-center"
-                            >Clear</button>
                           </div>
                         )}
                       </td>
