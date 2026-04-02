@@ -432,7 +432,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   );
 };
 
-const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void, initialIsEditing?: boolean }) => {
+const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, initialAddingLog }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void, initialIsEditing?: boolean, initialAddingLog?: 'Reward' | 'Sanction' }) => {
   const { formatCurrency } = useLocalization();
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editData, setEditData] = useState({ ...user });
@@ -442,9 +442,10 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false }: { 
   const [pinMessage, setPinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const totalSalary = user.baseSalary + user.rewards - user.sanctions;
+
   const [performanceLogs, setPerformanceLogs] = useState<PerformanceLog[]>([]);
-  const [isAddingLog, setIsAddingLog] = useState(false);
-  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; impact: string }>({ type: 'Reward', title: '', impact: '' });
+  const [isAddingLog, setIsAddingLog] = useState(!!initialAddingLog);
+  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; impact: string }>({ type: initialAddingLog || 'Reward', title: '', impact: '' });
 
   useEffect(() => {
     api.payroll.getPerformanceLogs(user.id).then(logs => {
@@ -4553,7 +4554,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   onUserUpdate?: (u: User) => void;
 }) => {
   const { formatCurrency } = useLocalization();
-  const [selectedDossierUser, setSelectedDossierUser] = useState<{ user: User, edit: boolean } | null>(null);
+  const [selectedDossierUser, setSelectedDossierUser] = useState<{ user: User, edit: boolean, log?: 'Reward' | 'Sanction' } | null>(null);
   const [selectedWithdrawalUser, setSelectedWithdrawalUser] = useState<User | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
@@ -5221,12 +5222,18 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       const startDay = new Date(hrDateRange.start).getDate();
                       const endDay = new Date(hrDateRange.end).getDate();
                       return user.monthlyAttendance.filter(a => {
-                        const dayNum = parseInt(a.day);
+                        const parts = a.day.split('-');
+                        const dayNum = parseInt(parts[parts.length - 1]);
                         return dayNum >= startDay && dayNum <= endDay;
                       });
                     })();
 
-                const totalSalary = user.baseSalary + user.rewards - user.sanctions;
+                const lateDeduction = filteredAttendance.filter(a => a.isLate).length * 20;
+                const earlyDeduction = filteredAttendance.filter(a => a.isEarlyDeparture).length * 20;
+                const overtimeBonus = filteredAttendance.reduce((acc, a) => acc + (a.isOvertime && a.hours > 8 ? a.hours - 8 : 0), 0) * 30;
+                const attendanceAdjustments = overtimeBonus - lateDeduction - earlyDeduction;
+
+                const totalSalary = user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments;
                 return (
                   <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
@@ -5346,14 +5353,30 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">PERFORMANCE METRICS</p>
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/5">
-                              <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1">REWARDS</p>
-                              <p className="text-lg font-headline font-extrabold text-on-surface">+${user.rewards}</p>
-                            </div>
-                            <div className="bg-surface-container-low p-3 rounded-lg border border-outline-variant/5">
-                              <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1">SANCTIONS</p>
-                              <p className="text-lg font-headline font-extrabold text-on-surface">-${user.sanctions}</p>
-                            </div>
+                            <button 
+                              onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Reward' })}
+                              className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1 group-hover:text-tertiary/80">REWARDS</p>
+                                  <p className="text-lg font-headline font-extrabold text-on-surface">+${user.rewards}</p>
+                                </div>
+                                <span className="material-symbols-outlined text-sm text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+                              </div>
+                            </button>
+                            <button 
+                              onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Sanction' })}
+                              className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1 group-hover:text-error/80">SANCTIONS</p>
+                                  <p className="text-lg font-headline font-extrabold text-on-surface">-${user.sanctions}</p>
+                                </div>
+                                <span className="material-symbols-outlined text-sm text-error opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+                              </div>
+                            </button>
                           </div>
                         </div>
 
@@ -5366,8 +5389,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ADJUSTMENTS</span>
-                              <span className={`text-xs font-bold ${user.rewards - user.sanctions >= 0 ? 'text-tertiary' : 'text-error'}`}>
-                                {user.rewards - user.sanctions >= 0 ? '+' : '-'}{formatCurrency(Math.abs(user.rewards - user.sanctions))}
+                              <span className={`text-xs font-bold ${user.rewards - user.sanctions + attendanceAdjustments >= 0 ? 'text-tertiary' : 'text-error'}`}>
+                                {user.rewards - user.sanctions + attendanceAdjustments >= 0 ? '+' : '-'}{formatCurrency(Math.abs(user.rewards - user.sanctions + attendanceAdjustments))}
                               </span>
                             </div>
                             <div className="h-px bg-outline-variant/10 my-2"></div>
@@ -5592,6 +5615,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             user={selectedDossierUser.user}
             dateRange={hrDateRange}
             initialIsEditing={selectedDossierUser.edit}
+            initialAddingLog={selectedDossierUser.log}
             onClose={() => setSelectedDossierUser(null)}
           />
         )}

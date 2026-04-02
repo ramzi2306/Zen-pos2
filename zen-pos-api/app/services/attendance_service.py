@@ -73,6 +73,29 @@ async def check_in(user_id: str, pin: str) -> AttendanceRecordDocument:
         location_id=user.location_id,   # inherit user's location at time of check-in
     )
     await record.insert()
+
+    # Sync to user.monthly_attendance for real-time visibility
+    from app.models.user import AttendanceDay
+    new_day = AttendanceDay(
+        day=today,
+        hours=0,
+        is_late=record.is_late,
+        is_early_departure=False,
+        is_overtime=False,
+        check_in=record.check_in,
+        check_out=None,
+    )
+    user.monthly_attendance = [d for d in user.monthly_attendance if d.day != today]
+    user.monthly_attendance.append(new_day)
+    
+    # Recalculate score
+    total_days = len(user.monthly_attendance)
+    if total_days > 0:
+        perfect = sum(1 for d in user.monthly_attendance if not d.is_late and not d.is_early_departure)
+        user.attendance_score = round((perfect / total_days) * 100, 2)
+        
+    await user.save()
+
     return record
 
 
@@ -113,6 +136,28 @@ async def check_out(user_id: str, pin: str) -> AttendanceRecordDocument:
         record.is_overtime = diff > OVERTIME_THRESHOLD_MINUTES
 
     await record.save()
+
+    # Sync to user.monthly_attendance
+    from app.models.user import AttendanceDay
+    new_day = AttendanceDay(
+        day=today,
+        hours=record.hours,
+        is_late=record.is_late,
+        is_early_departure=record.is_early_departure,
+        is_overtime=record.is_overtime,
+        check_in=record.check_in,
+        check_out=record.check_out,
+    )
+    user.monthly_attendance = [d for d in user.monthly_attendance if d.day != today]
+    user.monthly_attendance.append(new_day)
+
+    # Recalculate attendance score
+    total_days = len(user.monthly_attendance)
+    if total_days > 0:
+        perfect = sum(1 for d in user.monthly_attendance if not d.is_late and not d.is_early_departure)
+        user.attendance_score = round((perfect / total_days) * 100, 2)
+
+    await user.save()
     return record
 
 

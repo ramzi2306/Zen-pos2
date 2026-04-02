@@ -83,6 +83,19 @@ async def create_performance_log(body: PerformanceLogCreate):
         date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
     )
     await log.insert()
+
+    impact_val = 0.0
+    try:
+        impact_val = float(body.impact.replace("$", "").replace("+", ""))
+    except ValueError:
+        pass
+
+    if body.type == "Reward":
+        user.rewards += int(impact_val)
+    elif body.type == "Sanction":
+        user.sanctions += int(impact_val)
+    await user.save()
+
     return _log_to_out(log, body.user_id)
 
 
