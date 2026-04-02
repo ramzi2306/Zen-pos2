@@ -31,6 +31,10 @@ interface ActivityChartCardProps {
   data: ActivityDataPoint[];
   className?: string;
   dropdownOptions?: string[];
+  trend?: {
+    value: number;
+    label: string;
+  };
 }
 
 /**
@@ -43,6 +47,7 @@ export const ActivityChartCard = ({
   data,
   className,
   dropdownOptions = ["Weekly", "Monthly", "Yearly"],
+  trend,
 }: ActivityChartCardProps) => {
   const [selectedRange, setSelectedRange] = React.useState(
     dropdownOptions[0] || ""
@@ -117,9 +122,13 @@ export const ActivityChartCard = ({
             <p className="text-5xl font-bold tracking-tighter text-foreground">
               {totalValue}
             </p>
-            <CardDescription className="flex items-center gap-1">
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
-              +12% from last week
+            <CardDescription className="flex items-center gap-1 font-sans">
+              {trend && (
+                <>
+                  <TrendingUp className={cn("h-4 w-4", trend.value < 0 ? "text-red-500 rotate-180" : "text-emerald-500")} />
+                  {trend.value > 0 ? '+' : ''}{trend.value}% {trend.label}
+                </>
+              )}
             </CardDescription>
           </div>
 

@@ -407,6 +407,10 @@ export const OrdersView = ({
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="font-headline text-2xl font-bold tracking-tight text-on-surface">{order.orderNumber ?? `#${order.id.slice(-4)}`}</h3>
+          <div className="text-[10px] text-outline-variant font-medium mt-1 mb-2 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[13px]">schedule</span>
+            {order.createdAt ? new Date(order.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : (order.time || '')}
+          </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {(() => {
               const typeConfig: Record<string, { icon: string; label: string; cls: string }> = {

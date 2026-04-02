@@ -1118,12 +1118,6 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
 
               {/* Performance Trend Chart */}
               <div className="flex justify-center w-full mb-8">
-                <ActivityChartCard 
-                  title="Performance Trend"
-                  totalValue={`${user.attendanceScore}%`}
-                  data={filteredAttendance.map(d => ({ day: d.day, value: d.hours || 0 }))}
-                  className="w-full max-w-full bg-surface-container-low border-outline-variant/10"
-                />
               </div>
 
               {/* Performance Logs */}
@@ -5378,89 +5372,18 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
                     <div className="p-6 grid grid-cols-2 gap-8">
                       {/* Attendance Chart */}
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">MONTHLY HOURS DISTRIBUTION</p>
-                        <div className="h-48 w-full min-h-[200px]" style={{ minHeight: '200px' }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={filteredAttendance}>
-                              <XAxis 
-                                dataKey="day" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={(props: any) => {
-                                  const { x, y, payload, index } = props;
-                                  const dayData = filteredAttendance[index];
-                                  if (!dayData) return null;
-                                  return (
-                                    <g transform={`translate(${x},${y})`}>
-                                      {dayData.rewardNote && <circle cx={0} cy={8} r={3} fill="#4ADE80" />}
-                                      {dayData.sanctionNote && <circle cx={0} cy={8} r={3} fill="#FF4444" />}
-                                      {!dayData.rewardNote && !dayData.sanctionNote && <circle cx={0} cy={8} r={1} fill="rgba(255,255,255,0.2)" />}
-                                    </g>
-                                  );
-                                }}
-                              />
-                              <YAxis hide domain={[0, 14]} />
-                              <Tooltip 
-                                cursor={{ fill: 'var(--surface-container-highest)', opacity: 0.1 }}
-                                content={({ active, payload }) => {
-                                  if (active && payload && payload.length) {
-                                    const data = payload[0].payload;
-                                    return (
-                                      <div className="bg-black/85 p-3 rounded-lg border-none shadow-xl min-w-[140px]">
-                                        <p className="text-[10px] font-bold text-white uppercase tracking-widest mb-1">Day {data.day}</p>
-                                        <p className="text-xs font-extrabold text-white mb-1">{data.hours} Hours</p>
-                                        
-                                        {data.checkIn && (
-                                          <div className="flex flex-col gap-0.5 mt-2 border-t border-white/10 pt-2">
-                                            <p className="text-[8px] font-bold text-white/60 uppercase tracking-tighter">Check In: <span className="text-white">{data.checkIn}</span></p>
-                                            <p className="text-[8px] font-bold text-white/60 uppercase tracking-tighter">Check Out: <span className="text-white">{data.checkOut}</span></p>
-                                            
-                                            {(data.isLate || data.isEarlyDeparture || data.isOvertime) && (
-                                              <p className="text-[8px] font-bold uppercase tracking-tighter mt-1">
-                                                {data.isLate && <span className="text-[#FF6321]">Late Arrival</span>}
-                                                {data.isLate && (data.isEarlyDeparture || data.isOvertime) && <span className="text-white/40"> & </span>}
-                                                {data.isEarlyDeparture && <span className="text-[#FF6321]">Early Departure</span>}
-                                                {data.isEarlyDeparture && data.isOvertime && <span className="text-white/40"> & </span>}
-                                                {data.isOvertime && <span className="text-[#4ADE80]">Overtime</span>}
-                                              </p>
-                                            )}
-                                          </div>
-                                        )}
-
-                                        {(data.rewardNote || data.sanctionNote) && (
-                                          <div className="mt-2 border-t border-white/10 pt-2 flex flex-col gap-1">
-                                            {data.rewardNote && (
-                                              <div className="flex items-start gap-1.5">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] mt-0.5 shrink-0" />
-                                                <p className="text-[8px] font-bold text-[#4ADE80] uppercase leading-tight">{data.rewardNote}</p>
-                                              </div>
-                                            )}
-                                            {data.sanctionNote && (
-                                              <div className="flex items-start gap-1.5">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#FF4444] mt-0.5 shrink-0" />
-                                                <p className="text-[8px] font-bold text-[#FF4444] uppercase leading-tight">{data.sanctionNote}</p>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                }}
-                              />
-                              <Bar dataKey="hours" radius={[2, 2, 0, 0]}>
-                                {filteredAttendance.map((entry, index) => (
-                                  <Cell 
-                                    key={`cell-${index}`} 
-                                    fill={(entry.isLate || entry.isEarlyDeparture) ? '#FF6321' : (entry.isOvertime ? '#4ADE80' : '#FFB4A5')} 
-                                  />
-                                ))}
-                              </Bar>
-                            </ComposedChart>
-                          </ResponsiveContainer>
-                        </div>
+                      <div className="w-full flex-1">
+                        <ActivityChartCard 
+                          title=""
+                          dropdownOptions={['This Period']}
+                          totalValue={`${filteredAttendance.reduce((sum, a) => sum + (a.hours || 0), 0).toFixed(1)} HRS`}
+                          data={filteredAttendance.map(d => ({ day: d.day, value: d.hours || 0 }))}
+                          trend={{ 
+                            value: workedDays > 0 ? Math.round((filteredAttendance.filter(a => a.isLate).length / workedDays) * 100) * -1 : 0, 
+                            label: "% lateness rate" 
+                          }}
+                          className="w-full max-w-full bg-transparent border-none shadow-none p-0"
+                        />
                       </div>
 
                       {/* Financial & Performance Summary */}
