@@ -268,7 +268,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                           <span className="text-xs font-bold text-error uppercase">Late Check-in ({a.checkIn})</span>
                           <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
-                        <span className="text-xs font-bold text-error">-$20.00</span>
+                        <span className="text-xs font-bold text-error">-{formatCurrency(20)}</span>
                       </div>
                     ))}
                     {earlyIncidents.map((a, i) => (
@@ -277,7 +277,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                           <span className="text-xs font-bold text-error uppercase">Early Departure ({a.checkOut})</span>
                           <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
-                        <span className="text-xs font-bold text-error">-$20.00</span>
+                        <span className="text-xs font-bold text-error">-{formatCurrency(20)}</span>
                       </div>
                     ))}
                     {overtimeIncidents.map((a, i) => (
@@ -286,7 +286,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                           <span className="text-xs font-bold text-tertiary uppercase">Overtime (+{a.hours - 8}h)</span>
                           <span className="text-[10px] font-medium text-tertiary/70 uppercase">{getFullDate(a.day)}</span>
                         </div>
-                        <span className="text-xs font-bold text-tertiary">+${(a.hours - 8) * 30}.00</span>
+                        <span className="text-xs font-bold text-tertiary">+{formatCurrency((a.hours - 8) * 30)}</span>
                       </div>
                     ))}
                     {lateIncidents.length === 0 && earlyIncidents.length === 0 && overtimeIncidents.length === 0 && (
@@ -924,11 +924,11 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
                   </div>
                   <div className="border border-black p-2">
                     <p className="text-[10px] uppercase font-bold">Rewards</p>
-                    <p className="text-xl font-bold">+{user.rewards}</p>
+                    <p className="text-xl font-bold">+{formatCurrency(user.rewards)}</p>
                   </div>
                   <div className="border border-black p-2">
                     <p className="text-[10px] uppercase font-bold">Sanctions</p>
-                    <p className="text-xl font-bold">-{user.sanctions}</p>
+                    <p className="text-xl font-bold">-{formatCurrency(user.sanctions)}</p>
                   </div>
                 </div>
               </section>
@@ -1108,11 +1108,11 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
                 </div>
                 <div className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 text-center">
                   <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Rewards</p>
-                  <p className="text-3xl font-headline font-extrabold text-tertiary">+{user.rewards}</p>
+                  <p className="text-3xl font-headline font-extrabold text-tertiary">+{formatCurrency(user.rewards)}</p>
                 </div>
                 <div className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 text-center">
                   <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Sanctions</p>
-                  <p className="text-3xl font-headline font-extrabold text-error">-{user.sanctions}</p>
+                  <p className="text-3xl font-headline font-extrabold text-error">-{formatCurrency(user.sanctions)}</p>
                 </div>
               </div>
 
@@ -2085,6 +2085,7 @@ const AddUsageModal = ({ onClose, ingredients, onSuccess }: { onClose: () => voi
 };
 
 const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => void, ingredients: IngredientItem[], onSuccess?: () => void }) => {
+  const { localization } = useLocalization();
   const [selectedIngredient, setSelectedIngredient] = useState(ingredients[0]?.id || '');
   const [amount, setAmount] = useState('');
   const [cost, setCost] = useState('');
@@ -2161,7 +2162,7 @@ const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => 
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total Cost</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">$</span>
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
                 <input 
                   type="number" 
                   value={cost}
@@ -2195,6 +2196,7 @@ const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => 
 };
 
 const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: () => void, onCreated?: () => void, ingredient?: IngredientItem }) => {
+  const { localization } = useLocalization();
   const [name, setName] = useState(ingredient?.name || '');
   const [sku, setSku] = useState(ingredient?.sku || '');
   const [category, setCategory] = useState(ingredient?.category?.join(', ') || '');
@@ -2289,7 +2291,7 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Avg. Unit Price</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">$</span>
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
                 <input 
                   type="number" 
                   value={price}
@@ -2731,6 +2733,7 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClose: () => void, onSaved?: () => void }) => {
+  const { localization } = useLocalization();
   const [name, setName] = useState(product?.name || '');
   const [description, setDescription] = useState(product?.description || '');
   const [price, setPrice] = useState(product?.price?.toString() || '');
@@ -2916,7 +2919,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Base Price</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">$</span>
+                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
                 <input 
                   type="number" 
                   value={price}
@@ -4969,21 +4972,21 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       <div className="border-t border-b border-dashed border-black/20 py-3 my-3 space-y-1">
                         <div className="flex justify-between">
                           <span>Ootoro Sashimi</span>
-                          <span>$45.00</span>
+                          <span>{formatCurrency(45)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Sake Selection</span>
-                          <span>$32.00</span>
+                          <span>{formatCurrency(32)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Seasonal Nigiri</span>
-                          <span>$120.00</span>
+                          <span>{formatCurrency(120)}</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between font-bold text-xs mb-4">
                         <span>TOTAL</span>
-                        <span>$197.00</span>
+                        <span>{formatCurrency(197)}</span>
                       </div>
 
                       <div className="text-center italic opacity-60 mb-4 px-4 text-[8px]">
@@ -5396,19 +5399,19 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                               <div className="flex justify-between items-start">
                                 <div>
                                   <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1 group-hover:text-tertiary/80">REWARDS</p>
-                                  <p className="text-lg font-headline font-extrabold text-on-surface">+${user.rewards}</p>
+                                  <p className="text-lg font-headline font-extrabold text-on-surface">+{formatCurrency(user.rewards)}</p>
                                 </div>
                                 <span className="material-symbols-outlined text-sm text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
                               </div>
                             </button>
-                            <button 
+                            <button
                               onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Sanction' })}
                               className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
                             >
                               <div className="flex justify-between items-start">
                                 <div>
                                   <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1 group-hover:text-error/80">SANCTIONS</p>
-                                  <p className="text-lg font-headline font-extrabold text-on-surface">-${user.sanctions}</p>
+                                  <p className="text-lg font-headline font-extrabold text-on-surface">-{formatCurrency(user.sanctions)}</p>
                                 </div>
                                 <span className="material-symbols-outlined text-sm text-error opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
                               </div>
