@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Product, VariationOption } from '../data';
+import { Product, VariationOption, SupplementOption } from '../data';
 import { AnimatePresence } from 'motion/react';
 import * as api from '../api';
 import { ProductCard } from '../components/product/ProductCard';
 import { VariationModal } from '../components/product/VariationModal';
 import { CategoryFilter } from '../components/product/CategoryFilter';
 
-export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: Record<string, VariationOption>) => void }) => {
+export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: Record<string, VariationOption>, supplements?: Record<string, SupplementOption>) => void }) => {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariations, setSelectedVariations] = useState<Record<string, VariationOption>>({});
+  const [selectedSupplements, setSelectedSupplements] = useState<Record<string, SupplementOption>>({});
   const [productRect, setProductRect] = useState<DOMRect | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
@@ -26,6 +27,13 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       setProducts(prods);
       setCategories(['All', ...cats.map(c => c.name)]);
       setDailySpecial(branding.dailySpecial || '');
+      setLoading(false);
+      // Fetch images separately — doesn't block initial render
+      api.products.listProductImages().then(images => {
+        const map: Record<string, string> = {};
+        images.forEach(i => { map[i.id] = i.image; });
+        setProducts(prev => prev.map(p => ({ ...p, image: map[p.id] ?? p.image })));
+      }).catch(() => {});
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -34,13 +42,22 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
     : products.filter(p => p.category === activeCategory);
 
   const handleProductClick = (product: Product, e: React.MouseEvent<HTMLDivElement>) => {
-    if (product.variations && product.variations.length > 0) {
+    const hasVariations = product.variations && product.variations.length > 0;
+    const hasSupplements = product.supplements && product.supplements.length > 0;
+
+    if (hasVariations || hasSupplements) {
       const rect = e.currentTarget.getBoundingClientRect();
       const initialVariations: Record<string, VariationOption> = {};
-      product.variations.forEach(v => { initialVariations[v.id] = v.options[0]; });
+      const initialSupplements: Record<string, SupplementOption> = {};
+      
+      product.variations?.forEach(v => {
+        if (v.options.length > 0) initialVariations[v.id] = v.options[0];
+      });
+      
       setProductRect(rect);
       setSelectedProduct(product);
       setSelectedVariations(initialVariations);
+      setSelectedSupplements(initialSupplements);
     } else {
       addToCart(product);
     }
@@ -48,9 +65,10 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
 
   const handleAddToCartWithVariations = () => {
     if (selectedProduct) {
-      addToCart(selectedProduct, selectedVariations);
+      addToCart(selectedProduct, selectedVariations, selectedSupplements);
       setSelectedProduct(null);
       setSelectedVariations({});
+      setSelectedSupplements({});
     }
   };
 
@@ -131,15 +149,31 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
 
       {/* Variation modal (3D touch) */}
       <AnimatePresence>
-        {selectedProduct && productRect && selectedProduct.variations && (
+        {selectedProduct && productRect && (selectedProduct.variations || selectedProduct.supplements) && (
           <VariationModal
             product={selectedProduct}
             productRect={productRect}
             selectedVariations={selectedVariations}
+            selectedSupplements={selectedSupplements}
             onSelectVariation={(groupId, option) =>
               setSelectedVariations(prev => ({ ...prev, [groupId]: option }))
             }
-            onClose={() => setSelectedProduct(null)}
+            onSelectSupplement={(groupId, option) =>
+              setSelectedSupplements(prev => {
+                const next = { ...prev };
+                if (next[groupId]?.id === option.id) {
+                  delete next[groupId];
+                } else {
+                  next[groupId] = option;
+                }
+                return next;
+              })
+            }
+            onClose={() => {
+              setSelectedProduct(null);
+              setSelectedVariations({});
+              setSelectedSupplements({});
+            }}
             onAdd={handleAddToCartWithVariations}
           />
         )}

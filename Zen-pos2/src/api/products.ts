@@ -54,6 +54,10 @@ export async function listProducts(): Promise<Product[]> {
   return raw.map(mapProduct);
 }
 
+export async function listProductImages(): Promise<{ id: string; image: string }[]> {
+  return apiRequest<{ id: string; image: string }[]>('/products/images');
+}
+
 export async function listCategories(): Promise<ProductCategory[]> {
   const raw = await apiRequest<{ id: string; name: string }[]>('/products/categories');
   return raw;

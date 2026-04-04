@@ -16,6 +16,10 @@ export async function getPublicMenu(): Promise<PublicMenuCategory[]> {
   return publicRequest<PublicMenuCategory[]>('/public/menu');
 }
 
+export async function getPublicMenuImages(): Promise<{ id: string; image: string }[]> {
+  return publicRequest<{ id: string; image: string }[]>('/public/images');
+}
+
 // ─── Online order creation ─────────────────────────────────────────────────────
 
 export interface CreateOrderResponse {

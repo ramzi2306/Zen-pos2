@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { PublicCartItem } from '../data';
+import type { PublicCartItem, Product } from '../data';
+import { getCartItemPrice } from '../utils/cartUtils';
 
 const STORAGE_KEY = 'zenpos_public_cart';
 const UI_STORAGE_KEY = 'zenpos_public_ui';
@@ -57,12 +58,19 @@ interface PublicCartContextValue {
 
 const PublicCartContext = createContext<PublicCartContextValue>(null!);
 
-export function cartKey(productId: string, variations?: PublicCartItem['selectedVariations']): string {
-  if (!variations || Object.keys(variations).length === 0) return productId;
-  const vPart = Object.entries(variations).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v.id).join(',');
-  return `${productId}|${vPart}`;
+export function cartKey(productId: string, variations?: PublicCartItem['selectedVariations'], supplements?: PublicCartItem['selectedSupplements']): string {
+  let key = productId;
+  if (variations && Object.keys(variations).length > 0) {
+    const vPart = Object.entries(variations).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}:${v.id}`).join(',');
+    key += `|v:${vPart}`;
+  }
+  if (supplements && Object.keys(supplements).length > 0) {
+    const sPart = Object.entries(supplements).sort(([a], [b]) => a.localeCompare(b)).map(([k, s]) => `${k}:${s.id}`).join(',');
+    key += `|s:${sPart}`;
+  }
+  return key;
 }
-export function itemKey(item: PublicCartItem): string { return cartKey(item.productId, item.selectedVariations); }
+export function itemKey(item: PublicCartItem): string { return cartKey(item.productId, item.selectedVariations, item.selectedSupplements); }
 
 export function PublicCartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<PublicCartItem[]>(() => loadStorage(STORAGE_KEY, []));
@@ -81,7 +89,7 @@ export function PublicCartProvider({ children }: { children: React.ReactNode }) 
 
   const addItem = useCallback((item: Omit<PublicCartItem, 'quantity'> & { quantity?: number }) => {
     const qty = item.quantity ?? 1;
-    const key = cartKey(item.productId, item.selectedVariations);
+    const key = cartKey(item.productId, item.selectedVariations, item.selectedSupplements);
     setItems(prev => {
       const idx = prev.findIndex(i => itemKey(i) === key);
       return idx >= 0
@@ -110,10 +118,7 @@ export function PublicCartProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const itemCount = items.reduce((s, i) => s + i.quantity, 0);
-  const subtotal = items.reduce((s, i) => {
-    const varAdj = Object.values(i.selectedVariations ?? {}).reduce((a, v) => a + (v.priceAdjustment ?? 0), 0);
-    return s + (i.price + varAdj) * i.quantity;
-  }, 0);
+  const subtotal = items.reduce((s, i) => s + getCartItemPrice(i as any) * i.quantity, 0);
 
   return (
     <PublicCartContext.Provider value={{

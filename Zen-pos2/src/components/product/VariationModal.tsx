@@ -1,42 +1,33 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Product, VariationOption } from '../../data';
+import { motion } from 'motion/react';
+import { Product, VariationOption, SupplementOption } from '../../data';
 import { useLocalization } from '../../context/LocalizationContext';
+import { getCartItemPrice } from '../../utils/cartUtils';
 
 /**
  * VariationModal — 3D-touch-style overlay anchored to the ProductCard.
- *
- * When a product with variations is tapped, the card "pops" forward (scale 1.03)
- * while a variation picker appears adjacent to it.  On desktop the picker
- * appears to the right; on mobile it appears below.
- *
- * Smart positioning: the modal stays fully on-screen regardless of which card
- * was tapped (edge, corner, etc.).
- *
- * @prop product            - Product whose variations are being selected
- * @prop productRect        - DOMRect of the originating card (for positioning)
- * @prop selectedVariations - Current selection state (groupId → option)
- * @prop onSelectVariation  - Called when the user picks a variation option
- * @prop onClose            - Close without adding (tap backdrop)
- * @prop onAdd              - Confirm and add to cart
  */
 export const VariationModal = ({
   product,
   productRect,
   selectedVariations,
+  selectedSupplements, // Added
   onSelectVariation,
+  onSelectSupplement, // Added
   onClose,
   onAdd,
 }: {
   product: Product;
   productRect: DOMRect;
   selectedVariations: Record<string, VariationOption>;
+  selectedSupplements: Record<string, SupplementOption>; // Added
   onSelectVariation: (groupId: string, option: VariationOption) => void;
+  onSelectSupplement: (groupId: string, option: SupplementOption) => void; // Added
   onClose: () => void;
   onAdd: () => void;
 }) => {
   const { formatCurrency } = useLocalization();
-  const menuHeight = 350;
+  const menuHeight = 450; // Increased height to accommodate supplements
   const scale = 1.03;
   const scaledHeight = productRect.height * scale;
   const scaledWidth = productRect.width * scale;
@@ -45,7 +36,7 @@ export const VariationModal = ({
   let safeTop = productRect.top;
   let menuTop = 0;
   let menuLeft = 0;
-  const menuWidth = Math.max(productRect.width, 280);
+  const menuWidth = Math.max(productRect.width, 320);
   let transformOrigin = 'top';
 
   if (isDesktop) {
@@ -71,9 +62,14 @@ export const VariationModal = ({
     }
   }
 
-  const totalPrice =
-    product.price +
-    Object.values(selectedVariations).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0);
+  // Calculate current price using shared utility
+  const currentPrice = getCartItemPrice({
+    ...product,
+    cartItemId: 'temp',
+    quantity: 1,
+    selectedVariations,
+    selectedSupplements
+  });
 
   return (
     <div className="fixed inset-0 z-[150]">
@@ -122,7 +118,7 @@ export const VariationModal = ({
         </div>
       </motion.div>
 
-      {/* Variation picker */}
+      {/* Variation & Supplement picker */}
       <motion.div
         initial={{ opacity: 0, y: isDesktop ? 0 : -20, x: isDesktop ? (transformOrigin === 'right top' ? 20 : -20) : 0, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
@@ -131,43 +127,95 @@ export const VariationModal = ({
         style={{ position: 'fixed', top: menuTop, left: menuLeft, width: menuWidth, transformOrigin }}
         className="z-[160] bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col"
       >
-        <div className="p-4 overflow-y-auto max-h-[40vh] space-y-4">
-          {product.variations!.map(group => (
-            <div key={group.id}>
-              <h4 className="font-headline font-bold text-xs text-on-surface mb-2 uppercase tracking-wider">{group.name}</h4>
-              <div className="flex flex-col gap-2">
-                {group.options.map(option => {
-                  const isSelected = selectedVariations[group.id]?.id === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      onClick={() => onSelectVariation(group.id, option)}
-                      className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-outline-variant/20 bg-surface-container hover:bg-surface-container-high text-on-surface'
-                      }`}
-                    >
-                      <span className="font-bold text-sm">{option.name}</span>
-                      {option.priceAdjustment ? (
-                        <span className={`text-xs ${isSelected ? 'text-primary/80' : 'text-on-surface-variant'}`}>
-                          {option.priceAdjustment > 0 ? '+' : ''}{formatCurrency(option.priceAdjustment)}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
+        <div className="p-4 overflow-y-auto max-h-[60vh] space-y-6">
+          {/* Variations Section - Replaces base price */}
+          {product.variations && product.variations.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
+                <span className="material-symbols-outlined text-primary text-sm">settings_input_component</span>
+                <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">Size / Style</span>
               </div>
+              {product.variations.map(group => (
+                <div key={group.id}>
+                  <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">{group.name}</h4>
+                  <div className="flex flex-col gap-2">
+                    {group.options.map(option => {
+                      const isSelected = selectedVariations[group.id]?.id === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => onSelectVariation(group.id, option)}
+                          className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                              : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
+                          }`}
+                        >
+                          <span className="font-bold text-sm">{option.name}</span>
+                          <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-primary/60'}`}>
+                            {formatCurrency(option.price || 0)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* Supplements Section - Adds to price */}
+          {product.supplements && product.supplements.length > 0 && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
+                <span className="material-symbols-outlined text-tertiary text-sm">add_circle</span>
+                <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">Extras / Supplements</span>
+              </div>
+              {product.supplements.map(group => (
+                <div key={group.id}>
+                  <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">{group.name}</h4>
+                  <div className="flex flex-col gap-2">
+                    {group.options.map(option => {
+                      const isSelected = selectedSupplements[group.id]?.id === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => onSelectSupplement(group.id, option)}
+                          className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
+                            isSelected
+                              ? 'border-tertiary bg-tertiary/10 text-tertiary shadow-sm'
+                              : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-[18px] transition-colors ${isSelected ? 'text-tertiary' : 'text-on-surface-variant/40'}`}>
+                              {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                            </span>
+                            <span className="font-bold text-sm">{option.name}</span>
+                          </div>
+                          {option.priceAdjustment ? (
+                            <span className={`text-xs font-bold ${isSelected ? 'text-tertiary' : 'text-tertiary/60'}`}>
+                              +{formatCurrency(option.priceAdjustment)}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Footer with total */}
         <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low">
           <button
             onClick={onAdd}
-            className="w-full py-3 bg-primary text-on-primary rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors shadow-md flex items-center justify-center gap-2"
+            className="w-full py-4 bg-primary text-on-primary rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg flex items-center justify-center gap-3 active:scale-[0.98]"
           >
-            <span className="material-symbols-outlined text-lg">add_shopping_cart</span>
-            Add — {formatCurrency(totalPrice)}
+            <span className="material-symbols-outlined">add_shopping_cart</span>
+            Confirm — {formatCurrency(currentPrice)}
           </button>
         </div>
       </motion.div>

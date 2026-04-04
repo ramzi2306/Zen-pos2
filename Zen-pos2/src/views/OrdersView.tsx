@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Order, CartItem, User } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
+import { getCartItemPrice, getSubtotal } from '../utils/cartUtils';
 import * as api from '../api';
 import { zenWs } from '../api/websocket';
 import { playSound } from '../utils/sounds';
@@ -699,11 +700,7 @@ export const OrdersView = ({
 
   const allDisplayOrders = useMemo(() => {
     if (cart.length === 0) return orders;
-    const subtotal = cart.reduce((sum, item) => {
-      const variationsPrice = Object.values(item.selectedVariations || {}).reduce((vSum: number, opt: any) => vSum + (opt.priceAdjustment || 0), 0);
-      const itemPrice = item.price + variationsPrice - (item.discount || 0);
-      return sum + (itemPrice * item.quantity);
-    }, 0);
+    const subtotal = getSubtotal(cart);
     const activeDraft: Order = {
       id: 'Current Cart',
       table: 'N/A',
@@ -1307,12 +1304,21 @@ export const OrdersView = ({
 
                 {/* Order summary */}
                 <div className="space-y-1 mb-2">
-                  {callCustomerOrder.items.map((item, i) => (
-                    <div key={i} className="flex justify-between text-xs text-on-surface-variant">
-                      <span>{item.quantity}× {item.name}</span>
-                      <span>{formatCurrency(item.price * item.quantity)}</span>
-                    </div>
-                  ))}
+                  {callCustomerOrder.items.map((item, i) => {
+                    const itemPrice = getCartItemPrice(item);
+                    const varNames = Object.values(item.selectedVariations || {}).map(v => v.name).join(' · ');
+                    const suppNames = Object.values(item.selectedSupplements || {}).map(s => `+${s.name}`).join(' · ');
+                    const mods = [varNames, suppNames].filter(Boolean).join(' | ');
+                    return (
+                      <div key={i} className="flex flex-col gap-0.5">
+                        <div className="flex justify-between text-xs text-on-surface-variant">
+                          <span>{item.quantity}× {item.name}</span>
+                          <span>{formatCurrency(itemPrice * item.quantity)}</span>
+                        </div>
+                        {mods && <p className="text-[10px] text-on-surface-variant/70 italic ml-4">{mods}</p>}
+                      </div>
+                    );
+                  })}
                   <div className="flex justify-between text-sm font-bold text-on-surface border-t border-outline-variant/20 pt-2 mt-2">
                     <span>Total</span>
                     <span>{formatCurrency(callCustomerOrder.total)}</span>
@@ -1435,21 +1441,23 @@ export const OrdersView = ({
                     <div className="text-[9px] font-bold tracking-widest text-gray-400 uppercase mb-2">Items</div>
                     <div className="space-y-3">
                       {receiptModal.items.map((item, i) => {
-                        const varAdj = Object.values(item.selectedVariations || {}).reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-                        const lineTotal = (item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100);
+                        const itemPrice = getCartItemPrice(item);
+                        const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
                         const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(' · ');
+                        const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => `+${o.name}`).join(' · ');
+                        const allModifiers = [varNames, suppNames].filter(Boolean).join(' | ');
                         return (
                           <div key={i}>
                             <div className="flex justify-between items-baseline">
                               <span className="font-bold text-[13px] flex-1 pr-2">{item.name}</span>
                               <span className="font-bold text-[13px] whitespace-nowrap">{formatCurrency(lineTotal)}</span>
                             </div>
-                            {item.quantity > 1 && (
-                              <div className="text-[10px] text-gray-500">{item.quantity} × {formatCurrency(item.price + varAdj)}</div>
-                            )}
-                            {varNames && (
-                              <div className="text-[10px] text-gray-500 italic">{varNames}</div>
-                            )}
+                             {item.quantity > 1 && (
+                               <div className="text-[10px] text-gray-500">{item.quantity} × {formatCurrency(itemPrice)}</div>
+                             )}
+                             {allModifiers && (
+                               <div className="text-[10px] text-gray-500 italic">{allModifiers}</div>
+                             )}
                             {item.notes && (
                               <div className="mt-1 text-[11px] font-bold bg-gray-100 border-l-[3px] border-black px-2 py-1">
                                 ✎ {item.notes}

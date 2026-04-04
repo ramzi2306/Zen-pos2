@@ -8,9 +8,20 @@ import * as api from '../api';
 import type { IngredientItem, PurchaseLog } from '../api/inventory';
 import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
 import type { SoundConfig } from '../utils/sounds';
-import { useLocalization } from '../context/LocalizationContext';
+import { useLocalization, CURRENCY_SYMBOLS } from '../context/LocalizationContext';
 import { TimeRangeSlider } from '../components/ui/TimeRangeSlider';
 import { ActivityChartCard } from '../components/ui/activity-chart-card';
+
+const CurrencySymbol = ({ prefix = '' }: { prefix?: string }) => {
+  const { localization } = useLocalization();
+  const symbol = CURRENCY_SYMBOLS[localization.currency] ?? localization.currency;
+  const isLeft = localization.currencyPosition === 'left';
+  return (
+    <span className={`absolute ${isLeft ? 'left-6' : 'right-6'} top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest pointer-events-none`}>
+      {prefix}{symbol}
+    </span>
+  );
+};
 
 const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void }) => {
   const { formatCurrency } = useLocalization();
@@ -345,7 +356,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                       >
                         <div className="bg-surface-container-highest rounded-2xl p-6 border border-secondary ring-4 ring-secondary/20 shadow-2xl min-w-[300px] text-center mb-8">
                           <span className="text-4xl font-headline font-extrabold text-primary">
-                            ${amount || '0'}
+                            {formatCurrency(parseFloat(amount) || 0)}
                           </span>
                         </div>
 
@@ -434,7 +445,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
 };
 
 const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = false, initialAddingLog }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void, onSaved?: () => void, initialIsEditing?: boolean, initialAddingLog?: 'Reward' | 'Sanction' }) => {
-  const { formatCurrency } = useLocalization();
+  const { formatCurrency, localization } = useLocalization();
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editData, setEditData] = useState({ ...user });
   const [isDragging, setIsDragging] = useState(false);
@@ -1249,7 +1260,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-2">Impact / Notes</label>
-                  <input type="text" value={newLogForm.impact} onChange={e => setNewLogForm(f => ({ ...f, impact: e.target.value }))} placeholder="e.g. +$50 bonus" className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-5 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30" />
+                  <input type="text" value={newLogForm.impact} onChange={e => setNewLogForm(f => ({ ...f, impact: e.target.value }))} placeholder={`e.g. +${CURRENCY_SYMBOLS[localization.currency] || localization.currency}50 bonus`} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-5 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30" />
                 </div>
                 <div className="flex gap-3 pt-2">
                   <button onClick={() => setIsAddingLog(false)} className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors">Cancel</button>
@@ -2198,13 +2209,13 @@ const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => 
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total Cost</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
+                <CurrencySymbol />
                 <input 
                   type="number" 
                   value={cost}
                   onChange={e => setCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl pl-10 pr-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                  className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl py-4 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? (localization.currency.length > 2 ? 'pl-16 pr-6' : 'pl-12 pr-6') : (localization.currency.length > 2 ? 'pr-16 pl-6' : 'pr-12 pl-6')}`}
                 />
               </div>
             </div>
@@ -2327,13 +2338,13 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Avg. Unit Price</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
+                <CurrencySymbol />
                 <input 
                   type="number" 
                   value={price}
                   onChange={e => setPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl pl-10 pr-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                  className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl py-4 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? (localization.currency.length > 2 ? 'pl-16 pr-6' : 'pl-12 pr-6') : (localization.currency.length > 2 ? 'pr-16 pl-6' : 'pr-12 pl-6')}`}
                 />
               </div>
             </div>
@@ -2775,7 +2786,8 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   const [price, setPrice] = useState(product?.price?.toString() || '');
   const [category, setCategory] = useState(product?.category || '');
   const [image, setImage] = useState(product?.image || '');
-  const [variations, setVariations] = useState<VariationGroup[]>(product?.variations || []);
+  const [variations, setVariations] = useState<any[]>(product?.variations || []);
+    const [supplements, setSupplements] = useState<any[]>(product?.supplements || []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(product?.ingredients || []);
   const [apiCategories, setApiCategories] = useState<string[]>([]);
 
@@ -2810,7 +2822,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
   const addOption = (groupIndex: number) => {
     const newVars = [...variations];
-    newVars[groupIndex].options.push({ id: `vo_${Date.now()}`, name: '', priceAdjustment: 0 });
+    newVars[groupIndex].options.push({ id: `vo_${Date.now()}`, name: '', price: 0 });
     setVariations(newVars);
   };
 
@@ -2822,9 +2834,48 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
   const updateOptionPrice = (groupIndex: number, optionIndex: number, price: string) => {
     const newVars = [...variations];
-    newVars[groupIndex].options[optionIndex].priceAdjustment = parseFloat(price) || 0;
+    newVars[groupIndex].options[optionIndex].price = parseFloat(price) || 0;
     setVariations(newVars);
   };
+
+  const addSupplementGroup = () => {
+    setSupplements([...supplements, { id: `sg_${Date.now()}`, name: '', options: [] }]);
+  };
+
+  const updateSupplementGroupName = (index: number, name: string) => {
+    const newSupps = [...supplements];
+    newSupps[index].name = name;
+    setSupplements(newSupps);
+  };
+
+  const removeSupplementGroup = (index: number) => {
+    setSupplements(supplements.filter((_, i) => i !== index));
+  };
+
+  const addSupplementOption = (groupIndex: number) => {
+    const newSupps = [...supplements];
+    newSupps[groupIndex].options.push({ id: `so_${Date.now()}`, name: '', priceAdjustment: 0 });
+    setSupplements(newSupps);
+  };
+
+  const updateSupplementOptionName = (groupIndex: number, optionIndex: number, name: string) => {
+    const newSupps = [...supplements];
+    newSupps[groupIndex].options[optionIndex].name = name;
+    setSupplements(newSupps);
+  };
+
+  const updateSupplementOptionPrice = (groupIndex: number, optionIndex: number, price: string) => {
+    const newSupps = [...supplements];
+    newSupps[groupIndex].options[optionIndex].priceAdjustment = parseFloat(price) || 0;
+    setSupplements(newSupps);
+  };
+
+  const removeSupplementOption = (groupIndex: number, optionIndex: number) => {
+    const newSupps = [...supplements];
+    newSupps[groupIndex].options = newSupps[groupIndex].options.filter((_, i) => i !== optionIndex);
+    setSupplements(newSupps);
+  };
+
 
   const removeOption = (groupIndex: number, optionIndex: number) => {
     const newVars = [...variations];
@@ -2875,7 +2926,8 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   const handleSave = async () => {
     const payload = {
       name, description, price: parseFloat(price) || 0, category, image: image || undefined,
-      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map(o => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment || 0 })) })),
+      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0 })) })),
+      supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment || 0 })) })),
     };
     try {
       if (product) {
@@ -2955,13 +3007,13 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Base Price</label>
               <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{localization.currency}</span>
+                <CurrencySymbol />
                 <input 
                   type="number" 
                   value={price}
                   onChange={e => setPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl pl-10 pr-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                  className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl py-4 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? (localization.currency.length > 2 ? 'pl-16 pr-6' : 'pl-12 pr-6') : (localization.currency.length > 2 ? 'pr-16 pl-6' : 'pr-12 pl-6')}`}
                 />
               </div>
             </div>
@@ -3096,13 +3148,13 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
                           className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
                         />
                         <div className="relative w-32 shrink-0">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">+$</span>
+                          <CurrencySymbol />
                           <input 
                             type="number" 
-                            value={opt.priceAdjustment || ''} 
+                            value={opt.price || ''} 
                             onChange={e => updateOptionPrice(gIndex, oIndex, e.target.value)} 
                             placeholder="0.00" 
-                            className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl pl-8 pr-3 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                            className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? 'pl-8' : 'pr-8'}`} 
                           />
                         </div>
                         <button 
@@ -3182,6 +3234,90 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
               {variations.length === 0 && (
                 <div className="text-center py-8 border-2 border-dashed border-outline-variant/20 rounded-2xl">
                   <p className="text-sm text-on-surface-variant">No variations added yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Supplements System */}
+          <div className="space-y-4 pt-4 border-t border-outline-variant/10">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-bold text-on-surface">Supplements</h3>
+                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Extra items with additive pricing (e.g. Extra Egg +{CURRENCY_SYMBOLS[localization.currency] || localization.currency}1.50)</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={addSupplementGroup}
+                className="px-4 py-2 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>
+                Add Group
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {supplements.map((group, gIndex) => (
+                <div key={group.id} className="bg-surface-container-highest/30 border border-outline-variant/20 rounded-2xl p-6 space-y-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="flex-1 space-y-2">
+                      <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Group Name</label>
+                      <input 
+                        value={group.name} 
+                        onChange={e => updateSupplementGroupName(gIndex, e.target.value)} 
+                        placeholder="e.g. Extra Ingredients, Extras" 
+                        className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                      />
+                    </div>
+                    <button 
+                      onClick={() => removeSupplementGroup(gIndex)}
+                      className="mt-6 w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center hover:bg-error/20 transition-all shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 pl-4 border-l-2 border-outline-variant/20">
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block">Options</label>
+                    {group.options.map((opt, oIndex) => (
+                      <div key={opt.id} className="flex gap-3 items-center">
+                        <input 
+                          value={opt.name} 
+                          onChange={e => updateSupplementOptionName(gIndex, oIndex, e.target.value)} 
+                          placeholder="Supplement Name (e.g. Extra Egg)" 
+                          className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
+                        />
+                        <div className="relative w-32 shrink-0">
+                          <CurrencySymbol prefix="+" />
+                          <input 
+                            type="number" 
+                            value={opt.priceAdjustment || ''} 
+                            onChange={e => updateSupplementOptionPrice(gIndex, oIndex, e.target.value)} 
+                            placeholder="0.00" 
+                            className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-3 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? 'pl-10' : 'pr-10'}`} 
+                          />
+                        </div>
+                        <button 
+                          onClick={() => removeSupplementOption(gIndex, oIndex)}
+                          className="w-8 h-8 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-all flex items-center justify-center shrink-0"
+                        >
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      onClick={() => addSupplementOption(gIndex)} 
+                      className="text-[10px] text-primary uppercase font-bold tracking-widest hover:underline flex items-center gap-1 mt-2"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span> Add Option
+                    </button>
+                  </div>
+                </div>
+              ))}
+              
+              {supplements.length === 0 && (
+                <div className="text-center py-8 border-2 border-dashed border-outline-variant/20 rounded-2xl">
+                  <p className="text-sm text-on-surface-variant">No supplements added yet.</p>
                 </div>
               )}
             </div>

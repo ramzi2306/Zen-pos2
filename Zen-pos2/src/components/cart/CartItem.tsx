@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from 'motion/react';
 import { CartItem as CartItemType } from '../../data';
 import { useLocalization } from '../../context/LocalizationContext';
+import { getCartItemPrice } from '../../utils/cartUtils';
 
 /**
  * SwipeableCartItem — a single row in the cart with gesture-based deletion
@@ -79,11 +80,19 @@ export const SwipeableCartItem = ({
                 expand_more
               </span>
             </div>
-            {item.selectedVariations && Object.keys(item.selectedVariations).length > 0 && (
+            {(
+              (item.selectedVariations && Object.keys(item.selectedVariations).length > 0) ||
+              (item.selectedSupplements && Object.keys(item.selectedSupplements).length > 0)
+            ) && (
               <div className="flex flex-wrap gap-1">
-                {Object.values(item.selectedVariations).map((opt: any) => (
+                {item.selectedVariations && Object.values(item.selectedVariations).map((opt: any) => (
                   <span key={opt.id} className="text-[9px] text-on-surface-variant bg-surface-container-highest px-1.5 py-0.5 rounded-sm font-medium">
-                    {opt.name} {opt.priceAdjustment ? `(+${formatCurrency(opt.priceAdjustment)})` : ''}
+                    {opt.name} {opt.price !== undefined ? `(${formatCurrency(opt.price)})` : ''}
+                  </span>
+                ))}
+                {item.selectedSupplements && Object.values(item.selectedSupplements).map((opt: any) => (
+                  <span key={opt.id} className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-sm font-medium">
+                    +{opt.name} {opt.priceAdjustment ? `(+${formatCurrency(opt.priceAdjustment)})` : ''}
                   </span>
                 ))}
               </div>
@@ -97,15 +106,15 @@ export const SwipeableCartItem = ({
               {item.discount ? (
                 <div className="flex flex-col items-end">
                   <span className="font-bold text-sm text-primary">
-                    {formatCurrency((item.price + Object.values(item.selectedVariations || {}).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0) - item.discount) * item.quantity)}
+                    {formatCurrency((getCartItemPrice(item) - (item.discount || 0)) * item.quantity)}
                   </span>
                   <span className="text-[10px] text-on-surface-variant line-through">
-                    {formatCurrency((item.price + Object.values(item.selectedVariations || {}).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0)) * item.quantity)}
+                    {formatCurrency(getCartItemPrice(item) * item.quantity)}
                   </span>
                 </div>
               ) : (
                 <span className="font-bold text-sm text-primary">
-                  {formatCurrency((item.price + Object.values(item.selectedVariations || {}).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0)) * item.quantity)}
+                  {formatCurrency(getCartItemPrice(item) * item.quantity)}
                 </span>
               )}
             </div>

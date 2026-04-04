@@ -10,7 +10,7 @@ const SettingsView   = lazy(() => import('./views/AdminViews').then(m => ({ defa
 const AttendanceView = lazy(() => import('./views/AttendanceView').then(m => ({ default: m.AttendanceView })));
 const PublicMenuPage = lazy(() => import('./views/public/PublicMenuPage'));
 import { PublicCartProvider } from './context/PublicCartContext';
-import { Product, CartItem, VariationOption, Order, User, Permission, RegisterReport } from './data';
+import { Product, CartItem, VariationOption, SupplementOption, SupplementGroup, Order, User, Permission, RegisterReport } from './data';
 import { BrandingData, DEFAULT_BRANDING } from './api/settings';
 import { LocalizationProvider } from './context/LocalizationContext';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
@@ -435,17 +435,24 @@ function AppShell() {
     navigate('/attendance');
   };
 
-  const addToCart = (product: Product, selectedVariations?: Record<string, VariationOption>) => {
+  const addToCart = (
+    product: Product,
+    selectedVariations?: Record<string, VariationOption>,
+    selectedSupplements?: Record<string, SupplementOption> // Added
+  ) => {
     setCart(prev => {
       const variationsString = selectedVariations
         ? Object.entries(selectedVariations).sort(([k1], [k2]) => k1.localeCompare(k2)).map(([k, v]) => `${k}:${v.id}`).join('|')
         : '';
-      const cartItemId = `${product.id}${variationsString ? `|${variationsString}` : ''}`;
+      const supplementsString = selectedSupplements
+        ? Object.entries(selectedSupplements).sort(([k1], [k2]) => k1.localeCompare(k2)).map(([k, v]) => `${k}:${v.id}`).join('|')
+        : '';
+      const cartItemId = `${product.id}${variationsString ? `|v:${variationsString}` : ''}${supplementsString ? `|s:${supplementsString}` : ''}`;
       const existing = prev.find(item => item.cartItemId === cartItemId);
       if (existing) {
         return prev.map(item => item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { ...product, cartItemId, quantity: 1, selectedVariations }];
+      return [...prev, { ...product, cartItemId, quantity: 1, selectedVariations, selectedSupplements } as any];
     });
   };
 

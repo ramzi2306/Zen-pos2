@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
 import { CartItem, Order, Customer, CustomerDetail } from '../../data';
 import * as api from '../../api';
 import { SwipeableCartItem } from './CartItem';
@@ -54,13 +55,7 @@ export const CartSidebar = ({
   const { localization, formatCurrency } = useLocalization();
 
   // ── Subtotal ────────────────────────────────────────────────────────────────
-  const subtotal = cart.reduce((sum, item) => {
-    const variationsPrice = Object.values(item.selectedVariations || {}).reduce(
-      (vSum: number, opt: any) => vSum + (opt.priceAdjustment || 0), 0
-    );
-    const itemPrice = item.price + variationsPrice - (item.discount || 0);
-    return sum + itemPrice * item.quantity;
-  }, 0);
+  const subtotal = getSubtotal(cart);
   const taxRate = localization.taxEnabled ? localization.taxRate / 100 : 0;
   const gratuityRate = localization.gratuityEnabled ? localization.gratuityRate / 100 : 0;
   const taxAmount = subtotal * taxRate;
@@ -158,7 +153,9 @@ export const CartSidebar = ({
     
     const itemRows = cart.map(item => {
       const variations = Object.values(item.selectedVariations || {}) as any[];
-      const varAdj = variations.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
+      const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
+      const supps = Object.values(item.selectedSupplements || {});
+      const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
       const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2);
       const varNames = variations.map((o: any) => o.name).join(', ');
       const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');
@@ -548,10 +545,10 @@ export const CartSidebar = ({
                     <div key={item.cartItemId} className="text-sm">
                       <div className="flex justify-between font-bold">
                         <span>{item.name}</span>
-                        <span>{formatCurrency((item.price + Object.values(item.selectedVariations || {}).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0) - (item.discount || 0)) * item.quantity)}</span>
+                        <span>{formatCurrency((getCartItemPrice(item) - (item.discount || 0)) * item.quantity)}</span>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {item.quantity > 1 ? `${item.quantity}x @ ${formatCurrency(item.price + Object.values(item.selectedVariations || {}).reduce((sum: number, opt: any) => sum + (opt.priceAdjustment || 0), 0) - (item.discount || 0))} ` : ''}
+                        {item.quantity > 1 ? `${item.quantity}x @ ${formatCurrency(getCartItemPrice(item) - (item.discount || 0))} ` : ''}
                         {item.selectedVariations && Object.values(item.selectedVariations).map((opt: any) => opt.name).join(', ')}
                         {item.notes && ` - ${item.notes}`}
                       </div>
@@ -1044,7 +1041,9 @@ export const CartSidebar = ({
                   <div className="space-y-3 mb-3">
                     {cart.map(item => {
                       const variations = Object.values(item.selectedVariations || {}) as any[];
-                      const varAdj = variations.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
+                      const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
+      const supps = Object.values(item.selectedSupplements || {});
+      const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
                       const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100));
                       const varNames = variations.map((o: any) => o.name).join(', ');
                       const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');

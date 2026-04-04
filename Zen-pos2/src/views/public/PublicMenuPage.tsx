@@ -12,8 +12,9 @@ import { CategoryFilter } from '../../components/product/CategoryFilter';
 import { VariationModal } from '../../components/product/VariationModal';
 import * as publicApi from '../../api/public';
 import { saveMockCustomer } from '../../api/customers';
-import type { Product, VariationOption, PublicCartItem, PublicTrackingInfo, PublicOrder } from '../../data';
+import type { Product, VariationOption, SupplementOption, PublicCartItem, PublicTrackingInfo, PublicOrder } from '../../data';
 import orderBagIcon from '../../assets/order-bag.png';
+import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
 
 function getBranding() {
   try { const b = localStorage.getItem('zenpos_branding'); if (b) return JSON.parse(b); } catch {}
@@ -52,8 +53,7 @@ function SwipeablePublicItem({
   const [editRect, setEditRect] = useState<DOMRect | null>(null);
   const [noteVal, setNoteVal] = useState(item.note ?? '');
 
-  const varAdj = Object.values(item.selectedVariations ?? {}).reduce((s, v) => s + (v.priceAdjustment ?? 0), 0);
-  const linePrice = (item.price + varAdj) * item.quantity;
+  const linePrice = getCartItemPrice(item as any) * item.quantity;
   const isExpanded = editRect !== null;
 
   const handleDragEnd = (_: any, info: any) => {
@@ -87,10 +87,13 @@ function SwipeablePublicItem({
             style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
           >expand_more</span>
         </div>
-        {Object.values(item.selectedVariations ?? {}).length > 0 && (
+        {(Object.values(item.selectedVariations ?? {}).length > 0 || Object.values(item.selectedSupplements ?? {}).length > 0) && (
           <div className="flex flex-wrap gap-1 mt-0.5">
-            {Object.values(item.selectedVariations!).map(v => (
+            {Object.values(item.selectedVariations ?? {}).map(v => (
               <span key={v.id} className="text-[9px] bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded font-medium">{v.name}</span>
+            ))}
+            {Object.values(item.selectedSupplements ?? {}).map(s => (
+              <span key={s.id} className="text-[9px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded font-medium">+{s.name}</span>
             ))}
           </div>
         )}
@@ -282,7 +285,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
 
   const setPlaced = (p: publicApi.CreateOrderResponse | null, items?: PublicCartItem[]) => {
     setPlacedState(p);
-    if (p && items) setUi({ placedOrder: { ...p, items, subtotal: items.reduce((s, i) => s + (i.price + Object.values(i.selectedVariations ?? {}).reduce((a, v) => a + (v.priceAdjustment ?? 0), 0)) * i.quantity, 0) } });
+    if (p && items) setUi({ placedOrder: { ...p, items, subtotal: items.reduce((s, i) => s + getCartItemPrice(i as any) * i.quantity, 0) } });
     else if (!p) setUi({ placedOrder: undefined });
   };
   const setCartSnapshot = (s: PublicCartItem[]) => {
@@ -394,7 +397,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       orderNumber: placed?.orderNumber || ui.placedOrder?.orderNumber || '',
       status: 'Draft',
       channel: 'online',
-      items: cartSnapshot.length ? cartSnapshot.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })) : (ui.placedOrder?.items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })) || []),
+      items: cartSnapshot.length ? cartSnapshot.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: getCartItemPrice(i as any) })) : (ui.placedOrder?.items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })) || []),
       subtotal: ui.placedOrder?.subtotal || subtotal || 0, 
       tax: 0, 
       total: ui.placedOrder?.subtotal || subtotal || 0,
@@ -751,12 +754,11 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                     </div>
                     <div className="px-4 py-3 space-y-1.5">
                       {items.map(item => {
-                        const varAdj = Object.values(item.selectedVariations ?? {}).reduce((s, v) => s + (v.priceAdjustment ?? 0), 0);
                         const key = itemKey(item);
                         return (
                           <div key={key} className="flex justify-between text-sm">
                             <span className="text-on-surface-variant">{item.quantity}× {item.name}</span>
-                            <span className="font-semibold text-on-surface">{formatCurrency((item.price + varAdj) * item.quantity)}</span>
+                            <span className="font-semibold text-on-surface">{formatCurrency((getCartItemPrice(item as any)) * item.quantity)}</span>
                           </div>
                         );
                       })}
@@ -872,7 +874,6 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                 </div>
                 <div className="px-4 py-4 space-y-2.5">
                   {cartSnapshot.map(item => {
-                    const varAdj = Object.values(item.selectedVariations ?? {}).reduce((s, v) => s + (v.priceAdjustment ?? 0), 0);
                     const key = itemKey(item);
                     return (
                       <div key={key} className="flex items-start justify-between gap-2">
@@ -882,13 +883,13 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                             <p className="text-[10px] text-on-surface-variant">{Object.values(item.selectedVariations!).map(v => v.name).join(' · ')}</p>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-on-surface flex-shrink-0">{formatCurrency((item.price + varAdj) * item.quantity)}</span>
+                        <span className="text-sm font-semibold text-on-surface flex-shrink-0">{formatCurrency((getCartItemPrice(item as any)) * item.quantity)}</span>
                       </div>
                     );
                   })}
                   <div className="pt-3 border-t border-outline-variant/10 flex justify-between font-headline font-bold">
                     <span className="text-on-surface">Total</span>
-                    <span className="text-primary text-lg">{formatCurrency(cartSnapshot.reduce((s, i) => s + (i.price + Object.values(i.selectedVariations ?? {}).reduce((a, v) => a + (v.priceAdjustment ?? 0), 0)) * i.quantity, 0))}</span>
+                    <span className="text-primary text-lg">{formatCurrency(cartSnapshot.reduce((s, i) => s + getCartItemPrice(i as any) * i.quantity, 0))}</span>
                   </div>
                 </div>
                 <div className="px-4 pb-4 pt-2 border-t border-outline-variant/10 space-y-1 text-xs text-on-surface-variant">
@@ -1482,6 +1483,7 @@ function PublicMenuPageInner() {
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedVariations, setSelectedVariations] = useState<Record<string, VariationOption>>({});
+  const [selectedSupplements, setSelectedSupplements] = useState<Record<string, SupplementOption>>({});
   const [productRect, setProductRect] = useState<DOMRect | null>(null);
 
   // Cart: auto-open on desktop when first item added
@@ -1497,6 +1499,13 @@ function PublicMenuPageInner() {
       .then(data => {
         setProducts(data.flatMap(c => c.products));
         setCategories(['All', ...data.map(c => c.name)]);
+        setLoading(false);
+        // Fetch images separately — doesn't block initial render
+        publicApi.getPublicMenuImages().then(images => {
+          const map: Record<string, string> = {};
+          images.forEach(i => { map[i.id] = i.image; });
+          setProducts(prev => prev.map(p => ({ ...p, image: map[p.id] ?? p.image })));
+        }).catch(() => {});
       })
       .catch(() => setError('Could not load menu. Please try again.'))
       .finally(() => setLoading(false));
@@ -1508,17 +1517,22 @@ function PublicMenuPageInner() {
     // Check for explicit false; if undefined or true, treat as in stock.
     if (product.inStock === false) return;
 
-    if (product.variations?.length) {
+    const hasVariations = product.variations && product.variations.length > 0;
+    const hasSupplements = product.supplements && product.supplements.length > 0;
+
+    if (hasVariations || hasSupplements) {
       const rect = e.currentTarget.getBoundingClientRect();
-      const init: Record<string, VariationOption> = {};
-      product.variations.forEach(g => { 
-        if (g.options && g.options.length > 0) {
-          init[g.id] = g.options[0]; 
-        }
+      const initialVariations: Record<string, VariationOption> = {};
+      const initialSupplements: Record<string, SupplementOption> = {};
+      
+      product.variations?.forEach(v => {
+        if (v.options.length > 0) initialVariations[v.id] = v.options[0];
       });
-      setProductRect(rect); 
-      setSelectedProduct(product); 
-      setSelectedVariations(init);
+
+      setProductRect(rect);
+      setSelectedProduct(product);
+      setSelectedVariations(initialVariations);
+      setSelectedSupplements(initialSupplements);
     } else {
       addItem({ 
         productId: product.id, 
@@ -1532,14 +1546,31 @@ function PublicMenuPageInner() {
 
   const handleAddWithVariations = () => {
     if (!selectedProduct) return;
-    addItem({
-      productId: selectedProduct.id, name: selectedProduct.name,
-      price: selectedProduct.price, image: selectedProduct.image, quantity: 1,
-      selectedVariations: Object.fromEntries(
-        Object.entries(selectedVariations).map(([gId, opt]) => [gId, { id: opt.id, name: opt.name, priceAdjustment: opt.priceAdjustment ?? 0 }])
-      ),
+    
+    // Transform variations (price override)
+    const publicVariations: Record<string, { id: string; name: string; price: number }> = {};
+    Object.entries(selectedVariations).forEach(([groupId, option]) => {
+      publicVariations[groupId] = { id: option.id, name: option.name, price: option.price };
     });
-    setSelectedProduct(null); setSelectedVariations({});
+    
+    // Transform supplements (price adjustment)
+    const publicSupplements: Record<string, { id: string; name: string; priceAdjustment: number }> = {};
+    Object.entries(selectedSupplements).forEach(([groupId, option]) => {
+      publicSupplements[groupId] = { id: option.id, name: option.name, priceAdjustment: option.priceAdjustment };
+    });
+
+    addItem({
+      productId: selectedProduct.id,
+      name: selectedProduct.name,
+      price: selectedProduct.price,
+      image: selectedProduct.image,
+      quantity: 1,
+      selectedVariations: publicVariations,
+      selectedSupplements: publicSupplements,
+    });
+    setSelectedProduct(null);
+    setSelectedVariations({});
+    setSelectedSupplements({});
   };
 
   return (
@@ -1638,13 +1669,31 @@ function PublicMenuPageInner() {
 
       {/* Variation modal */}
       <AnimatePresence>
-        {selectedProduct && productRect && selectedProduct.variations && (
+        {selectedProduct && productRect && (selectedProduct.variations || selectedProduct.supplements) && (
           <VariationModal
             product={selectedProduct}
             productRect={productRect}
             selectedVariations={selectedVariations}
-            onSelectVariation={(gId, opt) => setSelectedVariations(p => ({ ...p, [gId]: opt }))}
-            onClose={() => setSelectedProduct(null)}
+            selectedSupplements={selectedSupplements}
+            onSelectVariation={(groupId, option) =>
+              setSelectedVariations(prev => ({ ...prev, [groupId]: option }))
+            }
+            onSelectSupplement={(groupId, option) =>
+              setSelectedSupplements(prev => {
+                const next = { ...prev };
+                if (next[groupId]?.id === option.id) {
+                  delete next[groupId];
+                } else {
+                  next[groupId] = option;
+                }
+                return next;
+              })
+            }
+            onClose={() => {
+              setSelectedProduct(null);
+              setSelectedVariations({});
+              setSelectedSupplements({});
+            }}
             onAdd={handleAddWithVariations}
           />
         )}

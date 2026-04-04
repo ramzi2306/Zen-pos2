@@ -18,7 +18,7 @@ const DEFAULT_LOCALIZATION: LocalizationData = {
 
 // Symbol overrides for currencies that have recognizable glyphs.
 // All others fall back to their ISO code.
-const CURRENCY_SYMBOLS: Record<string, string> = {
+export const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
   EUR: '€',
   GBP: '£',

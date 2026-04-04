@@ -11,10 +11,23 @@ export interface Ingredient {
   wastePercent?: number;
 }
 
-export interface VariationOption {
+export interface SupplementOption {
   id: string;
   name: string;
   priceAdjustment?: number;
+  ingredients?: Ingredient[];
+}
+
+export interface SupplementGroup {
+  id: string;
+  name: string;
+  options: SupplementOption[];
+}
+
+export interface VariationOption {
+  id: string;
+  name: string;
+  price?: number;
   ingredients?: Ingredient[];
 }
 
@@ -35,6 +48,7 @@ export interface Product {
   stockLevel?: 'Healthy' | 'Low' | 'Critical';
   tags?: string[];
   variations?: VariationGroup[];
+  supplements?: SupplementGroup[];
   ingredients?: Ingredient[];
 }
 
@@ -44,6 +58,7 @@ export interface CartItem extends Product {
   notes?: string;
   discount?: number;
   selectedVariations?: Record<string, VariationOption>;
+  selectedSupplements?: Record<string, SupplementOption>;
 }
 
 export type Permission =
@@ -244,7 +259,8 @@ export interface PublicCartItem {
   image?: string;
   quantity: number;
   note?: string;
-  selectedVariations?: Record<string, { id: string; name: string; priceAdjustment: number }>;
+  selectedVariations?: Record<string, { id: string; name: string; price: number }>;
+  selectedSupplements?: Record<string, { id: string; name: string; priceAdjustment: number }>;
 }
 
 export interface OnlineOrderRequest {
