@@ -87,14 +87,24 @@ async def check_in(user_id: str, pin: str) -> AttendanceRecordDocument:
     )
     user.monthly_attendance = [d for d in user.monthly_attendance if d.day != today]
     user.monthly_attendance.append(new_day)
-    
+
     # Recalculate score
     total_days = len(user.monthly_attendance)
     if total_days > 0:
         perfect = sum(1 for d in user.monthly_attendance if not d.is_late and not d.is_early_departure)
         user.attendance_score = round((perfect / total_days) * 100, 2)
-        
+
     await user.save()
+
+    # Broadcast so kiosk tablets refresh in real time
+    from app.ws.manager import manager as ws_manager
+    await ws_manager.broadcast("attendance_update", {
+        "user_id": str(user.id),
+        "user_name": user.name,
+        "action": "check_in",
+        "location_id": user.location_id,
+        "message": f"{user.name} checked in",
+    })
 
     return record
 
@@ -158,6 +168,17 @@ async def check_out(user_id: str, pin: str) -> AttendanceRecordDocument:
         user.attendance_score = round((perfect / total_days) * 100, 2)
 
     await user.save()
+
+    # Broadcast so kiosk tablets refresh in real time
+    from app.ws.manager import manager as ws_manager
+    await ws_manager.broadcast("attendance_update", {
+        "user_id": str(user.id),
+        "user_name": user.name,
+        "action": "check_out",
+        "location_id": user.location_id,
+        "message": f"{user.name} checked out",
+    })
+
     return record
 
 
@@ -215,6 +236,17 @@ async def force_check_out(user_id: str) -> Optional[AttendanceRecordDocument]:
         user.attendance_score = round((perfect / total_days) * 100, 2)
 
     await user.save()
+
+    # Broadcast so kiosk tablets refresh in real time
+    from app.ws.manager import manager as ws_manager
+    await ws_manager.broadcast("attendance_update", {
+        "user_id": str(user.id),
+        "user_name": user.name,
+        "action": "force_check_out",
+        "location_id": user.location_id,
+        "message": f"{user.name} was checked out",
+    })
+
     return record
 
 

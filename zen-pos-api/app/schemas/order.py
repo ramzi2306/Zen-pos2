@@ -42,12 +42,14 @@ class OrderCreate(BaseModel):
     notes: str = ""
     is_urgent: bool = False
     payment_status: str = "Unpaid"   # "Paid" when cashier processes payment at checkout
+    payment_method: str = "Cash"     # Cash | Credit Card | Other
     status: str = "Queued"           # "Draft" for Save for Later
 
 
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
     payment_status: Optional[str] = None
+    payment_method: Optional[str] = None
     table: Optional[str] = None
     notes: Optional[str] = None
     is_urgent: Optional[bool] = None
@@ -68,6 +70,7 @@ class OrderOut(BaseModel):
     table: str
     status: str
     payment_status: str
+    payment_method: str = "Cash"
     items: list[OrderItemSchema]
     subtotal: float
     tax: float

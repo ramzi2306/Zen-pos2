@@ -50,6 +50,7 @@ class OrderDocument(Document):
     status: str = "Queued"
     # Queued | Scheduled | Preparing | Served | Packaging | Out for delivery | Done | Cancelled | Draft
     payment_status: str = "Unpaid"            # Unpaid | Paid
+    payment_method: str = "Cash"              # Cash | Credit Card | Other
     items: list[OrderItem] = Field(default_factory=list)
     subtotal: float = 0
     tax: float = 0

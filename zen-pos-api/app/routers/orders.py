@@ -160,6 +160,7 @@ def _to_out(o: OrderDocument) -> OrderOut:
         table=o.table,
         status=o.status,
         payment_status=o.payment_status,
+        payment_method=getattr(o, "payment_method", "Cash"),
         items=items,
         subtotal=o.subtotal,
         tax=o.tax,

@@ -17,6 +17,7 @@ from app.models.customer import CustomerDocument, CustomerSessionDocument
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.models.location import LocationDocument
 from app.models.otp import OTPDocument
+from app.models.register import RegisterReportDocument
 
 _client: Optional[AsyncIOMotorClient] = None
 _initialized: bool = False
@@ -50,6 +51,7 @@ async def connect_db() -> None:
             IntegrationDocument,
             LocationDocument,
             OTPDocument,
+            RegisterReportDocument,
         ],
     )
 

@@ -74,6 +74,7 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
         table=data.table,
         status=data.status,
         payment_status=data.payment_status,
+        payment_method=data.payment_method,
         order_type=data.order_type,
         items=items,
         subtotal=subtotal,
