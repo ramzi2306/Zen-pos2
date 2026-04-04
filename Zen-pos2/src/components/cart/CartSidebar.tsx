@@ -231,13 +231,38 @@ export const CartSidebar = ({
       <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=zenpos:${receiptModal.orderNumber}" class="qr-code" />
       <div class="text-center loyalty-text mb-2">${footer}</div>
       <hr class="dashed">
-    <script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></body></html>`;
+    <script>window.onload=function(){setTimeout(function(){window.print();},500);};</script></body></html>`;
 
-    const win = window.open('', '_blank', 'width=400,height=600');
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    if (iframe.contentWindow) {
+      iframe.contentWindow.document.open();
+      iframe.contentWindow.document.write(html);
+      iframe.contentWindow.document.close();
+
+      iframe.contentWindow.addEventListener('afterprint', () => {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 1000);
+      });
+    }
   };
+
+  useEffect(() => {
+    if (viewMode === 'receipt' && printReady && receiptModal) {
+      handlePrintReceipt();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printReady, receiptModal]);
 
   const handleCreateOrder = async (paymentStatus: 'Unpaid' | 'Paid', orderStatus: 'Queued' | 'Draft' = 'Queued') => {
     if (cart.length === 0) return;
