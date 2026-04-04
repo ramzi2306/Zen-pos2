@@ -433,7 +433,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   );
 };
 
-const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, initialAddingLog }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void, initialIsEditing?: boolean, initialAddingLog?: 'Reward' | 'Sanction' }) => {
+const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = false, initialAddingLog }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void, onSaved?: () => void, initialIsEditing?: boolean, initialAddingLog?: 'Reward' | 'Sanction' }) => {
   const { formatCurrency } = useLocalization();
   const [isEditing, setIsEditing] = useState(initialIsEditing);
   const [editData, setEditData] = useState({ ...user });
@@ -534,9 +534,9 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
         personal_documents: editData.personalDocuments,
       });
       Object.assign(user, editData);
+      onSaved?.();
     } catch {
       alert("Failed to save personnel details");
-      // fall through — apply locally so UI reflects intent even if API is unreachable
       Object.assign(user, editData);
     }
     handleCloseEditing();
@@ -675,14 +675,18 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Role</label>
                 <select
-                  value={editData.roleId}
+                  value={availableRoles.length > 0 ? editData.roleId : ''}
                   onChange={e => {
                     const role = availableRoles.find(r => r.id === e.target.value);
                     setEditData({ ...editData, roleId: e.target.value, role: role?.name || editData.role });
                   }}
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+                  disabled={availableRoles.length === 0}
+                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none disabled:opacity-50"
                 >
-                  {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {availableRoles.length === 0
+                    ? <option value="">Loading roles…</option>
+                    : availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)
+                  }
                 </select>
               </div>
               <div className="space-y-2">
@@ -5688,6 +5692,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             initialIsEditing={selectedDossierUser.edit}
             initialAddingLog={selectedDossierUser.log}
             onClose={() => setSelectedDossierUser(null)}
+            onSaved={loadUsers}
           />
         )}
 
