@@ -12,6 +12,8 @@ const DEFAULT_LOCALIZATION: LocalizationData = {
   timezone: 'Africa/Algiers',
   decimalSeparator: 'dot',
   currencyDecimals: 2,
+  gratuityEnabled: false,
+  gratuityRate: 0,
 };
 
 // Symbol overrides for currencies that have recognizable glyphs.

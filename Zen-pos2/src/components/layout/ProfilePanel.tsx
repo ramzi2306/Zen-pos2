@@ -36,11 +36,11 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
   const completedOrders = sessionOrders.filter(o => o.status === 'Done' || o.status === 'Served');
   
-  const cashOrders = completedOrders.filter(o => o.paymentStatus === 'Unpaid');
-  const cardOrders = completedOrders.filter(o => o.paymentStatus === 'Paid');
+  const cashOrders = completedOrders.filter(o => o.paymentStatus === 'Paid');
+  const cardOrders: Order[] = []; // Card not integrated yet
   
   const expectedCash = cashOrders.reduce((sum, o) => sum + o.total, 0);
-  const expectedCard = cardOrders.reduce((sum, o) => sum + o.total, 0);
+  const expectedCard = 0;
 
   const paymentMethods = [
     { name: 'Cash',        ordersCount: cashOrders.length, total: expectedCash,  refunds: 0 },

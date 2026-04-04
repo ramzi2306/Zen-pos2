@@ -27,6 +27,8 @@ export interface LocalizationData {
   timezone: string;
   decimalSeparator: string;
   currencyDecimals: number;
+  gratuityEnabled: boolean;
+  gratuityRate: number;
 }
 
 export interface IntegrationData {
@@ -105,6 +107,8 @@ function mapLocalization(raw: any): LocalizationData {
     timezone:         raw.timezone          ?? 'Africa/Algiers',
     decimalSeparator: raw.decimal_separator ?? 'dot',
     currencyDecimals: raw.currency_decimals ?? 2,
+    gratuityEnabled:  raw.gratuity_enabled  ?? false,
+    gratuityRate:     raw.gratuity_rate     ?? 0,
   };
 }
 
@@ -194,6 +198,8 @@ export async function updateLocalization(data: LocalizationData): Promise<Locali
       timezone:          data.timezone,
       decimal_separator: data.decimalSeparator,
       currency_decimals: data.currencyDecimals,
+      gratuity_enabled:  data.gratuityEnabled,
+      gratuity_rate:     data.gratuityRate,
     }),
   });
   return mapLocalization(raw);

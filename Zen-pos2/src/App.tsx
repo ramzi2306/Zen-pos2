@@ -410,20 +410,20 @@ function AppShell() {
    */
   const handleCloseRegister = async (reportData?: { actualSales: number, expectedSales: number, difference: number, notes: string }) => {
     if (reportData) {
-      const dbReport: RegisterReport = {
-        id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || Date.now(),
-        closedAt: Date.now(),
-        cashierName: currentUser?.name || 'Unknown',
-        expectedSales: reportData.expectedSales,
-        actualSales: reportData.actualSales,
-        difference: reportData.difference,
-        notes: reportData.notes,
-        locationId: activeLocationId || undefined
-      };
-      const existingReports = JSON.parse(localStorage.getItem('zenpos_register_reports') || '[]');
-      existingReports.push(dbReport);
-      localStorage.setItem('zenpos_register_reports', JSON.stringify(existingReports));
+      try {
+        await api.register.submitRegisterReport({
+          openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || Date.now(),
+          closedAt: Date.now(),
+          cashierName: currentUser?.name || 'Unknown',
+          expectedSales: reportData.expectedSales,
+          actualSales: reportData.actualSales,
+          difference: reportData.difference,
+          notes: reportData.notes,
+          locationId: activeLocationId || undefined
+        });
+      } catch (err) {
+        console.error('Failed to submit register report', err);
+      }
     }
 
     sessionStorage.removeItem('sessionOpenedAt');
@@ -580,7 +580,11 @@ function AppShell() {
                         isKioskForever={!!currentUser && _isAttendanceMgrRole(currentUser)}
                         isLocked={!!currentUser && !currentUser.excludeFromAttendance && !isRegisterOpen}
                         currentUserId={currentUser?.id}
-                        onCurrentUserCheckedIn={() => { setIsRegisterOpen(true); _routeToLanding(currentUser!); }}
+                        onCurrentUserCheckedIn={() => {
+                          sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
+                          setIsRegisterOpen(true);
+                          _routeToLanding(currentUser!);
+                        }}
                       />
                     : <AccessDenied />
                 } />

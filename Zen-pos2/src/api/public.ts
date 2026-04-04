@@ -13,42 +13,7 @@ import type {
 // ─── Menu ──────────────────────────────────────────────────────────────────────
 
 export async function getPublicMenu(): Promise<PublicMenuCategory[]> {
-  // Try the dedicated public endpoint first
-  try {
-    return await publicRequest<PublicMenuCategory[]>('/public/menu');
-  } catch {
-    // Fallback: assemble from the regular products + categories APIs
-    const [rawProducts, categories] = await Promise.all([
-      apiRequest<any[]>('/products/'),
-      apiRequest<{ id: string; name: string }[]>('/products/categories'),
-    ]);
-    return categories.map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      products: rawProducts
-        .filter((p: any) => p.category === cat.id || p.category === cat.name)
-        .map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description ?? '',
-          price: p.price,
-          category: p.category,
-          image: p.image ?? '',
-          inStock: p.in_stock !== false,
-          stockLevel: p.stock_level,
-          tags: p.tags ?? [],
-          variations: (p.variations ?? []).map((vg: any) => ({
-            id: vg.id,
-            name: vg.name,
-            options: (vg.options ?? []).map((vo: any) => ({
-              id: vo.id,
-              name: vo.name,
-              priceAdjustment: vo.price_adjustment ?? 0,
-            })),
-          })),
-        })),
-    }));
-  }
+  return publicRequest<PublicMenuCategory[]>('/public/menu');
 }
 
 // ─── Online order creation ─────────────────────────────────────────────────────
@@ -165,22 +130,9 @@ export interface CustomerLookupResult {
  * Used by checkout to pre-fill details for returning customers.
  */
 export async function lookupCustomerByPhone(phone: string): Promise<CustomerLookupResult | null> {
-  try {
-    return await publicRequest<CustomerLookupResult>(
-      `/public/customers/lookup?phone=${encodeURIComponent(phone)}`
-    );
-  } catch {
-    // Fall back to locally-stored mock customers
-    try {
-      const raw = localStorage.getItem('zenpos_mock_customers');
-      const customers: { id: string; name: string; phone: string; address?: string }[] = raw ? JSON.parse(raw) : [];
-      const normalised = phone.replace(/\D/g, '');
-      const found = customers.find(c => c.phone.replace(/\D/g, '') === normalised);
-      return found ? { id: found.id, name: found.name, address: found.address } : null;
-    } catch {
-      return null;
-    }
-  }
+  return publicRequest<CustomerLookupResult>(
+    `/public/customers/lookup?phone=${encodeURIComponent(phone)}`
+  ).catch(() => null);
 }
 
 /**

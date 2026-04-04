@@ -9,4 +9,5 @@ export * as analytics from './analytics';
 export * as settings from './settings';
 export * as locations from './locations';
 export * as payroll from './payroll';
+export * as register from './register';
 export { getAccessToken, clearTokens } from './client';

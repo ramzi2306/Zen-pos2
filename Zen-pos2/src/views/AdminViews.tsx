@@ -3356,13 +3356,14 @@ const SalesView = () => {
       api.analytics.getBestsellers(5),
       api.analytics.getLeaderboard(),
       api.analytics.getSalesSummary(),
-    ]).then(([ords, bs, lb, sum]) => {
+      api.register.listRegisterReports(),
+    ]).then(([ords, bs, lb, sum, rawReports]) => {
       setOrders(ords);
       setBestsellers(bs);
       setLeaderboard(lb);
       setSummary(sum);
-      const reports = JSON.parse(localStorage.getItem('zenpos_register_reports') || '[]');
-      setRegisterReports(reports.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
+      // Sort reports by closedAt descending
+      setRegisterReports(rawReports.sort((a, b) => b.closedAt - a.closedAt));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -3805,6 +3806,7 @@ const DEFAULT_LOCALIZATION = {
   language: 'English', currency: 'DZD', currencyPosition: 'right',
   country: 'Algeria', taxEnabled: true, taxRate: 8, timezone: 'Africa/Algiers',
   currencyDecimals: 2, decimalSeparator: 'dot' as string,
+  gratuityEnabled: false, gratuityRate: 0,
 };
 
 const LocalizationView = () => {
@@ -3982,6 +3984,44 @@ const LocalizationView = () => {
               <div className="flex justify-between text-sm"><span>Subtotal</span><span>1,000.00</span></div>
               {settings.taxEnabled && <div className="flex justify-between text-sm text-on-surface-variant"><span>Tax ({settings.taxRate}%)</span><span>+{(1000 * settings.taxRate / 100).toFixed(2)}</span></div>}
               <div className="flex justify-between font-bold mt-2 pt-2 border-t border-outline-variant/10"><span>Total</span><span>{settings.taxEnabled ? (1000 + 1000 * settings.taxRate / 100).toFixed(2) : '1,000.00'} {settings.currency}</span></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Gratuity / Service Charge */}
+        <div className="bg-surface-container rounded-2xl p-8 border border-outline-variant/10 lg:col-span-2">
+          <h3 className="font-headline font-bold text-on-surface flex items-center gap-2 mb-6">
+            <span className="material-symbols-outlined text-secondary">room_service</span> Gratuity / Service Charge
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Gratuity Enabled</label>
+              <button
+                onClick={() => update('gratuityEnabled', !settings.gratuityEnabled)}
+                className={`relative w-14 h-7 rounded-full transition-all duration-300 ${settings.gratuityEnabled ? 'bg-secondary' : 'bg-surface-variant'}`}
+              >
+                <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all duration-300 ${settings.gratuityEnabled ? 'left-7' : 'left-0.5'}`} />
+              </button>
+              <p className="text-xs text-on-surface-variant mt-2">{settings.gratuityEnabled ? 'Gratuity is applied to all orders' : 'No automatic gratuity'}</p>
+            </div>
+            <div className={`transition-opacity duration-200 ${settings.gratuityEnabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Gratuity Rate (%)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={0} max={100} step={0.1}
+                  value={settings.gratuityRate}
+                  onChange={e => update('gratuityRate', parseFloat(e.target.value) || 0)}
+                  className="w-28 bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-bold text-lg text-center"
+                />
+                <span className="text-2xl text-on-surface-variant font-bold">%</span>
+              </div>
+            </div>
+            <div className={`p-4 bg-surface-container-lowest rounded-xl border border-outline-variant/10 transition-opacity duration-200 ${settings.gratuityEnabled ? 'opacity-100' : 'opacity-30'}`}>
+              <div className="text-xs text-on-surface-variant mb-2">Example on 1,000 {settings.currency} order</div>
+              <div className="flex justify-between text-sm"><span>Subtotal</span><span>1,000.00</span></div>
+              {settings.gratuityEnabled && <div className="flex justify-between text-sm text-on-surface-variant"><span>Gratuity ({settings.gratuityRate}%)</span><span>+{(1000 * settings.gratuityRate / 100).toFixed(2)}</span></div>}
+              <div className="flex justify-between font-bold mt-2 pt-2 border-t border-outline-variant/10"><span>Total</span><span>{settings.gratuityEnabled ? (1000 + 1000 * settings.gratuityRate / 100).toFixed(2) : '1,000.00'} {settings.currency}</span></div>
             </div>
           </div>
         </div>

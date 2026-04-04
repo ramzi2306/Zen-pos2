@@ -62,8 +62,10 @@ export const CartSidebar = ({
     return sum + itemPrice * item.quantity;
   }, 0);
   const taxRate = localization.taxEnabled ? localization.taxRate / 100 : 0;
+  const gratuityRate = localization.gratuityEnabled ? localization.gratuityRate / 100 : 0;
   const taxAmount = subtotal * taxRate;
-  const total = subtotal + taxAmount;
+  const gratuityAmount = subtotal * gratuityRate;
+  const total = subtotal + taxAmount + gratuityAmount;
 
   // ── State ───────────────────────────────────────────────────────────────────
   const [isDeliveryModalOpen, setIsDeliveryModalOpen] = useState(false);
@@ -198,6 +200,7 @@ export const CartSidebar = ({
       <hr class="dashed">
       <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
       ${taxAmount > 0 ? `<div class="total-row"><span>Tax (${localization.taxRate}%)</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
+      ${gratuityAmount > 0 ? `<div class="total-row"><span>Gratuity (${localization.gratuityRate}%)</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
       <div class="grand-total"><span>TOTAL</span><span>${formatCurrency(total)}</span></div>
       <div class="cash-row"><span>Cash Paid</span><span>${formatCurrency(receiptModal.paidAmount)}</span></div>
       <div class="change-row"><span>Change</span><span>${formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span></div>
@@ -510,6 +513,7 @@ export const CartSidebar = ({
                 <div className="border-t border-dashed border-gray-300 pt-3 space-y-2 text-sm">
                   <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
                   {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
+                  {gratuityAmount > 0 && <div className="flex justify-between text-gray-600"><span>Gratuity ({localization.gratuityRate}%)</span><span>{formatCurrency(gratuityAmount)}</span></div>}
                   <div className="flex justify-between text-lg font-bold mt-3 pt-3 border-t border-dashed border-gray-300">
                     <span>TOTAL</span>
                     <span>{formatCurrency(total)}</span>
@@ -974,6 +978,7 @@ export const CartSidebar = ({
                   <div className="border-t border-dashed border-gray-300 pt-2 space-y-1 text-[11px]">
                     <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
                     {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
+                    {gratuityAmount > 0 && <div className="flex justify-between text-gray-600"><span>Gratuity ({localization.gratuityRate}%)</span><span>{formatCurrency(gratuityAmount)}</span></div>}
                     <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-dashed border-gray-300">
                       <span>TOTAL</span><span>{formatCurrency(total)}</span>
                     </div>

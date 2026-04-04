@@ -42,36 +42,7 @@ interface ApiOrder {
   created_at?: string;
 }
 
-// ─── Mock online order store (localStorage fallback when backend is unavailable) ─
 
-const MOCK_ORDERS_KEY = 'zenpos_mock_online_orders';
-
-function loadMockOrders(): ApiOrder[] {
-  try {
-    const raw = localStorage.getItem(MOCK_ORDERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function patchMockOrder(orderId: string, updates: Partial<ApiOrder>): ApiOrder | null {
-  try {
-    const orders = loadMockOrders();
-    const updated = orders.map(o => o.id === orderId ? { ...o, ...updates } : o);
-    localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
-    return updated.find(o => o.id === orderId) ?? null;
-  } catch { return null; }
-}
-
-/** Parse a datetime string from the backend as UTC epoch ms.
- *  Motor/MongoDB sometimes strips the timezone, returning bare ISO strings
- *  like "2024-01-01T10:00:00" — without a Z suffix JavaScript treats them
- *  as local time, causing the timer to be off by the user's UTC offset.
- */
-function parseUtcMs(dt?: string | null): number | undefined {
-  if (!dt) return undefined;
-  const s = /[Z+]/.test(dt) ? dt : dt + 'Z';
-  return new Date(s).getTime();
-}
 
 function timeAgo(ms?: number): string {
   if (!ms) return 'Just now';
@@ -123,7 +94,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     scheduledTime: raw.scheduled_time,
     startTime: raw.start_time,
     endTime: raw.end_time,
-    queueStartTime: parseUtcMs(raw.created_at),
+    queueStartTime: raw.created_at ? new Date(raw.created_at).getTime() : undefined,
     createdAt: raw.created_at,
     isUrgent: raw.is_urgent,
     cook,
@@ -138,20 +109,8 @@ export async function listOrders(users: User[] = [], date?: string, locationId?:
   if (locationId) params.set('location_id', locationId);
   const qs = params.toString();
   const url = `/orders/${qs ? '?' + qs : ''}`;
-  const mockRaw = loadMockOrders();
-  try {
-    const raw = await apiRequest<ApiOrder[]>(url);
-    const apiOrders = raw.map(o => mapOrder(o, users));
-    // Merge locally-created mock orders not yet synced to the backend
-    const onlyLocal = mockRaw
-      .filter(m => !apiOrders.some(o => o.id === m.id))
-      .map(m => mapOrder(m, users));
-    return [...apiOrders, ...onlyLocal];
-  } catch (err) {
-    // Backend unavailable — serve mock orders so POS still shows online orders
-    if (mockRaw.length > 0) return mockRaw.map(m => mapOrder(m, users));
-    throw err;
-  }
+  const raw = await apiRequest<ApiOrder[]>(url);
+  return raw.map(o => mapOrder(o, users));
 }
 
 export async function createOrder(
@@ -197,17 +156,11 @@ export async function createOrder(
 export async function updateOrderStatus(orderId: string, status: string, scheduledTime?: string): Promise<Order> {
   const body: Record<string, string> = { status };
   if (scheduledTime) body.scheduled_time = scheduledTime;
-  try {
-    const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-    return mapOrder(raw);
-  } catch (err) {
-    const patched = patchMockOrder(orderId, { status });
-    if (patched) return mapOrder(patched);
-    throw err;
-  }
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return mapOrder(raw);
 }
 
 export async function updateOrderPayment(orderId: string, paymentStatus: string): Promise<Order> {
@@ -245,44 +198,26 @@ export async function submitReview(orderId: string, stars: number, comment: stri
 // ─── Online order cashier actions ─────────────────────────────────────────────
 
 export async function verifyOnlineOrder(orderId: string, notes?: string): Promise<Order> {
-  try {
-    const raw = await apiRequest<ApiOrder>(`/orders/${orderId}/verify`, {
-      method: 'POST',
-      body: JSON.stringify({ notes: notes ?? '' }),
-    });
-    return mapOrder(raw);
-  } catch (err) {
-    const patched = patchMockOrder(orderId, { status: 'Verified', notes: notes ?? '' });
-    if (patched) return mapOrder(patched);
-    throw err;
-  }
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ notes: notes ?? '' }),
+  });
+  return mapOrder(raw);
 }
 
 export async function addToKitchenQueue(orderId: string): Promise<Order> {
-  try {
-    const raw = await apiRequest<ApiOrder>(`/orders/${orderId}/add-to-kitchen`, {
-      method: 'POST',
-    });
-    return mapOrder(raw);
-  } catch (err) {
-    const patched = patchMockOrder(orderId, { status: 'Queued' });
-    if (patched) return mapOrder(patched);
-    throw err;
-  }
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}/add-to-kitchen`, {
+    method: 'POST',
+  });
+  return mapOrder(raw);
 }
 
 export async function cancelOnlineOrder(orderId: string, reason: string): Promise<Order> {
-  try {
-    const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'Cancelled', cancellation_reason: reason }),
-    });
-    return mapOrder(raw);
-  } catch (err) {
-    const patched = patchMockOrder(orderId, { status: 'Cancelled' });
-    if (patched) return mapOrder(patched);
-    throw err;
-  }
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'Cancelled', cancellation_reason: reason }),
+  });
+  return mapOrder(raw);
 }
 
 export async function listOnlinePendingOrders(users: User[] = []): Promise<Order[]> {
