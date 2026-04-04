@@ -145,69 +145,95 @@ export const CartSidebar = ({
 
   const handlePrintReceipt = () => {
     if (!receiptModal) return;
-    const storeName = branding?.restaurantName || 'ZEN OMAKASE';
-    const address = (branding?.address || '').split('\n').filter(Boolean);
-    const phone = branding?.phone || '';
-    const email = branding?.email || '';
-    const footer = branding?.footerText || 'Thank you for dining with us!';
-    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const storeName = branding?.restaurantName || 'SAKURA SUSHI';
+    const tagline = (branding as any)?.tagline || 'Fresh Rolls • Ramen • Bento';
+    const phone = branding?.phone || '(212) 555-0199';
+    const website = (branding as any)?.website || 'www.sakurasushi.example.com';
+    const address = (branding?.address || '123 Blossom Ave, Tokyo Town,\nNY 10001').split('\n').filter(Boolean);
+    const footer = branding?.footerText || 'Thank you for your order!';
+    
+    const now = new Date();
+    const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
     const itemRows = cart.map(item => {
       const variations = Object.values(item.selectedVariations || {}) as any[];
       const varAdj = variations.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
       const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2);
       const varNames = variations.map((o: any) => o.name).join(', ');
-      const sub = [item.quantity > 1 ? `${item.quantity}×` : '', varNames, item.notes ? `— ${item.notes}` : ''].filter(Boolean).join(' ');
-      return `<div class="item"><div class="item-row"><span>${item.name}</span><span>${formatCurrency(parseFloat(lineTotal))}</span></div>${sub ? `<div class="item-sub">${sub}</div>` : ''}</div>`;
+      const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');
+
+      return `
+        <div class="item">
+          <div class="row">
+            <span>${item.quantity}x ${item.name}</span>
+            <span>${formatCurrency(parseFloat(lineTotal))}</span>
+          </div>
+          ${noteStr ? `<div class="note">&nbsp;&nbsp;&nbsp;Note: ${noteStr}</div>` : ''}
+        </div>
+      `;
     }).join('');
-    const customerSection = (deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address) ? `
-      <hr class="dashed">
-      ${deliveryDetails.name ? `<div class="info">Name: ${deliveryDetails.name}</div>` : ''}
-      ${deliveryDetails.phone ? `<div class="info">Phone: ${deliveryDetails.phone}</div>` : ''}
-      ${deliveryDetails.address ? `<div class="info">Addr: ${deliveryDetails.address}</div>` : ''}` : '';
-    const noteSection = orderNote ? `<hr class="dashed"><div class="note">Note: ${orderNote}</div>` : '';
+
+    const hasCustomer = deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address;
+    const customerSection = hasCustomer ? `
+      <div class="col-2"><span>Customer:</span><span>${deliveryDetails.name || '—'}</span></div>
+      <div class="col-2"><span>Phone:</span><span>${deliveryDetails.phone || '—'}</span></div>
+      <div class="col-2"><span>Address:</span><span>${deliveryDetails.address || '—'}</span></div>
+    ` : '';
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page { size: 100mm auto; margin: 0; }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; width: 100mm; }
-      .receipt { width: 100mm; padding: 6mm 5mm 8mm; }
-      .header { text-align: center; margin-bottom: 8px; }
-      .store-name { font-size: 20px; font-weight: bold; margin-bottom: 3px; }
-      .store-sub { font-size: 12px; color: #555; margin-bottom: 1px; }
-      .meta { display: flex; justify-content: space-between; font-size: 12px; color: #555; text-transform: uppercase; margin: 4px 0; }
-      hr.dashed { border: none; border-top: 1px dashed #bbb; margin: 6px 0; }
-      .info { font-size: 12px; text-transform: uppercase; margin: 2px 0; }
-      .item { margin: 4px 0; }
-      .item-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; }
-      .item-sub { font-size: 12px; color: #666; padding-left: 4px; }
-      .note { font-size: 12px; color: #555; text-transform: uppercase; }
-      .total-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin: 2px 0; }
-      .grand-total { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; border-top: 1px dashed #bbb; padding-top: 5px; margin-top: 4px; }
-      .cash-row { display: flex; justify-content: space-between; font-size: 14px; color: #555; margin: 2px 0; }
-      .change-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; color: #16a34a; }
-      .footer { text-align: center; margin-top: 10px; font-size: 12px; color: #777; font-style: italic; letter-spacing: 0.06em; }
-    </style></head><body><div class="receipt">
-      <div class="header">
+      @page { size: 80mm auto; margin: 0; }
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+      body { width: 80mm; padding: 5mm; color: #000; font-size: 13px; line-height: 1.3; margin: 0 auto; }
+      .text-center { text-align: center; }
+      .mb-1 { margin-bottom: 4px; }
+      .mb-2 { margin-bottom: 8px; }
+      .logo { max-width: 60px; max-height: 60px; margin: 0 auto 4px; display: block; filter: grayscale(100%) contrast(200%); }
+      .store-name { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
+      hr.dashed { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+      .col-2 { display: grid; grid-template-columns: 85px 1fr; gap: 4px; margin-bottom: 2px; }
+      .item .row { display: flex; justify-content: space-between; margin-top: 6px; }
+      .note { font-size: 12px; color: #333; margin-top: 2px; }
+      .totals { display: flex; justify-content: space-between; margin: 3px 0; }
+      .qr-code { width: 120px; height: 120px; margin: 8px auto; display: block; }
+      .loyalty-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+      .loyalty-text { font-size: 12px; }
+    </style></head><body>
+      <div class="text-center">
+        ${branding?.logo ? `<img src="${branding.logo}" class="logo" />` : `<span style="font-size: 24px;">🍣</span>`}
         <div class="store-name">${storeName}</div>
-        ${address.map(l => `<div class="store-sub">${l}</div>`).join('')}
-        ${phone ? `<div class="store-sub">${phone}</div>` : ''}
-        ${email ? `<div class="store-sub">${email}</div>` : ''}
+        <div class="mb-1">${tagline}</div>
+        <div class="mb-1">${phone} • ${website}</div>
+        ${address.map(l => `<div>${l}</div>`).join('')}
       </div>
       <hr class="dashed">
-      <div class="meta"><span>${date}</span><span>${receiptModal.orderNumber}</span></div>
-      ${customerSection}
+      <div class="col-2"><span>Order No:</span><span>${receiptModal.orderNumber}</span></div>
+      <div class="col-2"><span>Date:</span><span>${date}</span></div>
+      <div class="col-2"><span>Time:</span><span>${time}</span></div>
+      <div class="col-2"><span>Order Type:</span><span style="text-transform: capitalize">${orderType.replace('_', ' ')}</span></div>
+      ${hasCustomer ? `<br/>${customerSection}` : ''}
+      <hr class="dashed">
+      <div class="text-center">ITEMS</div>
       <hr class="dashed">
       ${itemRows}
-      ${noteSection}
       <hr class="dashed">
-      <div class="total-row"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
-      ${taxAmount > 0 ? `<div class="total-row"><span>Tax (${localization.taxRate}%)</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
-      ${gratuityAmount > 0 ? `<div class="total-row"><span>Gratuity (${localization.gratuityRate}%)</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
-      <div class="grand-total"><span>TOTAL</span><span>${formatCurrency(total)}</span></div>
-      <div class="cash-row"><span>Cash Paid</span><span>${formatCurrency(receiptModal.paidAmount)}</span></div>
-      <div class="change-row"><span>Change</span><span>${formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span></div>
-      <div class="footer">${footer}</div>
-    </div><script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></body></html>`;
-    const win = window.open('', '_blank', 'width=500,height=700');
+      <div class="totals"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
+      ${taxAmount > 0 ? `<div class="totals"><span>Tax:</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
+      ${gratuityAmount > 0 ? `<div class="totals"><span>Gratuity:</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
+      <hr class="dashed">
+      <div class="totals" style="font-weight: bold; font-size: 15px;"><span>TOTAL:</span><span>${formatCurrency(total)}</span></div>
+      <hr class="dashed">
+      
+      <div class="text-center mb-1">
+        <div class="loyalty-title">COLLECT LOYALTY POINTS</div>
+        <div class="loyalty-text">Kindly scan the QR code below to earn<br>points on this order and redeem them<br>for discounts and free delivery.</div>
+      </div>
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=zenpos:${receiptModal.orderNumber}" class="qr-code" />
+      <div class="text-center loyalty-text mb-2">${footer}</div>
+      <hr class="dashed">
+    <script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></body></html>`;
+
+    const win = window.open('', '_blank', 'width=400,height=600');
     if (!win) return;
     win.document.write(html);
     win.document.close();
@@ -951,61 +977,111 @@ export const CartSidebar = ({
 
               {/* Receipt paper */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center bg-[#1a1d21]">
-                <div id="zen-receipt-print" className="w-full max-w-[300px] bg-white text-black pt-6 px-5 pb-6 relative shadow-xl font-mono">
-                  <div className="text-center mb-4">
-                    <h3 className="font-bold text-lg mb-0.5">{branding?.restaurantName || 'ZEN OMAKASE'}</h3>
-                    {(branding?.address || '').split('\n').filter(Boolean).map((line, i) => (
-                      <p key={i} className="text-[9px] text-gray-500">{line}</p>
+                <div id="zen-receipt-print" className="w-full max-w-[320px] bg-[#f8f9fa] text-black pt-6 px-5 pb-6 relative shadow-xl font-mono text-xs leading-snug">
+                  <div className="text-center mb-3">
+                    {branding?.logo ? (
+                      <img src={branding.logo} alt="Logo" className="w-12 h-12 mx-auto mb-1 object-contain grayscale contrast-200" />
+                    ) : (
+                      <span className="text-3xl block mb-1">🍣</span>
+                    )}
+                    <h3 className="font-bold text-base mb-1">{branding?.restaurantName || 'SAKURA SUSHI'}</h3>
+                    <div className="text-[11px] mb-0.5">{(branding as any)?.tagline || 'Fresh Rolls • Ramen • Bento'}</div>
+                    <div className="text-[11px] mb-0.5">{branding?.phone || '(212) 555-0199'} • {(branding as any)?.website || 'www.sakurasushi.example.com'}</div>
+                    {(branding?.address || '123 Blossom Ave, Tokyo Town,\nNY 10001').split('\n').filter(Boolean).map((line, i) => (
+                      <div key={i} className="text-[11px]">{line}</div>
                     ))}
-                    {branding?.phone && <p className="text-[9px] text-gray-500">{branding.phone}</p>}
-                    {branding?.email && <p className="text-[9px] text-gray-500">{branding.email}</p>}
                   </div>
-                  <div className="border-b border-dashed border-gray-300 pb-2 mb-3 flex justify-between text-[9px] text-gray-500 uppercase">
-                    <span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    <span>Order: {receiptModal.orderNumber}</span>
+                  
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+                  
+                  <div className="grid grid-cols-[80px_1fr] gap-x-2 text-[11px] my-2">
+                    <span>Order No:</span><span>{receiptModal.orderNumber}</span>
+                    <span>Date:</span><span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    <span>Time:</span><span>{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>Order Type:</span><span className="capitalize">{orderType.replace('_', ' ')}</span>
                   </div>
+
                   {(deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address) && (
-                    <div className="mb-3 text-[9px] uppercase tracking-wider border-b border-dashed border-gray-200 pb-2">
-                      {deliveryDetails.name && <div><span className="font-bold">Name:</span> {deliveryDetails.name}</div>}
-                      {deliveryDetails.phone && <div><span className="font-bold">Phone:</span> {deliveryDetails.phone}</div>}
-                      {deliveryDetails.address && <div><span className="font-bold">Addr:</span> {deliveryDetails.address}</div>}
-                    </div>
-                  )}
-                  <div className="space-y-2 mb-3">
-                    {cart.map(item => (
-                      <div key={item.cartItemId} className="text-[11px]">
-                        <div className="flex justify-between font-bold">
-                          <span>{item.name}</span>
-                          <span>{formatCurrency((item.price + Object.values(item.selectedVariations || {}).reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0) - (item.discount || 0)) * item.quantity)}</span>
-                        </div>
-                        {(item.quantity > 1 || Object.keys(item.selectedVariations || {}).length > 0 || item.notes) && (
-                          <div className="text-[9px] text-gray-500">
-                            {item.quantity > 1 && `${item.quantity}× `}
-                            {Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ')}
-                            {item.notes && ` — ${item.notes}`}
-                          </div>
-                        )}
+                    <>
+                      <div className="w-full h-2"></div>
+                      <div className="grid grid-cols-[80px_1fr] gap-x-2 text-[11px] mb-2">
+                        <span>Customer:</span><span>{deliveryDetails.name || '—'}</span>
+                        <span>Phone:</span><span>{deliveryDetails.phone || '—'}</span>
+                        <span>Address:</span><span>{deliveryDetails.address || '—'}</span>
                       </div>
-                    ))}
-                  </div>
-                  {orderNote && (
-                    <div className="border-t border-dashed border-gray-300 pt-2 mb-2 text-[9px] text-gray-600 uppercase">
-                      <span className="font-bold">Note:</span> {orderNote}
-                    </div>
+                    </>
                   )}
-                  <div className="border-t border-dashed border-gray-300 pt-2 space-y-1 text-[11px]">
-                    <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-                    {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
-                    {gratuityAmount > 0 && <div className="flex justify-between text-gray-600"><span>Gratuity ({localization.gratuityRate}%)</span><span>{formatCurrency(gratuityAmount)}</span></div>}
-                    <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-dashed border-gray-300">
-                      <span>TOTAL</span><span>{formatCurrency(total)}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600"><span>Cash Paid</span><span>{formatCurrency(receiptModal.paidAmount)}</span></div>
-                    <div className="flex justify-between font-bold text-[#16a34a]">
-                      <span>Change</span><span>{formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span>
-                    </div>
+
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+                  <div className="text-center font-bold text-[11px] tracking-widest my-1">ITEMS</div>
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+
+                  <div className="space-y-3 mb-3">
+                    {cart.map(item => {
+                      const variations = Object.values(item.selectedVariations || {}) as any[];
+                      const varAdj = variations.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
+                      const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100));
+                      const varNames = variations.map((o: any) => o.name).join(', ');
+                      const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');
+
+                      return (
+                        <div key={item.cartItemId} className="text-[11px]">
+                          <div className="flex justify-between">
+                            <span>{item.quantity}x {item.name}</span>
+                            <span>{formatCurrency(lineTotal)}</span>
+                          </div>
+                          {noteStr && (
+                            <div className="pl-5 text-[10px] text-gray-700 mt-0.5">
+                              Note: {noteStr}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="text-center mt-4 text-[9px] text-gray-400 italic">{branding?.footerText || 'Thank you for dining with us!'}</div>
+
+                  {orderNote && (
+                    <>
+                      <div className="border-t border-dashed border-black/40 my-2"></div>
+                      <div className="text-[10px] text-gray-700 font-bold uppercase">Note: {orderNote}</div>
+                    </>
+                  )}
+
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                    {taxAmount > 0 && <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(taxAmount)}</span></div>}
+                    {gratuityAmount > 0 && <div className="flex justify-between"><span>Gratuity:</span><span>{formatCurrency(gratuityAmount)}</span></div>}
+                  </div>
+
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+                  
+                  <div className="flex justify-between font-bold text-[13px] my-2">
+                    <span>TOTAL:</span><span>{formatCurrency(total)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-[11px]"><span>Cash Paid:</span><span>{formatCurrency(receiptModal.paidAmount)}</span></div>
+                  <div className="flex justify-between font-bold text-[#16a34a] text-[12px] mt-1">
+                    <span>Change:</span><span>{formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span>
+                  </div>
+
+                  <div className="border-t border-dashed border-black/40 my-2"></div>
+
+                  <div className="text-center mt-4">
+                    <div className="font-bold text-[12px] mb-1">COLLECT LOYALTY POINTS</div>
+                    <div className="text-[10px] leading-tight mb-3">
+                      Kindly scan the QR code below to earn<br/>points on this order and redeem them<br/>for discounts and free delivery.
+                    </div>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=zenpos:${receiptModal.orderNumber}`} 
+                      alt="QR Code" 
+                      className="w-24 h-24 mx-auto block mb-3 mix-blend-multiply" 
+                    />
+                    <div className="text-[10px] mb-1">{branding?.footerText || 'Thank you for your order!'}</div>
+                  </div>
+                  
+                  <div className="border-t border-dashed border-black/40 mt-3 pt-0"></div>
                 </div>
               </div>
 

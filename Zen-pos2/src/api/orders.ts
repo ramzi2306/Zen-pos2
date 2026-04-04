@@ -65,7 +65,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     table: raw.table,
     status: raw.status as Order['status'],
     paymentStatus: raw.payment_status as Order['paymentStatus'],
-    paymentMethod: raw.payment_method || 'Cash',
+    paymentMethod: (raw.payment_method as Order['paymentMethod']) || 'Cash',
     items: raw.items.map(item => ({
       cartItemId: item.selected_variations.length > 0
         ? `${item.product_id}|${item.selected_variations.map(v => `${v.group_id}:${v.option_id}`).sort().join('|')}`
