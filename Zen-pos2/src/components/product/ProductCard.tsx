@@ -28,6 +28,17 @@ export const ProductCard = ({
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) => {
   const { formatCurrency } = useLocalization();
+
+  const priceLabel = (() => {
+    const prices = (product.variations ?? [])
+      .flatMap(vg => vg.options.map(o => o.price ?? 0))
+      .filter(p => p > 0);
+    if (!prices.length) return formatCurrency(product.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    return min === max ? formatCurrency(min) : `${formatCurrency(min)} – ${formatCurrency(max)}`;
+  })();
+
   return <div
     onClick={onClick}
     className="group bg-surface-container rounded-lg overflow-hidden flex flex-col hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer"
@@ -56,7 +67,7 @@ export const ProductCard = ({
             {product.name}
           </h3>
           <span className="font-headline font-bold text-primary text-sm md:text-base whitespace-nowrap">
-            {formatCurrency(product.price)}
+            {priceLabel}
           </span>
         </div>
         <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed">

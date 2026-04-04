@@ -3012,21 +3012,45 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Base Price</label>
-              <div className="relative">
-                <CurrencySymbol />
-                <input 
-                  type="number" 
-                  value={price}
-                  onChange={e => setPrice(e.target.value)}
-                  placeholder="0.00"
-                  className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl py-4 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? (localization.currency.length > 2 ? 'pl-16 pr-6' : 'pl-12 pr-6') : (localization.currency.length > 2 ? 'pr-16 pl-6' : 'pr-12 pl-6')}`}
-                />
+          {(() => {
+            const hasVariations = variations.length > 0 && variations.some((vg: any) => vg.options.length > 0);
+            const allPrices = variations.flatMap((vg: any) => vg.options.map((o: any) => o.price || 0)).filter((p: number) => p > 0);
+            const minPrice = allPrices.length ? Math.min(...allPrices) : null;
+            const maxPrice = allPrices.length ? Math.max(...allPrices) : null;
+            const sym = localization.currency || '';
+            const left = localization.currencyPosition === 'left';
+            const priceRangeLabel = minPrice !== null
+              ? minPrice === maxPrice
+                ? left ? `${sym} ${minPrice}` : `${minPrice} ${sym}`
+                : left ? `${sym} ${minPrice} – ${sym} ${maxPrice}` : `${minPrice} – ${maxPrice} ${sym}`
+              : null;
+            return (
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+                    {hasVariations ? 'Price Range' : 'Base Price'}
+                  </label>
+                  {hasVariations ? (
+                    <div className="w-full bg-surface-container-highest border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm text-on-surface-variant flex items-center gap-2 opacity-60">
+                      <span className="material-symbols-outlined text-[16px]">lock</span>
+                      {priceRangeLabel ?? 'Set prices on each variation option'}
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <CurrencySymbol />
+                      <input
+                        type="number"
+                        value={price}
+                        onChange={e => setPrice(e.target.value)}
+                        placeholder="0.00"
+                        className={`w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl py-4 text-sm text-on-surface focus:border-primary outline-none transition-all ${localization.currencyPosition === 'left' ? (localization.currency.length > 2 ? 'pl-16 pr-6' : 'pl-12 pr-6') : (localization.currency.length > 2 ? 'pr-16 pl-6' : 'pr-12 pl-6')}`}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
           <div className="space-y-3">
             <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Description</label>
