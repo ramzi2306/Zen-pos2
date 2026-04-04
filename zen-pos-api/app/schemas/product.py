@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class IngredientSchema(BaseModel):
@@ -61,6 +61,13 @@ class ProductCreate(BaseModel):
     supplements: list[SupplementGroupSchema] = []
     ingredients: list[IngredientSchema] = []
 
+    @field_validator('image')
+    @classmethod
+    def reject_base64(cls, v: str) -> str:
+        if v and v.startswith('data:'):
+            raise ValueError('Images must be uploaded via /settings/upload first. Store the returned URL, not a base64 data URI.')
+        return v
+
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -73,6 +80,13 @@ class ProductUpdate(BaseModel):
     tags: Optional[list[str]] = None
     variations: Optional[list[VariationGroupSchema]] = None
     supplements: Optional[list[SupplementGroupSchema]] = None
+
+    @field_validator('image')
+    @classmethod
+    def reject_base64(cls, v: Optional[str]) -> Optional[str]:
+        if v and v.startswith('data:'):
+            raise ValueError('Images must be uploaded via /settings/upload first. Store the returned URL, not a base64 data URI.')
+        return v
 
 
 class CategoryOut(BaseModel):

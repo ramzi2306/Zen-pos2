@@ -2790,19 +2790,23 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const [supplements, setSupplements] = useState<any[]>(product?.supplements || []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(product?.ingredients || []);
   const [apiCategories, setApiCategories] = useState<string[]>([]);
+  const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     api.products.listCategories().then(cats => setApiCategories(cats.map(c => c.name))).catch(console.error);
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const { url } = await api.settings.uploadFile(file);
+      setImage(url);
+    } catch (err) {
+      console.error('Image upload failed:', err);
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -2959,7 +2963,12 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
           <div className="space-y-3">
             <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Product Image</label>
             <div className="relative h-48 border-2 border-dashed border-outline-variant/30 rounded-2xl flex flex-col items-center justify-center text-center hover:bg-surface-container-highest/50 transition-colors cursor-pointer overflow-hidden group">
-              {image ? (
+              {imageUploading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <span className="material-symbols-outlined text-3xl text-primary animate-spin">progress_activity</span>
+                  <p className="text-xs text-on-surface-variant font-bold uppercase tracking-widest">Uploading…</p>
+                </div>
+              ) : image ? (
                 <>
                   <img src={image} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
                   <div className="relative z-10 bg-black/60 p-3 rounded-xl backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center">
@@ -2974,7 +2983,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
                   <p className="text-xs text-on-surface-variant mt-1">or click to browse</p>
                 </>
               )}
-              <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleImageUpload} />
+              <input type="file" accept="image/*" disabled={imageUploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed" onChange={handleImageUpload} />
             </div>
           </div>
 
@@ -3331,11 +3340,12 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
           >
             Cancel
           </button>
-          <button 
+          <button
             onClick={handleSave}
-            className="flex-1 py-4 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+            disabled={imageUploading}
+            className="flex-1 py-4 bg-primary text-on-primary rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20"
           >
-            {product ? 'Save Changes' : 'Create Product'}
+            {imageUploading ? 'Uploading image…' : product ? 'Save Changes' : 'Create Product'}
           </button>
         </div>
       </div>
