@@ -84,6 +84,7 @@ export const CartSidebar = ({
   const [paymentMenuRect, setPaymentMenuRect] = useState<DOMRect | null>(null);
   const [noteMenuRect, setNoteMenuRect] = useState<DOMRect | null>(null);
   const [amountPaid, setAmountPaid] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit Card' | 'Other'>('Cash');
   const [orderNote, setOrderNote] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
@@ -218,7 +219,8 @@ export const CartSidebar = ({
       const customer = deliveryDetails.name || deliveryDetails.phone
         ? { name: deliveryDetails.name, phone: deliveryDetails.phone || '', address: deliveryDetails.address || undefined }
         : { name: '', phone: '' };
-      const newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus);
+      const method = paymentStatus === 'Paid' ? paymentMethod : 'Cash';
+      const newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus, method);
       setCreatedOrderNumber(newOrder.orderNumber ?? null);
       if (onOrderCreated) onOrderCreated(newOrder);
       if (paymentStatus === 'Paid') {
@@ -611,6 +613,22 @@ export const CartSidebar = ({
                 <div className="text-[#8bc34a] font-mono font-bold text-lg">{formatCurrency(total)}</div>
               </div>
               <div className="p-4 space-y-4">
+                {/* Payment method selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Cash', 'Credit Card', 'Other'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setPaymentMethod(m)}
+                      className={`py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                        paymentMethod === m
+                          ? 'bg-[#8bc34a] text-white'
+                          : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
                 <div className="bg-black/30 rounded-xl p-3 border border-white/5">
                   <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Amount Paid</div>
                   <div className="text-2xl text-white font-mono font-bold flex items-center">

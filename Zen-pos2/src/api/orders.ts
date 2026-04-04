@@ -24,6 +24,7 @@ interface ApiOrder {
   table: string;
   status: string;
   payment_status: string;
+  payment_method?: string;
   items: ApiOrderItem[];
   subtotal: number;
   tax: number;
@@ -64,6 +65,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     table: raw.table,
     status: raw.status as Order['status'],
     paymentStatus: raw.payment_status as Order['paymentStatus'],
+    paymentMethod: raw.payment_method || 'Cash',
     items: raw.items.map(item => ({
       cartItemId: item.selected_variations.length > 0
         ? `${item.product_id}|${item.selected_variations.map(v => `${v.group_id}:${v.option_id}`).sort().join('|')}`
@@ -121,6 +123,7 @@ export async function createOrder(
   notes: string,
   paymentStatus: 'Unpaid' | 'Paid' = 'Unpaid',
   status: 'Queued' | 'Draft' = 'Queued',
+  paymentMethod: 'Cash' | 'Credit Card' | 'Other' = 'Cash',
 ): Promise<Order> {
   const payload = {
     table,
@@ -128,6 +131,7 @@ export async function createOrder(
     customer,
     notes,
     payment_status: paymentStatus,
+    payment_method: paymentMethod,
     status,
     items: cart.map(item => ({
       product_id: item.id,

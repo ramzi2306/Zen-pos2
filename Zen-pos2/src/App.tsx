@@ -573,7 +573,7 @@ function AppShell() {
                 } />
 
                 <Route path="/attendance" element={
-                  hasPermission('view_attendance')
+                  (hasPermission('view_attendance') || (!!currentUser && !currentUser.excludeFromAttendance))
                     ? <AttendanceView
                         setCurrentView={setCurrentView}
                         onLogout={handleLogout}

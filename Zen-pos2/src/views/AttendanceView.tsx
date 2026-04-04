@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { User, Role } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 import * as api from '../api';
+import { zenWs } from '../api/websocket';
 
 /**
  * AttendanceView — full-screen kiosk for staff check-in / check-out.
@@ -58,6 +59,18 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, isKioskF
       setCheckedInIds(ids);
     }).catch(console.error);
   }, [group]);
+
+  // Keep checked-in state in sync across all kiosk tablets via WebSocket
+  useEffect(() => {
+    return zenWs.onEvent(event => {
+      if (event.type !== 'attendance_update' || !event.user_id) return;
+      if (event.action === 'check_in') {
+        setCheckedInIds(prev => new Set([...prev, event.user_id!]));
+      } else if (event.action === 'check_out' || event.action === 'force_check_out') {
+        setCheckedInIds(prev => { const next = new Set(prev); next.delete(event.user_id!); return next; });
+      }
+    });
+  }, []);
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {

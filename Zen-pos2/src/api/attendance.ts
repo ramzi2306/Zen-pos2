@@ -63,19 +63,12 @@ export async function checkOut(userId: string, pin: string): Promise<AttendanceR
 /**
  * Force-checkout a user without their PIN.
  * Called by management when closing the register.
- * Returns false if the user was not checked in (no-op).
+ * Returns true if the user was checked out, false if they weren't checked in (204).
  */
 export async function forceCheckOut(userId: string): Promise<boolean> {
-  const resp = await fetch(`${(await import('./client')).API_BASE}/attendance/force-checkout/${userId}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${(await import('./client')).getAccessToken()}`,
-    },
-  });
-  if (resp.status === 204) return false; // was not checked in
-  if (!resp.ok) throw new Error('Force checkout failed');
-  return true;
+  // apiRequest returns {} as T on 204 — check for the id field to distinguish
+  const result = await apiRequest<Partial<ApiRecord>>(`/attendance/force-checkout/${userId}`, { method: 'POST' });
+  return !!(result as any)?.id;
 }
 
 export async function getUserStatus(userId: string): Promise<boolean> {

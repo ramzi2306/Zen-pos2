@@ -28,26 +28,30 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
     'Cash': '',
-    'Credit Card': ''
+    'Credit Card': '',
+    'Other': '',
   });
   const [notes, setNotes] = useState('');
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const completedOrders = sessionOrders.filter(o => o.status === 'Done' || o.status === 'Served');
-  
-  const cashOrders = completedOrders.filter(o => o.paymentStatus === 'Paid');
-  const cardOrders: Order[] = []; // Card not integrated yet
-  
-  const expectedCash = cashOrders.reduce((sum, o) => sum + o.total, 0);
-  const expectedCard = 0;
+
+  const cashOrders   = completedOrders.filter(o => o.paymentStatus === 'Paid' && (!o.paymentMethod || o.paymentMethod === 'Cash'));
+  const cardOrders   = completedOrders.filter(o => o.paymentStatus === 'Paid' && o.paymentMethod === 'Credit Card');
+  const otherOrders  = completedOrders.filter(o => o.paymentStatus === 'Paid' && o.paymentMethod === 'Other');
+
+  const expectedCash  = cashOrders.reduce((sum, o) => sum + o.total, 0);
+  const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
+  const expectedOther = otherOrders.reduce((sum, o) => sum + o.total, 0);
 
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length, total: expectedCash,  refunds: 0 },
-    { name: 'Credit Card', ordersCount: cardOrders.length, total: expectedCard,  refunds: 0 },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,  refunds: 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,  refunds: 0 },
+    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther, refunds: 0 },
   ];
-  
-  const expectedSales = expectedCash + expectedCard;
+
+  const expectedSales = expectedCash + expectedCard + expectedOther;
 
   let totalActual = 0;
   (Object.values(actualAmounts) as string[]).forEach(val => {
@@ -58,6 +62,44 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
     if (/^\d*\.?\d*$/.test(value)) {
       setActualAmounts(prev => ({ ...prev, [method]: value }));
     }
+  };
+
+  const handlePrintReport = () => {
+    const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+    const openedLabel = openedAt
+      ? new Date(openedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : 'Unknown';
+    const closedLabel = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const rows = paymentMethods.map(pm => {
+      const actual = parseFloat(actualAmounts[pm.name]) || 0;
+      const diff = actual - pm.total;
+      return `<tr>
+        <td>${pm.name}</td><td>${pm.ordersCount}</td>
+        <td>${formatCurrency(pm.total)}</td>
+        <td>${actual ? formatCurrency(actual) : '—'}</td>
+        <td style="color:${diff > 0 ? 'green' : diff < 0 ? 'red' : 'inherit'}">${diff !== 0 ? (diff > 0 ? '+' : '') + formatCurrency(diff) : '—'}</td>
+      </tr>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <style>body{font-family:monospace;padding:24px;color:#000}h2{margin:0 0 4px}p{margin:2px 0;font-size:13px;color:#555}
+      table{width:100%;border-collapse:collapse;margin-top:16px}th{text-align:left;padding:6px 8px;border-bottom:2px solid #000;font-size:11px;text-transform:uppercase}
+      td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:13px}.total{font-weight:bold;font-size:15px;margin-top:12px;text-align:right}
+      .notes{margin-top:12px;font-size:12px;color:#555;border-top:1px dashed #ccc;padding-top:8px}</style>
+    </head><body>
+      <h2>Register Closure Report</h2>
+      <p>Cashier: <strong>${cashierName}</strong></p>
+      <p>Location: ${locationName}</p>
+      <p>Opened: ${openedLabel}</p>
+      <p>Closed: ${closedLabel}</p>
+      <table><thead><tr><th>Method</th><th>Orders</th><th>Expected</th><th>Counted</th><th>Difference</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <div class="total">Total in register: ${formatCurrency(totalActual)} / Expected: ${formatCurrency(expectedSales)}</div>
+      ${notes ? `<div class="notes">Notes: ${notes}</div>` : ''}
+    </body><script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></html>`;
+    const win = window.open('', '_blank', 'width=600,height=700');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
   };
 
   return (
@@ -173,7 +215,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
             {/* Pagination Footer */}
             <div className="bg-[#1a1d21] border-b border-white/10 p-3 flex justify-end items-center pr-8">
-              <span className="text-xs text-white/40 font-medium">1-1 of 1</span>
+              <span className="text-xs text-white/40 font-medium">1-{paymentMethods.length} of {paymentMethods.length}</span>
             </div>
 
             {/* Notes & Total */}
@@ -205,7 +247,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
             {/* Footer */}
             <div className="p-6 bg-[#22252a] border-t border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-8">
-                <button className="flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest">
+                <button onClick={handlePrintReport} className="flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest">
                   <span className="material-symbols-outlined text-2xl">print</span>
                   Print Report
                 </button>

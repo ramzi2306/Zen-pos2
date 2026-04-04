@@ -207,6 +207,7 @@ export interface Order {
   table: string;
   status: 'Queued' | 'Scheduled' | 'Preparing' | 'Served' | 'Packaging' | 'Out for delivery' | 'Done' | 'Cancelled' | 'Draft' | 'Verification';
   paymentStatus: 'Unpaid' | 'Paid';
+  paymentMethod?: 'Cash' | 'Credit Card' | 'Other';
   items: CartItem[];
   subtotal?: number;
   tax?: number;
