@@ -23,6 +23,7 @@ class UserPublic(BaseModel):
     attendance_group: str
     has_pin: bool
     is_active: bool
+    exclude_from_attendance: bool = False
     location_id: Optional[str] = None
     location_name: Optional[str] = None
     shifts: dict[str, str] = {}
@@ -86,6 +87,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    role_id: Optional[str] = None
     image: Optional[str] = None
     base_salary: Optional[float] = None
     start_date: Optional[str] = None

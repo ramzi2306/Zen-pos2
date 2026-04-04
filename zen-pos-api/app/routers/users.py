@@ -83,7 +83,14 @@ async def update_user(user_id: str, body: UserUpdate):
     user = await UserDocument.get(user_id)
     if not user:
         raise NotFoundError("User not found")
-    for key, value in body.model_dump(exclude_unset=True).items():
+    update_data = body.model_dump(exclude_unset=True)
+    # role_id is a Link field — must be resolved to a RoleDocument, not set as a string
+    if "role_id" in update_data:
+        role = await RoleDocument.get(update_data.pop("role_id"))
+        if not role:
+            raise NotFoundError("Role not found")
+        user.role = role
+    for key, value in update_data.items():
         setattr(user, key, value)
     await user.save()
     return await _to_detail(user)
@@ -147,6 +154,7 @@ async def _to_public(user: UserDocument) -> UserPublic:
         role_id=str(role.id) if role and getattr(role, "id", None) else "",
         role_name=role.name if role and getattr(role, "name", None) else "Deleted Role",
         permissions=role.permissions if role and getattr(role, "permissions", None) else [],
+        exclude_from_attendance=role.exclude_from_attendance if role and getattr(role, "exclude_from_attendance", None) is not None else False,
         image=user.image or "",
         base_salary=user.base_salary or 0.0,
         attendance_score=user.attendance_score or 0.0,

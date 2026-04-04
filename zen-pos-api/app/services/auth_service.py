@@ -66,7 +66,7 @@ async def logout(refresh_token: str) -> None:
 async def get_user_with_role(user: UserDocument) -> dict:
     from app.models.location import LocationDocument
     await user.fetch_all_links()
-    role: RoleDocument = user.role
+    role: RoleDocument = user.role  # may be None if user has no role assigned
     location_name = None
     if user.location_id:
         loc = await LocationDocument.get(user.location_id)
@@ -77,9 +77,9 @@ async def get_user_with_role(user: UserDocument) -> dict:
         "email": user.email,
         "phone": user.phone,
         "image": user.image,
-        "role_id": str(role.id),
-        "role_name": role.name,
-        "permissions": role.permissions,
+        "role_id": str(role.id) if role else "",
+        "role_name": role.name if role else "",
+        "permissions": role.permissions if role else [],
         "base_salary": user.base_salary,
         "attendance_score": user.attendance_score,
         "attendance_group": user.attendance_group,
