@@ -18,13 +18,13 @@ import { useLocalization } from '../../context/LocalizationContext';
 interface CloseRegisterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  expectedSales: number;
-  onConfirm?: () => void;
+  sessionOrders: Order[];
+  onConfirm?: (reportData: { actualSales: number, expectedSales: number, difference: number, notes: string }) => void;
   cashierName?: string;
   locationName?: string;
 }
 
-const CloseRegisterModal = ({ isOpen, onClose, expectedSales, onConfirm, cashierName = 'Cashier', locationName = 'POS' }: CloseRegisterModalProps) => {
+const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS' }: CloseRegisterModalProps) => {
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
     'Cash': '',
@@ -34,10 +34,20 @@ const CloseRegisterModal = ({ isOpen, onClose, expectedSales, onConfirm, cashier
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
+  const completedOrders = sessionOrders.filter(o => o.status === 'Done' || o.status === 'Served');
+  
+  const cashOrders = completedOrders.filter(o => o.paymentStatus === 'Unpaid');
+  const cardOrders = completedOrders.filter(o => o.paymentStatus === 'Paid');
+  
+  const expectedCash = cashOrders.reduce((sum, o) => sum + o.total, 0);
+  const expectedCard = cardOrders.reduce((sum, o) => sum + o.total, 0);
+
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: 0, total: expectedSales * 0.7,  refunds: 0 },
-    { name: 'Credit Card', ordersCount: 0, total: expectedSales * 0.3,  refunds: 0 },
+    { name: 'Cash',        ordersCount: cashOrders.length, total: expectedCash,  refunds: 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length, total: expectedCard,  refunds: 0 },
   ];
+  
+  const expectedSales = expectedCash + expectedCard;
 
   let totalActual = 0;
   (Object.values(actualAmounts) as string[]).forEach(val => {
@@ -205,7 +215,13 @@ const CloseRegisterModal = ({ isOpen, onClose, expectedSales, onConfirm, cashier
                   Cancel
                 </button>
                 <button
-                  onClick={onConfirm || onClose}
+                  onClick={() => {
+                    if (onConfirm) {
+                      onConfirm({ actualSales: totalActual, expectedSales, difference: totalActual - expectedSales, notes });
+                    } else {
+                      onClose();
+                    }
+                  }}
                   className="px-12 py-4 bg-[#d84315] text-white rounded-lg text-sm font-bold uppercase tracking-widest hover:bg-[#bf360c] transition-all shadow-lg shadow-[#d84315]/20"
                 >
                   Close Register
@@ -316,7 +332,7 @@ export const ProfilePanel = ({
   currentUser: any;
   onLogout: () => void;
   /** Called after the cashier confirms "Close Register" — handles checkout + navigation */
-  onCloseRegister?: () => void;
+  onCloseRegister?: (reportData: { actualSales: number, expectedSales: number, difference: number, notes: string }) => void;
   hasPermission: (p: any) => boolean;
   orders?: Order[];
   locations?: Location[];
@@ -327,8 +343,15 @@ export const ProfilePanel = ({
   const { formatCurrency } = useLocalization();
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
-  const totalSales = orders.reduce((sum, order) => sum + order.total, 0);
-  const totalOrders = orders.length;
+  
+  const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+  const sessionOrders = openedAt ? orders.filter(o => {
+    const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
+    return t >= openedAt;
+  }) : orders;
+  
+  const totalSales = sessionOrders.reduce((sum, order) => sum + order.total, 0);
+  const totalOrders = sessionOrders.length;
 
   const canSwitchLocation = !currentUser?.locationId && locations.length > 0 && !!setActiveLocationId;
 
@@ -535,18 +558,18 @@ export const ProfilePanel = ({
       <CloseRegisterModal
         isOpen={isCloseModalOpen}
         onClose={() => setIsCloseModalOpen(false)}
-        expectedSales={totalSales}
+        sessionOrders={sessionOrders}
         cashierName={currentUser?.name}
         locationName={(() => {
           if (currentUser?.locationName) return currentUser.locationName;
           const activeLoc = activeLocationId ? locations.find(l => l.id === activeLocationId) : null;
           return activeLoc?.name || restaurantName || 'All Locations';
         })()}
-        onConfirm={() => {
+        onConfirm={(reportData) => {
           setIsCloseModalOpen(false);
           onClose();
           if (onCloseRegister) {
-            onCloseRegister();
+            onCloseRegister(reportData);
           } else {
             setCurrentView('attendance');
           }

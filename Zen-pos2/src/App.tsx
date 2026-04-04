@@ -10,7 +10,7 @@ const SettingsView   = lazy(() => import('./views/AdminViews').then(m => ({ defa
 const AttendanceView = lazy(() => import('./views/AttendanceView').then(m => ({ default: m.AttendanceView })));
 const PublicMenuPage = lazy(() => import('./views/public/PublicMenuPage'));
 import { PublicCartProvider } from './context/PublicCartContext';
-import { Product, CartItem, VariationOption, Order, User, Permission } from './data';
+import { Product, CartItem, VariationOption, Order, User, Permission, RegisterReport } from './data';
 import { BrandingData, DEFAULT_BRANDING } from './api/settings';
 import { LocalizationProvider } from './context/LocalizationContext';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
@@ -404,10 +404,30 @@ function AppShell() {
 
   /**
    * Called when the cashier confirms "Close Register".
+   * Saves the register report into localStorage so we can display it later.
    * Force-checks out the currently logged-in user (if not excluded from attendance),
    * then navigates to the attendance screen.
    */
-  const handleCloseRegister = async () => {
+  const handleCloseRegister = async (reportData?: { actualSales: number, expectedSales: number, difference: number, notes: string }) => {
+    if (reportData) {
+      const dbReport: RegisterReport = {
+        id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || Date.now(),
+        closedAt: Date.now(),
+        cashierName: currentUser?.name || 'Unknown',
+        expectedSales: reportData.expectedSales,
+        actualSales: reportData.actualSales,
+        difference: reportData.difference,
+        notes: reportData.notes,
+        locationId: activeLocationId || undefined
+      };
+      const existingReports = JSON.parse(localStorage.getItem('zenpos_register_reports') || '[]');
+      existingReports.push(dbReport);
+      localStorage.setItem('zenpos_register_reports', JSON.stringify(existingReports));
+    }
+
+    sessionStorage.removeItem('sessionOpenedAt');
+
     if (currentUser && !currentUser.excludeFromAttendance) {
       try { await api.attendance.forceCheckOut(currentUser.id); } catch { /* already checked out is fine */ }
     }

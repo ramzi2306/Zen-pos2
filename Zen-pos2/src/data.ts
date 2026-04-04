@@ -181,6 +181,18 @@ export interface SalesSummary {
   revenueThisMonth: number;
 }
 
+export interface RegisterReport {
+  id: string;
+  openedAt: number;
+  closedAt: number;
+  cashierName: string;
+  expectedSales: number;
+  actualSales: number;
+  difference: number;
+  notes?: string;
+  locationId?: string;
+}
+
 export interface VerificationMetadata {
   verifiedBy?: string;
   verifiedAt?: string;

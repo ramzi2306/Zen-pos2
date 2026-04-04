@@ -974,7 +974,6 @@ export const CartSidebar = ({
                   <div className="border-t border-dashed border-gray-300 pt-2 space-y-1 text-[11px]">
                     <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
                     {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
-                    <div className="flex justify-between text-gray-600"><span>Gratuity (20%)</span><span>{formatCurrency(gratuityAmount)}</span></div>
                     <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-dashed border-gray-300">
                       <span>TOTAL</span><span>{formatCurrency(total)}</span>
                     </div>

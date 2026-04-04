@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AttendanceView } from './AttendanceView';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary } from '../data';
+import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie } from 'recharts';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
@@ -3347,6 +3347,7 @@ const SalesView = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [registerReports, setRegisterReports] = useState<RegisterReport[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -3360,10 +3361,12 @@ const SalesView = () => {
       setBestsellers(bs);
       setLeaderboard(lb);
       setSummary(sum);
+      const reports = JSON.parse(localStorage.getItem('zenpos_register_reports') || '[]');
+      setRegisterReports(reports.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  const formatDate = (iso?: string) => {
+  const formatDate = (iso?: string | number) => {
     if (!iso) return '—';
     const d = new Date(iso);
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -3533,6 +3536,45 @@ const SalesView = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Register Closures Report */}
+        <div className="mt-6 bg-surface-container rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-outline-variant/10">
+            <h3 className="font-headline font-bold text-on-surface">Register Reports (Closures)</h3>
+          </div>
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-surface-container-high">
+                <tr className="text-[10px] uppercase tracking-wider text-on-surface-variant">
+                  <th className="text-left px-4 py-3">Closure Date</th>
+                  <th className="text-left px-4 py-3">Cashier</th>
+                  <th className="text-right px-4 py-3">Expected Sales</th>
+                  <th className="text-right px-4 py-3">Collected</th>
+                  <th className="text-right px-4 py-3">Delta</th>
+                  <th className="text-left px-4 py-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {registerReports.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-10 text-on-surface-variant">No register closures logged yet.</td></tr>
+                ) : registerReports.map(r => (
+                  <tr key={r.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
+                    <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">{formatDate(r.closedAt)}</td>
+                    <td className="px-4 py-3 font-semibold">{r.cashierName}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(r.expectedSales)}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(r.actualSales)}</td>
+                    <td className="px-4 py-3 text-right font-bold">
+                      <span className={r.difference > 0 ? 'text-tertiary' : r.difference < 0 ? 'text-secondary' : 'text-on-surface-variant'}>
+                        {r.difference > 0 ? '+' : ''}{formatCurrency(r.difference)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-on-surface-variant max-w-[200px] truncate">{r.notes || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -3762,6 +3804,7 @@ const COUNTRIES = [
 const DEFAULT_LOCALIZATION = {
   language: 'English', currency: 'DZD', currencyPosition: 'right',
   country: 'Algeria', taxEnabled: true, taxRate: 8, timezone: 'Africa/Algiers',
+  currencyDecimals: 2, decimalSeparator: 'dot' as string,
 };
 
 const LocalizationView = () => {
