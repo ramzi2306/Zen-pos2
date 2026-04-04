@@ -7,6 +7,7 @@ import { playSound } from '../utils/sounds';
 import type { BrandingData } from '../api/settings';
 import { DEFAULT_BRANDING } from '../api/settings';
 import { useLocalization } from '../context/LocalizationContext';
+import QRCode from 'react-qr-code';
 
 const formatTime = (seconds: number) => {
   const m = Math.floor(seconds / 60);
@@ -259,147 +260,47 @@ export const OrdersView = ({
 
   const handlePrintReceipt = () => {
     if (!receiptModal) return;
-    const storeName = b.restaurantName || 'ZEN OMAKASE';
-    const address = (b.address || '').split('\n').filter(Boolean);
-    const phone = b.phone || '';
-    const email = b.email || '';
-    const footer = b.footerText || 'Thank you for dining with us!';
-    const logoUrl = b.logo || '';
-    const order = receiptModal;
-    const date = order.createdAt
-      ? new Date(order.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      : new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-    const itemRows = order.items.map(item => {
-      const variations = Object.values(item.selectedVariations || {}) as any[];
-      const varAdj = variations.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-      const lineTotal = (item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100);
-      const varNames = variations.map((o: any) => o.name).join(' · ');
-      const prepNote = item.notes ? `<div class="prep-note">&#9998; ${item.notes}</div>` : '';
-      const varLine = varNames ? `<div class="item-var">${varNames}</div>` : '';
-      const qtyPrice = item.quantity > 1
-        ? `<div class="item-qty">${item.quantity} × ${formatCurrency(item.price + varAdj)}</div>`
-        : '';
-      return `<div class="item">
-        <div class="item-row"><span class="item-name">${item.name}</span><span class="item-price">${formatCurrency(lineTotal)}</span></div>
-        ${qtyPrice}${varLine}${prepNote}
-      </div>`;
-    }).join('');
-
-    const customerHtml = order.customer && (order.customer.name || order.customer.phone || order.customer.address) ? `
-      <hr class="dashed">
-      <div class="section-label">CUSTOMER</div>
-      ${order.customer.name ? `<div class="info"><b>Name:</b> ${order.customer.name}</div>` : ''}
-      ${order.customer.phone ? `<div class="info"><b>Phone:</b> ${order.customer.phone}</div>` : ''}
-      ${order.customer.address ? `<div class="info"><b>Addr:</b> ${order.customer.address}</div>` : ''}` : '';
-
-    const orderNoteHtml = order.notes ? `
-      <hr class="dashed">
-      <div class="section-label">ORDER NOTE</div>
-      <div class="order-note">${order.notes}</div>` : '';
-
-    const logoHtml = logoUrl
-      ? `<img src="${logoUrl}" class="logo" alt="logo" />`
-      : `<div class="logo-placeholder">&#9670;</div>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>
-      @page { size: 80mm auto; margin: 0; }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; width: 80mm; background: #fff; }
-      .receipt { width: 80mm; padding: 5mm 4mm 10mm; }
-
-      /* ── Header ── */
-      .header { text-align: center; margin-bottom: 6px; }
-      .logo { width: 18mm; height: 18mm; object-fit: contain; margin-bottom: 4px; }
-      .logo-placeholder { font-size: 22px; margin-bottom: 4px; }
-      .store-name { font-size: 16px; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 3px; }
-      .store-contact { font-size: 10px; color: #444; line-height: 1.5; }
-
-      /* ── Dividers ── */
-      hr.dashed { border: none; border-top: 1px dashed #999; margin: 5px 0; }
-      hr.solid  { border: none; border-top: 2px solid #000; margin: 5px 0; }
-
-      /* ── Meta row ── */
-      .meta { display: flex; justify-content: space-between; font-size: 10px; color: #444; text-transform: uppercase; margin: 3px 0; }
-      .order-type { text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 0.06em; margin: 3px 0; }
-
-      /* ── Section labels ── */
-      .section-label { font-size: 9px; font-weight: bold; letter-spacing: 0.12em; text-transform: uppercase; color: #666; margin: 4px 0 2px; }
-
-      /* ── Customer info ── */
-      .info { font-size: 11px; margin: 2px 0; }
-
-      /* ── Items ── */
-      .item { margin: 6px 0; }
-      .item-row { display: flex; justify-content: space-between; align-items: baseline; }
-      .item-name { font-size: 13px; font-weight: bold; flex: 1; padding-right: 4px; }
-      .item-price { font-size: 13px; font-weight: bold; white-space: nowrap; }
-      .item-qty { font-size: 10px; color: #555; padding-left: 2px; margin-top: 1px; }
-      .item-var { font-size: 10px; color: #555; padding-left: 2px; font-style: italic; }
-
-      /* ── Prep note — most visible on kitchen copy ── */
-      .prep-note {
-        font-size: 12px;
-        font-weight: bold;
-        color: #000;
-        background: #f0f0f0;
-        border-left: 3px solid #000;
-        padding: 3px 5px;
-        margin-top: 3px;
-        white-space: pre-wrap;
-        word-break: break-word;
+    // Inject a print stylesheet that hides everything except the receipt div
+    const styleId = 'zen-receipt-print-style';
+    let style = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      document.head.appendChild(style);
+    }
+    style.textContent = `
+      @media print {
+        @page { size: 80mm auto; margin: 0; }
+        body > * { display: none !important; }
+        #zen-receipt-print-root { display: block !important; position: fixed; inset: 0; z-index: 99999; background: #fff; }
+        #zen-order-receipt-print { width: 80mm !important; max-width: 80mm !important; margin: 0 auto; box-shadow: none !important; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; }
       }
+    `;
 
-      /* ── Order note ── */
-      .order-note {
-        font-size: 13px;
-        font-weight: bold;
-        color: #000;
-        border: 1.5px solid #000;
-        padding: 5px 6px;
-        margin: 3px 0;
-        white-space: pre-wrap;
-        word-break: break-word;
-        letter-spacing: 0.03em;
-      }
+    // Wrap the receipt div in a print-root so we can show only it
+    let printRoot = document.getElementById('zen-receipt-print-root');
+    if (!printRoot) {
+      printRoot = document.createElement('div');
+      printRoot.id = 'zen-receipt-print-root';
+      printRoot.style.display = 'none';
+      document.body.appendChild(printRoot);
+    }
 
-      /* ── Totals ── */
-      .total-row { display: flex; justify-content: space-between; font-size: 11px; color: #444; margin: 2px 0; }
-      .grand-total { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; padding-top: 5px; margin-top: 2px; }
+    const receiptEl = document.getElementById('zen-order-receipt-print');
+    if (!receiptEl) return;
 
-      /* ── Footer ── */
-      .footer { text-align: center; margin-top: 8px; font-size: 10px; color: #666; font-style: italic; }
-    </style></head><body><div class="receipt">
-      <div class="header">
-        ${logoHtml}
-        <div class="store-name">${storeName}</div>
-        <div class="store-contact">
-          ${address.map(l => `${l}<br>`).join('')}
-          ${phone ? `${phone}<br>` : ''}
-          ${email ? `${email}` : ''}
-        </div>
-      </div>
-      <hr class="solid">
-      <div class="meta"><span>${date}</span><span># ${order.orderNumber}</span></div>
-      <div class="order-type">${(order.orderType || 'dine_in').replace('_', ' ').toUpperCase()}</div>
-      ${order.table ? `<div class="meta"><span>Table</span><span>${order.table}</span></div>` : ''}
-      ${customerHtml}
-      <hr class="dashed">
-      <div class="section-label">ITEMS</div>
-      ${itemRows}
-      ${orderNoteHtml}
-      <hr class="solid">
-      <div class="total-row"><span>Subtotal</span><span>${formatCurrency(order.subtotal)}</span></div>
-      ${order.tax > 0 ? `<div class="total-row"><span>Tax</span><span>${formatCurrency(order.tax)}</span></div>` : ''}
-      <div class="grand-total"><span>TOTAL</span><span>${formatCurrency(order.total)}</span></div>
-      <hr class="dashed">
-      <div class="footer">${footer}</div>
-    </div><script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></body></html>`;
+    // Clone the receipt into the print root
+    printRoot.innerHTML = '';
+    printRoot.appendChild(receiptEl.cloneNode(true));
 
-    const win = window.open('', '_blank', 'width=400,height=700');
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    window.print();
+
+    // Cleanup after dialog closes
+    setTimeout(() => {
+      printRoot!.innerHTML = '';
+      style!.textContent = '';
+    }, 1000);
   };
 
   const handlePrint = () => {
@@ -1580,6 +1481,14 @@ export const OrdersView = ({
                       <span>TOTAL</span><span>{formatCurrency(receiptModal.total)}</span>
                     </div>
                   </div>
+
+                  {/* QR Code */}
+                  {b.printQrCode && receiptModal.orderNumber && (
+                    <div className="flex flex-col items-center py-3 px-4 border-t border-dashed border-gray-300 gap-1">
+                      <QRCode value={receiptModal.orderNumber} size={72} />
+                      <span className="text-[9px] text-gray-400 tracking-widest">{receiptModal.orderNumber}</span>
+                    </div>
+                  )}
 
                   {/* Footer */}
                   <div className="text-center py-3 px-4 border-t border-dashed border-gray-300 text-[10px] text-gray-400 italic">
