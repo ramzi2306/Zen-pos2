@@ -1805,9 +1805,16 @@ const RoleManagementView = () => {
                 }`}
               >
                 <div className="text-left">
-                  <p className={`text-sm font-bold uppercase tracking-wider ${selectedRole?.id === role.id ? 'text-secondary' : 'text-on-surface'}`}>
-                    {role.name}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-bold uppercase tracking-wider ${selectedRole?.id === role.id ? 'text-secondary' : 'text-on-surface'}`}>
+                      {role.name}
+                    </p>
+                    {role.isSystem && (
+                      <span className="text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                        SYSTEM
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[9px] text-on-surface-variant uppercase tracking-widest mt-1">
                     {role.permissions.length} PERMISSIONS ACTIVE
                   </p>
@@ -1824,31 +1831,42 @@ const RoleManagementView = () => {
             <div className="bg-surface-container rounded-2xl border border-outline-variant/10 shadow-sm overflow-hidden animate-in slide-in-from-right-8 duration-500">
               <div className="p-8 border-b border-outline-variant/10 bg-surface-container-low flex justify-between items-center">
                 <div>
-                  <h3 className="text-2xl font-headline font-extrabold text-on-surface uppercase tracking-tight">{selectedRole.name}</h3>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Permission Matrix Configuration</p>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-2xl font-headline font-extrabold text-on-surface uppercase tracking-tight">{selectedRole.name}</h3>
+                    {selectedRole.isSystem && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded bg-primary/10 text-primary border border-primary/20">
+                        SYSTEM ROLE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">
+                    {selectedRole.isSystem ? 'Read-only · Cannot be modified or deleted' : 'Permission Matrix Configuration'}
+                  </p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: {selectedRole.id}</span>
-                  <button 
-                    onClick={() => handleSaveRoleConfig(selectedRole.id)}
-                    id="save-role-btn"
-                    className="px-4 py-2 bg-on-surface text-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-on-surface-variant transition-colors"
-                  >
-                    SAVE CONFIGURATION
-                  </button>
-                </div>
+                {!selectedRole.isSystem && (
+                  <div className="flex items-center gap-4">
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID: {selectedRole.id}</span>
+                    <button
+                      onClick={() => handleSaveRoleConfig(selectedRole.id)}
+                      id="save-role-btn"
+                      className="px-4 py-2 bg-on-surface text-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-on-surface-variant transition-colors"
+                    >
+                      SAVE CONFIGURATION
+                    </button>
+                  </div>
+                )}
               </div>
-              
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <div className={`p-8 grid grid-cols-1 md:grid-cols-2 gap-6 ${selectedRole.isSystem ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 {allPermissions.map(perm => {
                   const isActive = roles.find(r => r.id === selectedRole.id)?.permissions.includes(perm.id);
                   return (
                     <button
                       key={perm.id}
-                      onClick={() => handleTogglePermission(selectedRole.id, perm.id)}
+                      onClick={() => !selectedRole.isSystem && handleTogglePermission(selectedRole.id, perm.id)}
                       className={`p-6 rounded-2xl border-2 transition-all text-left flex items-start gap-4 group ${
-                        isActive 
-                          ? 'border-secondary bg-secondary/5' 
+                        isActive
+                          ? 'border-secondary bg-secondary/5'
                           : 'border-outline-variant/10 bg-surface-container-lowest hover:border-outline-variant/30'
                       }`}
                     >
@@ -1873,7 +1891,7 @@ const RoleManagementView = () => {
               </div>
 
               {/* Exclusion Toggle Section */}
-              <div className="mx-8 p-6 bg-surface-container-highest/20 rounded-2xl border border-outline-variant/10">
+              <div className={`mx-8 p-6 bg-surface-container-highest/20 rounded-2xl border border-outline-variant/10 ${selectedRole.isSystem ? 'opacity-50 pointer-events-none select-none' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
@@ -1884,22 +1902,26 @@ const RoleManagementView = () => {
                       <p className="text-[10px] text-on-surface-variant">Hide personnel with this role from the kiosk clock-in screen.</p>
                     </div>
                   </div>
-                  <Switch 
+                  <Switch
                     enabled={roles.find(r => r.id === selectedRole.id)?.excludeFromAttendance || false}
-                    onChange={(val) => handleToggleAttendanceExclude(selectedRole.id, val)}
+                    onChange={(val) => !selectedRole.isSystem && handleToggleAttendanceExclude(selectedRole.id, val)}
                   />
                 </div>
               </div>
 
               <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex justify-between items-center">
                 <p className="text-[10px] text-on-surface-variant italic">
-                  * Changes are applied in real-time to all personnel assigned to this archetype.
+                  {selectedRole.isSystem
+                    ? '* System roles are managed by the platform and cannot be modified.'
+                    : '* Changes are applied in real-time to all personnel assigned to this archetype.'}
                 </p>
-                <div className="flex gap-4">
-                  <button onClick={() => handleDeleteRole(selectedRole.id)} className="px-6 py-3 bg-error/10 text-error rounded text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-colors">
-                    DELETE ROLE
-                  </button>
-                </div>
+                {!selectedRole.isSystem && (
+                  <div className="flex gap-4">
+                    <button onClick={() => handleDeleteRole(selectedRole.id)} className="px-6 py-3 bg-error/10 text-error rounded text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-colors">
+                      DELETE ROLE
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

@@ -30,6 +30,19 @@ async def check_out(body: CheckOutRequest):
     return await _to_out(record)
 
 
+@router.post("/force-checkout/{user_id}", response_model=AttendanceRecordOut, status_code=200)
+async def force_checkout(
+    user_id: str,
+    current_user: UserDocument = Depends(require_permission("view_attendance")),
+):
+    """Force-checkout a user without their PIN. Used when the register is closed. Returns 204 if user was not checked in."""
+    from fastapi.responses import Response
+    record = await attendance_service.force_check_out(user_id)
+    if record is None:
+        return Response(status_code=204)
+    return await _to_out(record)
+
+
 @router.get("/today", response_model=list[AttendanceRecordOut])
 async def today_records(
     location_id: Optional[str] = Query(None, description="Override location filter"),

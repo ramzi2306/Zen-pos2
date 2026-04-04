@@ -87,6 +87,7 @@ async def get_user_with_role(user: UserDocument) -> dict:
         "is_active": user.is_active,
         "location_id": user.location_id,
         "location_name": location_name,
+        "exclude_from_attendance": role.exclude_from_attendance if role else False,
         "shifts": user.shifts,
         "payroll_due": user.payroll_due,
         "rewards": user.rewards,

@@ -11,11 +11,20 @@ import * as api from '../api';
  *                        When set, only staff assigned to that attendance group are shown.
  *                        Leave undefined to show all staff (admin tablet).
  */
-export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, group }: { 
-  setCurrentView: (v: string) => void; 
+export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, isKioskForever, isLocked, currentUserId, onCurrentUserCheckedIn, group }: {
+  setCurrentView: (v: string) => void;
   onLogout?: () => void;
+  /** Legacy: only view_attendance perm, no view_menu — shows logout button */
   isKioskOnly?: boolean;
-  group?: string 
+  /** Attendance Manager role: no exit button, only logout */
+  isKioskForever?: boolean;
+  /** Register is closed: exit button hidden, user must check in first */
+  isLocked?: boolean;
+  /** The currently logged-in user's ID, to detect when they personally check in */
+  currentUserId?: string;
+  /** Called when the logged-in user (currentUserId) successfully checks in */
+  onCurrentUserCheckedIn?: () => void;
+  group?: string;
 }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [pin, setPin] = useState('');
@@ -90,6 +99,10 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, group }:
         const record = await api.attendance.checkIn(selectedUser.id, pin);
         setCheckedInIds(prev => new Set([...prev, selectedUser.id]));
         setMessage({ type: 'success', text: `${selectedUser.name} checked in at ${record.checkIn}` });
+        // If this is the currently logged-in user checking in, open the register
+        if (currentUserId && selectedUser.id === currentUserId) {
+          setTimeout(() => onCurrentUserCheckedIn?.(), 1200);
+        }
       } else {
         const record = await api.attendance.checkOut(selectedUser.id, pin);
         setCheckedInIds(prev => { const next = new Set(prev); next.delete(selectedUser.id); return next; });
@@ -113,7 +126,7 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, group }:
 
       {/* Top Controls */}
       <div className="absolute top-8 right-8 flex gap-4 z-50">
-        <button 
+        <button
           onClick={toggleFullscreen}
           className="w-12 h-12 rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container transition-all shadow-lg"
           title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
@@ -122,23 +135,33 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, group }:
             {isFullscreen ? 'fullscreen_exit' : 'fullscreen'}
           </span>
         </button>
-        {isKioskOnly ? (
-          <button 
+        {/* isKioskForever = Attendance Manager: only shows logout, no exit */}
+        {isKioskForever ? (
+          <button
             onClick={onLogout}
             className="w-12 h-12 rounded-full bg-error/10 backdrop-blur-md border border-error/20 flex items-center justify-center text-error hover:bg-error hover:text-white transition-all shadow-lg"
             title="Logout"
           >
             <span className="material-symbols-outlined">logout</span>
           </button>
-        ) : (
-          <button 
+        ) : isKioskOnly ? (
+          <button
+            onClick={onLogout}
+            className="w-12 h-12 rounded-full bg-error/10 backdrop-blur-md border border-error/20 flex items-center justify-center text-error hover:bg-error hover:text-white transition-all shadow-lg"
+            title="Logout"
+          >
+            <span className="material-symbols-outlined">logout</span>
+          </button>
+        ) : !isLocked ? (
+          /* Register is open — allow exiting the attendance screen */
+          <button
             onClick={() => setCurrentView('menu')}
             className="w-12 h-12 rounded-full bg-surface-container/80 backdrop-blur-md border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:text-error hover:bg-surface-container transition-all shadow-lg"
             title="Exit Attendance"
           >
             <span className="material-symbols-outlined">close</span>
           </button>
-        )}
+        ) : null /* isLocked=true: register closed, must check in — no exit button */}
       </div>
 
       <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">

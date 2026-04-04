@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app.dependencies import require_permission
 from app.models.user import RoleDocument
-from app.core.exceptions import NotFoundError, ConflictError
+from app.core.exceptions import NotFoundError, ConflictError, BadRequestError
 
 router = APIRouter()
 
@@ -26,12 +26,23 @@ class RoleOut(BaseModel):
     name: str
     permissions: list[str]
     exclude_from_attendance: bool
+    is_system: bool = False
+
+
+def _role_out(r: RoleDocument) -> RoleOut:
+    return RoleOut(
+        id=str(r.id),
+        name=r.name,
+        permissions=r.permissions,
+        exclude_from_attendance=r.exclude_from_attendance,
+        is_system=r.is_system,
+    )
 
 
 @router.get("/", response_model=list[RoleOut])
 async def list_roles():
     roles = await RoleDocument.find_all().to_list()
-    return [RoleOut(id=str(r.id), name=r.name, permissions=r.permissions, exclude_from_attendance=r.exclude_from_attendance) for r in roles]
+    return [_role_out(r) for r in roles]
 
 
 @router.post("/", response_model=RoleOut, status_code=201,
@@ -41,7 +52,7 @@ async def create_role(body: RoleCreate):
         raise ConflictError("Role name already exists")
     role = RoleDocument(name=body.name, permissions=body.permissions, exclude_from_attendance=body.exclude_from_attendance)
     await role.insert()
-    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions, exclude_from_attendance=role.exclude_from_attendance)
+    return _role_out(role)
 
 
 @router.patch("/{role_id}", response_model=RoleOut,
@@ -50,6 +61,8 @@ async def update_role(role_id: str, body: RoleUpdate):
     role = await RoleDocument.get(role_id)
     if not role:
         raise NotFoundError("Role not found")
+    if role.is_system:
+        raise BadRequestError("System roles cannot be modified")
     if body.name:
         role.name = body.name
     if body.permissions is not None:
@@ -57,7 +70,7 @@ async def update_role(role_id: str, body: RoleUpdate):
     if body.exclude_from_attendance is not None:
         role.exclude_from_attendance = body.exclude_from_attendance
     await role.save()
-    return RoleOut(id=str(role.id), name=role.name, permissions=role.permissions, exclude_from_attendance=role.exclude_from_attendance)
+    return _role_out(role)
 
 
 @router.delete("/{role_id}", status_code=204,
@@ -66,4 +79,6 @@ async def delete_role(role_id: str):
     role = await RoleDocument.get(role_id)
     if not role:
         raise NotFoundError("Role not found")
+    if role.is_system:
+        raise BadRequestError("System roles cannot be deleted")
     await role.delete()

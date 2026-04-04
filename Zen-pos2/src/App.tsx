@@ -48,6 +48,8 @@ function AppShell() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toast, setToast] = useState<AppNotification | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Register gate: false = attendance screen is locked (must check in before using POS)
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   // Refs so WS event handler always sees current values without re-registering
   const usersRef = useRef(users);
@@ -56,6 +58,31 @@ function AppShell() {
   const wsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { usersRef.current = users; }, [users]);
   useEffect(() => { activeLocationIdRef.current = activeLocationId; }, [activeLocationId]);
+
+  // ── Role helpers ────────────────────────────────────────────────────────────
+  const _isAttendanceMgrRole = (user: User) =>
+    (user.role || '').toLowerCase().includes('attendance manager');
+
+  /** Navigate to the user's natural landing page (for excluded-from-attendance users). */
+  const _routeToLanding = (user: User) => {
+    const perms = (user.permissions || []).map(p => p.toLowerCase());
+    const roleName = (user.role || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    const hasPerm = (key: string) => perms.some(p => p.includes(key));
+    const hasRole = (key: string) => roleName.includes(key);
+    const isCashier = hasRole('cashier') || hasRole('caissier') || hasRole('caissière') || email.includes('caissier');
+    const isChef = hasRole('chef') || hasRole('cook') || hasRole('cuisinier') || hasRole('kitchen');
+    const isManager = hasRole('manager') || hasRole('gérant') || hasRole('responsable');
+    const isAdmin = hasRole('admin') || hasRole('owner') || hasRole('propriétaire');
+    if (hasPerm('view_menu') || isCashier || isChef || isManager || isAdmin) navigate('/menu');
+    else if (hasPerm('view_orders')) navigate('/orders');
+    else if (hasPerm('view_staff') || hasPerm('view_hr') || hasRole('staff') || hasRole('hr')) {
+      if (hasPerm('view_staff')) navigate('/settings/team');
+      else navigate('/admin/hr');
+    } else if (hasPerm('view_settings')) navigate('/settings/branding');
+    else if (hasPerm('view_inventory')) navigate('/admin/inventory');
+    else navigate('/menu');
+  };
 
   // Restore session on mount — race against a 5s timeout so a dead backend
   // never leaves the app stuck on the loading spinner indefinitely.
@@ -72,11 +99,31 @@ function AppShell() {
     );
 
     Promise.race([api.auth.me(), timeout])
-      .then(user => {
+      .then(async (user) => {
         if (cancelled) return;
-        setCurrentUser(user as User);
-        if (location.pathname === '/' || (location.pathname === '/menu' && !(user as User).permissions.includes('view_menu'))) {
-          setTimeout(() => handleLogin(user as User), 0);
+        const u = user as User;
+        setCurrentUser(u);
+
+        if (_isAttendanceMgrRole(u)) {
+          navigate('/attendance');
+          return;
+        }
+
+        if (!u.excludeFromAttendance) {
+          // Check if already clocked in (page reload after check-in)
+          try {
+            const isCheckedIn = await api.attendance.getUserStatus(u.id);
+            if (!cancelled) setIsRegisterOpen(isCheckedIn);
+            if (!cancelled && !isCheckedIn) navigate('/attendance');
+          } catch {
+            if (!cancelled) { setIsRegisterOpen(false); navigate('/attendance'); }
+          }
+          return;
+        }
+
+        // Excluded from attendance — restore to current page or re-route if on root
+        if (!cancelled && (location.pathname === '/' || location.pathname === '/admin')) {
+          _routeToLanding(u);
         }
       })
       .catch(() => { if (!cancelled) api.clearTokens(); })
@@ -327,39 +374,21 @@ function AppShell() {
     sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
     unlockAudio(); // Unlock AudioContext on first user gesture
     setCurrentUser(user);
-    
-    // Prioritize landing page based on permissions OR role/email fallbacks
-    const perms = (user.permissions || []).map(p => p.toLowerCase());
-    const roleName = (user.role || '').toLowerCase();
-    const email = (user.email || '').toLowerCase();
-    
-    const hasPerm = (key: string) => perms.some(p => p.includes(key));
-    const hasRole = (key: string) => roleName.includes(key);
-    const hasEmail = (key: string) => email.includes(key);
 
-    // Cashier / chef / manager role-based fast-paths (even if explicit permissions are empty)
-    const isCashier = hasRole('cashier') || hasRole('caissier') || hasRole('caissière');
-    const isChef = hasRole('chef') || hasRole('cook') || hasRole('cuisinier') || hasRole('kitchen');
-    const isManager = hasRole('manager') || hasRole('gérant') || hasRole('responsable');
-    const isAdmin = hasRole('admin') || hasRole('owner') || hasRole('propriétaire');
-
-    if (hasPerm('view_menu') || isCashier || isChef || isManager || isAdmin) {
-      navigate('/menu');
-    } else if (hasPerm('view_orders')) {
-      navigate('/orders');
-    } else if (hasPerm('view_attendance') || hasPerm('attendance') || hasRole('attendance') || hasRole('pointeur') || hasEmail('pointeur')) {
+    // Attendance Manager: locked to attendance screen, no exit
+    if (_isAttendanceMgrRole(user)) {
       navigate('/attendance');
-    } else if (hasPerm('view_staff') || hasPerm('view_hr') || hasRole('staff') || hasRole('hr')) {
-      if (hasPerm('view_staff')) navigate('/settings/team');
-      else navigate('/admin/hr');
-    } else if (hasPerm('view_settings')) {
-      navigate('/settings/branding');
-    } else if (hasPerm('view_inventory')) {
-      navigate('/admin/inventory');
-    } else {
-      // Absolute fallback: go to menu (hasPermission fallbacks will handle role-based access)
-      navigate('/menu');
+      return;
     }
+
+    // All non-excluded roles must check in before accessing the POS
+    if (!user.excludeFromAttendance) {
+      setIsRegisterOpen(false);
+      navigate('/attendance');
+      return;
+    }
+
+    _routeToLanding(user);
   };
 
   const handleLogout = () => {
@@ -369,7 +398,21 @@ function AppShell() {
     setOrders([]);
     setUsers([]);
     setCart([]);
+    setIsRegisterOpen(false);
     navigate('/admin');
+  };
+
+  /**
+   * Called when the cashier confirms "Close Register".
+   * Force-checks out the currently logged-in user (if not excluded from attendance),
+   * then navigates to the attendance screen.
+   */
+  const handleCloseRegister = async () => {
+    if (currentUser && !currentUser.excludeFromAttendance) {
+      try { await api.attendance.forceCheckOut(currentUser.id); } catch { /* already checked out is fine */ }
+    }
+    setIsRegisterOpen(false);
+    navigate('/attendance');
   };
 
   const addToCart = (product: Product, selectedVariations?: Record<string, VariationOption>) => {
@@ -514,7 +557,10 @@ function AppShell() {
                     ? <AttendanceView
                         setCurrentView={setCurrentView}
                         onLogout={handleLogout}
-                        isKioskOnly={currentUser?.permissions.includes('view_attendance') && !currentUser?.permissions.includes('view_menu')}
+                        isKioskForever={!!currentUser && _isAttendanceMgrRole(currentUser)}
+                        isLocked={!!currentUser && !currentUser.excludeFromAttendance && !isRegisterOpen}
+                        currentUserId={currentUser?.id}
+                        onCurrentUserCheckedIn={() => { setIsRegisterOpen(true); _routeToLanding(currentUser!); }}
                       />
                     : <AccessDenied />
                 } />
@@ -569,6 +615,7 @@ function AppShell() {
         isLoggedIn={!!currentUser}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onCloseRegister={handleCloseRegister}
         hasPermission={hasPermission}
         orders={orders}
         locations={locations}

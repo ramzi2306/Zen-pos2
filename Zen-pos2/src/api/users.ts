@@ -15,6 +15,7 @@ interface ApiUserPublic {
   attendance_group: string;
   has_pin: boolean;
   is_active: boolean;
+  exclude_from_attendance?: boolean;
   location_id?: string;
   location_name?: string;
   shifts?: Record<string, string>;
@@ -60,6 +61,7 @@ function mapUserPublic(raw: ApiUserPublic): User {
     attendanceScore: raw.attendance_score || 0,
     attendanceGroup: raw.attendance_group || '',
     hasPin: raw.has_pin || false,
+    excludeFromAttendance: raw.exclude_from_attendance || false,
     payrollDue: '',
     shifts: raw.shifts || {},
     monthlyAttendance: [],
@@ -90,6 +92,7 @@ export function mapUserDetail(raw: ApiUserDetail): User {
     attendanceScore: raw.attendance_score || 0,
     attendanceGroup: raw.attendance_group || '',
     hasPin: raw.has_pin || false,
+    excludeFromAttendance: raw.exclude_from_attendance || false,
     payrollDue: raw.payroll_due || '',
     shifts: raw.shifts || {},
     monthlyAttendance: (raw.monthly_attendance || []).map(a => ({
@@ -190,25 +193,27 @@ export async function updateUser(id: string, payload: UserUpdatePayload): Promis
 }
 
 export async function listRoles(): Promise<Role[]> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance?: boolean }[]>('/roles/');
-  return raw.map(r => ({ 
-    id: r.id, 
-    name: r.name, 
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance?: boolean; is_system?: boolean }[]>('/roles/');
+  return raw.map(r => ({
+    id: r.id,
+    name: r.name,
     permissions: r.permissions as any,
-    excludeFromAttendance: r.exclude_from_attendance || false
+    excludeFromAttendance: r.exclude_from_attendance || false,
+    isSystem: r.is_system || false,
   }));
 }
 
 export async function createRole(name: string): Promise<Role> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance: boolean }>('/roles/', {
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance: boolean; is_system?: boolean }>('/roles/', {
     method: 'POST',
     body: JSON.stringify({ name, permissions: [], exclude_from_attendance: false }),
   });
-  return { 
-    id: raw.id, 
-    name: raw.name, 
+  return {
+    id: raw.id,
+    name: raw.name,
     permissions: raw.permissions as any,
-    excludeFromAttendance: raw.exclude_from_attendance
+    excludeFromAttendance: raw.exclude_from_attendance,
+    isSystem: raw.is_system || false,
   };
 }
 

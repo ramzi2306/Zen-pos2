@@ -161,6 +161,63 @@ async def check_out(user_id: str, pin: str) -> AttendanceRecordDocument:
     return record
 
 
+async def force_check_out(user_id: str) -> Optional[AttendanceRecordDocument]:
+    """Check out a user without requiring their PIN. Used when the register is closed by management."""
+    user = await UserDocument.get(user_id)
+    if not user:
+        raise NotFoundError("User not found")
+
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    weekday = now.strftime("%a")
+
+    record = await AttendanceRecordDocument.find_one(
+        AttendanceRecordDocument.user.id == user.id,  # type: ignore[attr-defined]
+        AttendanceRecordDocument.date == today,
+        AttendanceRecordDocument.status == "active",
+    )
+    if not record:
+        return None  # Not checked in — nothing to do
+
+    record.check_out = now.isoformat()
+    record.status = "completed"
+
+    if record.check_in:
+        check_in_dt = datetime.fromisoformat(record.check_in)
+        delta = now - check_in_dt
+        record.hours = round(delta.total_seconds() / 3600, 2)
+
+    _, expected_co = _parse_shift(user.shifts.get(weekday, ""))
+    if expected_co:
+        actual_hhmm = now.strftime("%H:%M")
+        diff = _minutes_diff(actual_hhmm, expected_co)
+        record.is_early_departure = diff < -EARLY_GRACE_MINUTES
+        record.is_overtime = diff > OVERTIME_THRESHOLD_MINUTES
+
+    await record.save()
+
+    from app.models.user import AttendanceDay
+    new_day = AttendanceDay(
+        day=today,
+        hours=record.hours,
+        is_late=record.is_late,
+        is_early_departure=record.is_early_departure,
+        is_overtime=record.is_overtime,
+        check_in=record.check_in,
+        check_out=record.check_out,
+    )
+    user.monthly_attendance = [d for d in user.monthly_attendance if d.day != today]
+    user.monthly_attendance.append(new_day)
+
+    total_days = len(user.monthly_attendance)
+    if total_days > 0:
+        perfect = sum(1 for d in user.monthly_attendance if not d.is_late and not d.is_early_departure)
+        user.attendance_score = round((perfect / total_days) * 100, 2)
+
+    await user.save()
+    return record
+
+
 async def get_today_records(location_id: Optional[str] = None) -> list[AttendanceRecordDocument]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     query = AttendanceRecordDocument.find(AttendanceRecordDocument.date == today)

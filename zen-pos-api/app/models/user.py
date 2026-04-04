@@ -40,6 +40,7 @@ class RoleDocument(Document):
     name: Annotated[str, Indexed(unique=True)]
     permissions: list[str] = []
     exclude_from_attendance: bool = False
+    is_system: bool = False  # System roles cannot be edited or deleted
 
     class Settings:
         name = "roles"

@@ -62,6 +62,7 @@ export interface Role {
   name: string;
   permissions: Permission[];
   excludeFromAttendance: boolean;
+  isSystem: boolean;
 }
 
 export interface User {
@@ -80,6 +81,8 @@ export interface User {
   attendanceGroup: string;
   /** True if a kiosk PIN has been configured for this user */
   hasPin: boolean;
+  /** True if this user's role is excluded from attendance tracking */
+  excludeFromAttendance: boolean;
   shifts: Record<string, string>;
   monthlyAttendance: {
     day: string;

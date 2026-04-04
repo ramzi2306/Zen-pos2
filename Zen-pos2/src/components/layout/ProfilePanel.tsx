@@ -300,6 +300,7 @@ export const ProfilePanel = ({
   isLoggedIn,
   currentUser,
   onLogout,
+  onCloseRegister,
   hasPermission,
   orders = [],
   locations = [],
@@ -314,6 +315,8 @@ export const ProfilePanel = ({
   isLoggedIn: boolean;
   currentUser: any;
   onLogout: () => void;
+  /** Called after the cashier confirms "Close Register" — handles checkout + navigation */
+  onCloseRegister?: () => void;
   hasPermission: (p: any) => boolean;
   orders?: Order[];
   locations?: Location[];
@@ -542,7 +545,11 @@ export const ProfilePanel = ({
         onConfirm={() => {
           setIsCloseModalOpen(false);
           onClose();
-          setCurrentView('attendance');
+          if (onCloseRegister) {
+            onCloseRegister();
+          } else {
+            setCurrentView('attendance');
+          }
         }}
       />
     </>
