@@ -105,7 +105,7 @@ def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
                 {
                     "id": opt.id,
                     "name": opt.name,
-                    "price_adjustment": opt.price_adjustment,
+                    "price": opt.price,
                     "ingredients": [
                         {"id": ing.id, "name": ing.name, "amount": ing.amount, "unit": ing.unit, "waste_percent": ing.waste_percent}
                         for ing in (opt.ingredients or [])
@@ -115,6 +115,25 @@ def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
             ],
         }
         for vg in (p.variations or [])
+    ]
+    supplements = [
+        {
+            "id": sg.id,
+            "name": sg.name,
+            "options": [
+                {
+                    "id": opt.id,
+                    "name": opt.name,
+                    "price_adjustment": opt.price_adjustment,
+                    "ingredients": [
+                        {"id": ing.id, "name": ing.name, "amount": ing.amount, "unit": ing.unit, "waste_percent": ing.waste_percent}
+                        for ing in (opt.ingredients or [])
+                    ],
+                }
+                for opt in sg.options
+            ],
+        }
+        for sg in (p.supplements or [])
     ]
     return ProductOut(
         id=str(p.id),
@@ -127,4 +146,5 @@ def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
         stock_level=p.stock_level,
         tags=p.tags or [],
         variations=variations,
+        supplements=supplements,
     )

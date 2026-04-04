@@ -1,5 +1,39 @@
 import { apiRequest } from './client';
-import type { Product, ProductCategory, VariationGroup, VariationOption } from '../data';
+import type { Product, ProductCategory, VariationGroup, VariationOption, SupplementGroup, SupplementOption } from '../data';
+
+interface ApiIngredient {
+  id: string;
+  name: string;
+  amount: number;
+  unit: string;
+  waste_percent?: number;
+}
+
+interface ApiVariationOption {
+  id: string;
+  name: string;
+  price?: number;
+  ingredients?: ApiIngredient[];
+}
+
+interface ApiVariationGroup {
+  id: string;
+  name: string;
+  options: ApiVariationOption[];
+}
+
+interface ApiSupplementOption {
+  id: string;
+  name: string;
+  price_adjustment?: number;
+  ingredients?: ApiIngredient[];
+}
+
+interface ApiSupplementGroup {
+  id: string;
+  name: string;
+  options: ApiSupplementOption[];
+}
 
 interface ApiProduct {
   id: string;
@@ -12,18 +46,7 @@ interface ApiProduct {
   stock_level?: string;
   tags?: string[];
   variations?: ApiVariationGroup[];
-}
-
-interface ApiVariationGroup {
-  id: string;
-  name: string;
-  options: ApiVariationOption[];
-}
-
-interface ApiVariationOption {
-  id: string;
-  name: string;
-  price_adjustment: number;
+  supplements?: ApiSupplementGroup[];
 }
 
 function mapProduct(raw: ApiProduct): Product {
@@ -43,7 +66,30 @@ function mapProduct(raw: ApiProduct): Product {
       options: vg.options.map((vo): VariationOption => ({
         id: vo.id,
         name: vo.name,
-        priceAdjustment: vo.price_adjustment,
+        price: vo.price,
+        ingredients: (vo.ingredients || []).map(ing => ({
+          id: ing.id,
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit,
+          wastePercent: ing.waste_percent,
+        })),
+      })),
+    })),
+    supplements: (raw.supplements || []).map((sg): SupplementGroup => ({
+      id: sg.id,
+      name: sg.name,
+      options: sg.options.map((so): SupplementOption => ({
+        id: so.id,
+        name: so.name,
+        priceAdjustment: so.price_adjustment,
+        ingredients: (so.ingredients || []).map(ing => ({
+          id: ing.id,
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit,
+          wastePercent: ing.waste_percent,
+        })),
       })),
     })),
   };
@@ -74,7 +120,12 @@ export interface ProductPayload {
   variations?: {
     id: string;
     name: string;
-    options: { id: string; name: string; price_adjustment: number }[];
+    options: { id: string; name: string; price?: number }[];
+  }[];
+  supplements?: {
+    id: string;
+    name: string;
+    options: { id: string; name: string; price_adjustment?: number }[];
   }[];
 }
 
