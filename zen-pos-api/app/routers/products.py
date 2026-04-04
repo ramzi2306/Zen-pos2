@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from app.dependencies import get_current_user, require_permission
 from app.models.product import ProductDocument, CategoryDocument
@@ -12,7 +12,8 @@ router = APIRouter()
 # ── Categories ─────────────────────────────────────────────
 
 @router.get("/categories", response_model=list[CategoryOut])
-async def list_categories():
+async def list_categories(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=60"
     cats = await CategoryDocument.find_all().to_list()
     return [CategoryOut(id=str(c.id), name=c.name) for c in cats]
 
@@ -37,7 +38,8 @@ async def delete_category(category_id: str):
 # ── Products ───────────────────────────────────────────────
 
 @router.get("/", response_model=list[ProductOut])
-async def list_products(category: Optional[str] = None, in_stock: Optional[bool] = None):
+async def list_products(response: Response, category: Optional[str] = None, in_stock: Optional[bool] = None):
+    response.headers["Cache-Control"] = "public, max-age=30"
     query = ProductDocument.find(ProductDocument.is_active == True)  # noqa: E712
     if category:
         query = query.find(ProductDocument.category == category)

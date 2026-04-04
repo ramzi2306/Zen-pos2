@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, WebSocket, WebSocketDisconnect
+import asyncio
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, Response, WebSocket, WebSocketDisconnect
 from typing import List, Optional, Tuple
 import uuid
 import secrets
@@ -44,9 +45,13 @@ async def _get_session(token: str) -> Optional[CustomerSessionDocument]:
     return doc
 
 @router.get("/menu", response_model=List[PublicCategory])
-async def get_public_menu():
-    categories = await CategoryDocument.find_all().to_list()
-    products = await ProductDocument.find({"is_active": True}).to_list()
+async def get_public_menu(response: Response):
+    response.headers["Cache-Control"] = "public, max-age=30"
+    # Run both queries concurrently instead of sequentially
+    categories, products = await asyncio.gather(
+        CategoryDocument.find_all().to_list(),
+        ProductDocument.find({"is_active": True}).to_list(),
+    )
     
     result = []
     for cat in categories:

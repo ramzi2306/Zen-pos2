@@ -15,11 +15,18 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
   const [categories, setCategories] = useState<string[]>(['All']);
   const [dailySpecial, setDailySpecial] = useState('');
   const [showSpecialModal, setShowSpecialModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.products.listProducts().then(setProducts).catch(console.error);
-    api.products.listCategories().then(cats => setCategories(['All', ...cats.map(c => c.name)])).catch(console.error);
-    api.settings.getBranding().then(b => setDailySpecial(b.dailySpecial || '')).catch(console.error);
+    Promise.all([
+      api.products.listProducts(),
+      api.products.listCategories(),
+      api.settings.getBranding(),
+    ]).then(([prods, cats, branding]) => {
+      setProducts(prods);
+      setCategories(['All', ...cats.map(c => c.name)]);
+      setDailySpecial(branding.dailySpecial || '');
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   const filteredProducts = activeCategory === 'All'
@@ -61,13 +68,24 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
 
         {/* Product grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-24">
-          {filteredProducts.map(product => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onClick={(e) => handleProductClick(product, e)}
-            />
-          ))}
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-2xl overflow-hidden bg-surface-container animate-pulse">
+                  <div className="aspect-square bg-surface-container-high" />
+                  <div className="p-3 space-y-2">
+                    <div className="h-3 bg-surface-container-high rounded w-3/4" />
+                    <div className="h-3 bg-surface-container-high rounded w-1/2" />
+                  </div>
+                </div>
+              ))
+            : filteredProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onClick={(e) => handleProductClick(product, e)}
+                />
+              ))
+          }
 
           {/* Daily specials info banner — hidden when empty */}
           {dailySpecial && (

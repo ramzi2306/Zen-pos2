@@ -1582,11 +1582,6 @@ function PublicMenuPageInner() {
       <div className="flex-1 flex overflow-hidden">
         {/* Product grid */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-grid-pattern">
-          {loading && (
-            <div className="flex items-center justify-center h-64">
-              <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
-            </div>
-          )}
           {error && (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <span className="material-symbols-outlined text-5xl text-error">wifi_off</span>
@@ -1594,11 +1589,22 @@ function PublicMenuPageInner() {
               <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-bold">Retry</button>
             </div>
           )}
-          {!loading && !error && (
+          {!error && (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-28 lg:pb-8">
-              {filtered.map(product => (
-                <ProductCard key={product.id} product={product} onClick={e => handleProductClick(product, e)} />
-              ))}
+              {loading
+                ? Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="rounded-2xl overflow-hidden bg-surface-container animate-pulse">
+                      <div className="aspect-square bg-surface-container-high" />
+                      <div className="p-3 space-y-2">
+                        <div className="h-3 bg-surface-container-high rounded w-3/4" />
+                        <div className="h-3 bg-surface-container-high rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))
+                : filtered.map(product => (
+                    <ProductCard key={product.id} product={product} onClick={e => handleProductClick(product, e)} />
+                  ))
+              }
             </div>
           )}
         </div>

@@ -49,4 +49,8 @@ class ProductDocument(Document):
 
     class Settings:
         name = "products"
-        indexes = [IndexModel([("category", ASCENDING)])]
+        indexes = [
+            IndexModel([("category", ASCENDING)]),
+            IndexModel([("is_active", ASCENDING)]),
+            IndexModel([("is_active", ASCENDING), ("category", ASCENDING)]),
+        ]
