@@ -37,6 +37,14 @@ async def delete_category(category_id: str):
 
 # ── Products ───────────────────────────────────────────────
 
+@router.get("/images")
+async def list_product_images(response: Response):
+    """Returns only id→image mapping for lazy loading. 24-hour client cache."""
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    products = await ProductDocument.find({"is_active": True}).to_list()
+    return [{"id": str(p.id), "image": p.image or ""} for p in products]
+
+
 @router.get("/", response_model=list[ProductOut])
 async def list_products(response: Response, category: Optional[str] = None, in_stock: Optional[bool] = None):
     response.headers["Cache-Control"] = "public, max-age=30"
@@ -46,7 +54,7 @@ async def list_products(response: Response, category: Optional[str] = None, in_s
     if in_stock is not None:
         query = query.find(ProductDocument.in_stock == in_stock)
     products = await query.to_list()
-    return [_to_out(p) for p in products]
+    return [_to_out(p, include_image=False) for p in products]
 
 
 @router.get("/{product_id}", response_model=ProductOut)
@@ -88,7 +96,7 @@ async def delete_product(product_id: str):
     await product.save()
 
 
-def _to_out(p: ProductDocument) -> ProductOut:
+def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
     variations = [
         {
             "id": vg.id,
@@ -114,7 +122,7 @@ def _to_out(p: ProductDocument) -> ProductOut:
         description=p.description,
         price=p.price,
         category=p.category,
-        image=p.image,
+        image=p.image if include_image else "",
         in_stock=p.in_stock,
         stock_level=p.stock_level,
         tags=p.tags or [],

@@ -10,10 +10,21 @@ class IngredientSchema(BaseModel):
     waste_percent: Optional[float] = None
 
 
-class VariationOptionSchema(BaseModel):
+class SupplementOptionSchema(BaseModel):
     id: str
     name: str
     price_adjustment: Optional[float] = None
+    ingredients: list[IngredientSchema] = []
+
+class SupplementGroupSchema(BaseModel):
+    id: str
+    name: str
+    options: list[SupplementOptionSchema] = []
+
+class VariationOptionSchema(BaseModel):
+    id: str
+    name: str
+    price: Optional[float] = None
     ingredients: list[IngredientSchema] = []
 
 
@@ -34,6 +45,7 @@ class ProductOut(BaseModel):
     stock_level: Optional[str]
     tags: list[str]
     variations: list[VariationGroupSchema]
+    supplements: list[SupplementGroupSchema]
 
 
 class ProductCreate(BaseModel):
@@ -46,6 +58,7 @@ class ProductCreate(BaseModel):
     stock_level: Optional[str] = None
     tags: list[str] = []
     variations: list[VariationGroupSchema] = []
+    supplements: list[SupplementGroupSchema] = []
     ingredients: list[IngredientSchema] = []
 
 
@@ -59,6 +72,7 @@ class ProductUpdate(BaseModel):
     stock_level: Optional[str] = None
     tags: Optional[list[str]] = None
     variations: Optional[list[VariationGroupSchema]] = None
+    supplements: Optional[list[SupplementGroupSchema]] = None
 
 
 class CategoryOut(BaseModel):

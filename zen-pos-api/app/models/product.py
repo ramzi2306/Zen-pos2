@@ -13,10 +13,21 @@ class Ingredient(BaseModel):
     waste_percent: Optional[float] = None
 
 
-class VariationOption(BaseModel):
+class SupplementOption(BaseModel):
     id: str
     name: str
     price_adjustment: Optional[float] = None
+    ingredients: list[Ingredient] = Field(default_factory=list)
+
+class SupplementGroup(BaseModel):
+    id: str
+    name: str
+    options: list[SupplementOption] = Field(default_factory=list)
+
+class VariationOption(BaseModel):
+    id: str
+    name: str
+    price: Optional[float] = None
     ingredients: list[Ingredient] = Field(default_factory=list)
 
 
@@ -44,6 +55,7 @@ class ProductDocument(Document):
     stock_level: Optional[str] = None          # Healthy | Low | Critical
     tags: list[str] = Field(default_factory=list)
     variations: list[VariationGroup] = Field(default_factory=list)
+    supplements: list[SupplementGroup] = Field(default_factory=list)
     ingredients: list[Ingredient] = Field(default_factory=list)
     is_active: bool = True
 

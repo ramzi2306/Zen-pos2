@@ -44,6 +44,14 @@ async def _get_session(token: str) -> Optional[CustomerSessionDocument]:
         return None
     return doc
 
+@router.get("/images")
+async def get_public_images(response: Response):
+    """Returns only id→image mapping for lazy loading. 24-hour client cache."""
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    products = await ProductDocument.find({"is_active": True}).to_list()
+    return [{"id": str(p.id), "image": p.image or ""} for p in products]
+
+
 @router.get("/menu", response_model=List[PublicCategory])
 async def get_public_menu(response: Response):
     response.headers["Cache-Control"] = "public, max-age=30"
@@ -52,20 +60,20 @@ async def get_public_menu(response: Response):
         CategoryDocument.find_all().to_list(),
         ProductDocument.find({"is_active": True}).to_list(),
     )
-    
+
     result = []
     for cat in categories:
         cat_products = [p for p in products if p.category == cat.name]
         if not cat_products:
             continue
-            
+
         public_products = [
             PublicProduct(
                 id=str(p.id),
                 name=p.name,
                 description=p.description if p.description else "",
                 price=p.price,
-                image=p.image if p.image else None,
+                image=None,  # images loaded separately via /public/images
                 category=p.category,
                 in_stock=p.in_stock,
                 variations=[
@@ -83,13 +91,13 @@ async def get_public_menu(response: Response):
                 ]
             ) for p in cat_products
         ]
-        
+
         result.append(PublicCategory(
             id=str(cat.id),
             name=cat.name,
             products=public_products
         ))
-    
+
     return result
 
 @router.post("/orders", response_model=PublicOrderResponse)
