@@ -443,6 +443,11 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
   const [pinMessage, setPinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const totalSalary = user.baseSalary + user.rewards - user.sanctions;
+  const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+
+  useEffect(() => {
+    api.users.listRoles().then(setAvailableRoles).catch(console.error);
+  }, []);
 
   const [performanceLogs, setPerformanceLogs] = useState<PerformanceLog[]>([]);
   const [isAddingLog, setIsAddingLog] = useState(!!initialAddingLog);
@@ -518,6 +523,7 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
       await api.users.updateUser(user.id, {
         name: editData.name,
         phone: editData.phone,
+        role_id: editData.roleId,
         base_salary: editData.baseSalary,
         contract_type: editData.contractType,
         contract_date: editData.contractDate,
@@ -668,12 +674,16 @@ const DossierModal = ({ user, dateRange, onClose, initialIsEditing = false, init
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Role</label>
-                <input 
-                  type="text" 
-                  value={editData.role} 
-                  onChange={e => setEditData({...editData, role: e.target.value})}
-                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
-                />
+                <select
+                  value={editData.roleId}
+                  onChange={e => {
+                    const role = availableRoles.find(r => r.id === e.target.value);
+                    setEditData({ ...editData, roleId: e.target.value, role: role?.name || editData.role });
+                  }}
+                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+                >
+                  {availableRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Base Salary</label>

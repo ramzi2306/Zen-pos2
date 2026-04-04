@@ -173,6 +173,7 @@ export interface UserUpdatePayload {
   name?: string;
   email?: string;
   phone?: string;
+  role_id?: string;
   image?: string;
   base_salary?: number;
   start_date?: string;
