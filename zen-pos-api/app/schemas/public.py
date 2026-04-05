@@ -21,6 +21,7 @@ class PublicProduct(BaseModel):
     category: str
     in_stock: bool = True
     variations: List[PublicVariationGroup] = []
+    supplements: List[PublicVariationGroup] = [] # Reusing PublicVariationGroup for supplements too
 
 class PublicCategory(BaseModel):
     id: str

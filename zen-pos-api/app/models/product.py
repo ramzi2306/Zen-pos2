@@ -47,16 +47,16 @@ class CategoryDocument(Document):
 
 class ProductDocument(Document):
     name: str
-    description: str = ""
+    description: Optional[str] = ""
     price: float
-    category: str
-    image: str = ""
+    category: Optional[str] = ""
+    image: Optional[str] = ""
     in_stock: bool = True
     stock_level: Optional[str] = None          # Healthy | Low | Critical
-    tags: list[str] = Field(default_factory=list)
-    variations: list[VariationGroup] = Field(default_factory=list)
-    supplements: list[SupplementGroup] = Field(default_factory=list)
-    ingredients: list[Ingredient] = Field(default_factory=list)
+    tags: Optional[list[str]] = Field(default_factory=list)
+    variations: Optional[list[VariationGroup]] = Field(default_factory=list)
+    supplements: Optional[list[SupplementGroup]] = Field(default_factory=list)
+    ingredients: Optional[list[Ingredient]] = Field(default_factory=list)
     is_active: bool = True
 
     class Settings:

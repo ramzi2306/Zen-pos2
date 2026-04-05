@@ -102,7 +102,7 @@ export const VariationModal = ({
           <div className="mb-2 md:mb-4">
             <div className="flex justify-between items-start mb-1 md:mb-2 gap-2">
               <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2">{product.name}</h3>
-              <span className="font-headline font-bold text-primary text-sm md:text-base whitespace-nowrap">{formatCurrency(product.price)}</span>
+              <span className="font-headline font-bold text-primary text-sm md:text-base whitespace-nowrap">{formatCurrency(currentPrice)}</span>
             </div>
             <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed">{product.description}</p>
           </div>

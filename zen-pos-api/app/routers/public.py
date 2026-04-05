@@ -1,3 +1,4 @@
+import logging
 import asyncio
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, Response, WebSocket, WebSocketDisconnect
 from typing import List, Optional, Tuple
@@ -55,50 +56,74 @@ async def get_public_images(response: Response):
 @router.get("/menu", response_model=List[PublicCategory])
 async def get_public_menu(response: Response):
     response.headers["Cache-Control"] = "public, max-age=30"
-    # Run both queries concurrently instead of sequentially
-    categories, products = await asyncio.gather(
-        CategoryDocument.find_all().to_list(),
-        ProductDocument.find({"is_active": True}).to_list(),
-    )
+    try:
+        # Run both queries concurrently
+        categories, products = await asyncio.gather(
+            CategoryDocument.find_all().to_list(),
+            ProductDocument.find({"is_active": True}).to_list(),
+        )
 
-    result = []
-    for cat in categories:
-        cat_products = [p for p in products if p.category == cat.name]
-        if not cat_products:
-            continue
+        result = []
+        for cat in categories:
+            cat_products = [p for p in products if p.category == cat.name]
+            if not cat_products:
+                continue
 
-        public_products = [
-            PublicProduct(
-                id=str(p.id),
-                name=p.name,
-                description=p.description if p.description else "",
-                price=p.price,
-                image=None,  # images loaded separately via /public/images
-                category=p.category,
-                in_stock=p.in_stock,
-                variations=[
-                    PublicVariationGroup(
-                        id=vg.id,
-                        name=vg.name,
-                        options=[
-                            PublicVariationOption(
-                                id=vo.id,
-                                name=vo.name,
-                                price_adjustment=vo.price_adjustment if vo.price_adjustment else 0
-                            ) for vo in vg.options
+            public_products = []
+            for p in cat_products:
+                try:
+                    product_data = PublicProduct(
+                        id=str(p.id),
+                        name=p.name,
+                        description=p.description if p.description else "",
+                        price=p.price if p.price is not None else 0.0,
+                        image=None,  # images loaded separately
+                        category=p.category,
+                        in_stock=p.in_stock if p.in_stock is not None else True,
+                        variations=[
+                            PublicVariationGroup(
+                                id=vg.id,
+                                name=vg.name,
+                                options=[
+                                    PublicVariationOption(
+                                        id=vo.id,
+                                        name=vo.name,
+                                        price_adjustment=vo.price if vo.price else 0
+                                    ) for vo in (vg.options or [])
+                                ]
+                            ) for vg in (p.variations or [])
+                        ],
+                        supplements=[
+                            PublicVariationGroup(
+                                id=sg.id,
+                                name=sg.name,
+                                options=[
+                                    PublicVariationOption(
+                                        id=so.id,
+                                        name=so.name,
+                                        price_adjustment=so.price_adjustment if so.price_adjustment else 0
+                                    ) for so in (sg.options or [])
+                                ]
+                            ) for sg in (p.supplements or [])
                         ]
-                    ) for vg in p.variations
-                ]
-            ) for p in cat_products
-        ]
+                    )
+                    public_products.append(product_data)
+                except Exception as p_err:
+                    logging.error(f"Error serializing product {p.id}: {p_err}")
+                    # Skip malformed products instead of failing the whole menu
+                    continue
 
-        result.append(PublicCategory(
-            id=str(cat.id),
-            name=cat.name,
-            products=public_products
-        ))
+            if public_products:
+                result.append(PublicCategory(
+                    id=str(cat.id),
+                    name=cat.name,
+                    products=public_products
+                ))
 
-    return result
+        return result
+    except Exception as exc:
+        logging.error(f"Critical error in get_public_menu: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 @router.post("/orders", response_model=PublicOrderResponse)
 async def create_public_order(req: OnlineOrderRequest, background_tasks: BackgroundTasks):

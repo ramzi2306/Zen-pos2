@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
-import { CartItem, Order, Customer, CustomerDetail } from '../../data';
+import { CartItem, Order, Customer, CustomerDetail, VariationOption, SupplementOption } from '../../data';
 import * as api from '../../api';
 import { SwipeableCartItem } from './CartItem';
 import type { BrandingData } from '../../api/settings';
@@ -155,14 +155,17 @@ export const CartSidebar = ({
     const SEP2 = `<hr style="border:none;border-top:2px solid #000;margin:6px 0;">`;
 
     const itemRows = cart.map(item => {
-      const variations = Object.values(item.selectedVariations || {}) as any[];
-      const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
-      const supps = Object.values(item.selectedSupplements || {}) as any[];
-      const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-      const lineTotal = ((item.price + varAdj + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100));
+      const variations = Object.values(item.selectedVariations || {}) as VariationOption[];
+      const varAdj = variations.reduce((s: number, o: VariationOption) => s + (o.price || 0), 0);
+      const supps = Object.values(item.selectedSupplements || {}) as SupplementOption[];
+      const suppAdj = supps.reduce((s: number, o: SupplementOption) => s + (o.priceAdjustment || 0), 0);
+      
+      const basePrice = variations.length > 0 ? varAdj : item.price;
+      const lineTotal = ((basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100));
+      
       const modifiers = [
-        ...variations.map((o: any) => o.name),
-        ...supps.map((o: any) => o.name),
+        ...variations.map((o: VariationOption) => o.name),
+        ...supps.map((o: SupplementOption) => o.name),
       ].filter(Boolean).join(', ');
       const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
       return `
