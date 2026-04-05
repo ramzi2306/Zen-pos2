@@ -83,7 +83,7 @@ export const CartSidebar = ({
   const [orderNote, setOrderNote] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
-  const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number } | null>(null);
+  const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number; trackingToken?: string } | null>(null);
   const [printReady, setPrintReady] = useState(false);
 
   const change = parseFloat(amountPaid) > total ? parseFloat(amountPaid) - total : 0;
@@ -140,116 +140,111 @@ export const CartSidebar = ({
 
   const handlePrintReceipt = () => {
     if (!receiptModal) return;
-    const storeName = branding?.restaurantName || 'SAKURA SUSHI';
-    const tagline = (branding as any)?.tagline || 'Fresh Rolls • Ramen • Bento';
-    const phone = branding?.phone || '(212) 555-0199';
-    const website = (branding as any)?.website || 'www.sakurasushi.example.com';
-    const address = (branding?.address || '123 Blossom Ave, Tokyo Town,\nNY 10001').split('\n').filter(Boolean);
+    const storeName = branding?.restaurantName || 'ZEN POS';
+    const addr = (branding?.address || '').split('\n').filter(Boolean);
+    const phone = branding?.phone || '';
     const footer = branding?.footerText || 'Thank you for your order!';
-    
     const now = new Date();
-    const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    
+    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const trackingUrl = receiptModal.trackingToken
+      ? `${window.location.origin}/track/${receiptModal.trackingToken}`
+      : `${window.location.origin}/track/${receiptModal.orderNumber}`;
+
+    const SEP = `<hr style="border:none;border-top:1px dashed #000;margin:6px 0;">`;
+    const SEP2 = `<hr style="border:none;border-top:2px solid #000;margin:6px 0;">`;
+
     const itemRows = cart.map(item => {
       const variations = Object.values(item.selectedVariations || {}) as any[];
       const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
-      const supps = Object.values(item.selectedSupplements || {});
+      const supps = Object.values(item.selectedSupplements || {}) as any[];
       const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-      const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2);
-      const varNames = variations.map((o: any) => o.name).join(', ');
-      const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');
-
+      const lineTotal = ((item.price + varAdj + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100));
+      const modifiers = [
+        ...variations.map((o: any) => o.name),
+        ...supps.map((o: any) => o.name),
+      ].filter(Boolean).join(', ');
+      const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
       return `
-        <div class="item">
-          <div class="row">
+        <div style="margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;">
             <span>${item.quantity}x ${item.name}</span>
-            <span>${formatCurrency(parseFloat(lineTotal))}</span>
+            <span style="white-space:nowrap;margin-left:8px;">${formatCurrency(lineTotal)}</span>
           </div>
-          ${noteStr ? `<div class="note">&nbsp;&nbsp;&nbsp;Note: ${noteStr}</div>` : ''}
-        </div>
-      `;
+          ${noteStr ? `<div style="padding-left:16px;font-size:11px;color:#444;">${noteStr}</div>` : ''}
+        </div>`;
     }).join('');
 
     const hasCustomer = deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address;
     const customerSection = hasCustomer ? `
-      <div class="col-2"><span>Customer:</span><span>${deliveryDetails.name || '—'}</span></div>
-      <div class="col-2"><span>Phone:</span><span>${deliveryDetails.phone || '—'}</span></div>
-      <div class="col-2"><span>Address:</span><span>${deliveryDetails.address || '—'}</span></div>
+      ${SEP}
+      <div style="font-weight:bold;margin-bottom:4px;">CUSTOMER DETAILS:</div>
+      ${deliveryDetails.name ? `<div>${deliveryDetails.name}</div>` : ''}
+      ${deliveryDetails.phone ? `<div>${deliveryDetails.phone}</div>` : ''}
+      ${deliveryDetails.address ? `<div>${deliveryDetails.address}</div>` : ''}
     ` : '';
+
+    const paidAmount = receiptModal.paidAmount;
+    const changeAmt = paidAmount > total ? paidAmount - total : 0;
+    const paidSection = paidAmount > 0 ? `
+      ${SEP}
+      <div style="display:flex;justify-content:space-between;"><span>Cash Paid:</span><span>${formatCurrency(paidAmount)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:bold;color:#166534;"><span>Change:</span><span>${formatCurrency(changeAmt)}</span></div>
+    ` : '';
+
+    const qrSection = `
+      ${SEP}
+      <div style="text-align:center;padding:6px 0;">
+        <div style="font-weight:bold;letter-spacing:1px;">*** FIDELITY PROGRAM ***</div>
+        <div style="font-size:11px;margin:4px 0;">Scan QR to collect points<br>Redeem discounts &amp; free delivery</div>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(trackingUrl)}" style="width:110px;height:110px;display:block;margin:6px auto;" />
+        <div style="font-size:11px;font-weight:bold;letter-spacing:2px;margin-top:4px;">SCAN ME</div>
+      </div>
+      ${SEP}
+      <div style="text-align:center;font-size:11px;padding:4px 0;">${footer}</div>`;
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
       @page { size: 80mm auto; margin: 0; }
-      * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
-      body { width: 80mm; padding: 5mm; color: #000; font-size: 13px; line-height: 1.3; margin: 0 auto; }
-      .text-center { text-align: center; }
-      .mb-1 { margin-bottom: 4px; }
-      .mb-2 { margin-bottom: 8px; }
-      .logo { max-width: 60px; max-height: 60px; margin: 0 auto 4px; display: block; filter: grayscale(100%) contrast(200%); }
-      .store-name { font-size: 18px; font-weight: bold; margin-bottom: 2px; }
-      hr.dashed { border: none; border-top: 1px dashed #000; margin: 8px 0; }
-      .col-2 { display: grid; grid-template-columns: 85px 1fr; gap: 4px; margin-bottom: 2px; }
-      .item .row { display: flex; justify-content: space-between; margin-top: 6px; }
-      .note { font-size: 12px; color: #333; margin-top: 2px; }
-      .totals { display: flex; justify-content: space-between; margin: 3px 0; }
-      .qr-code { width: 120px; height: 120px; margin: 8px auto; display: block; }
-      .loyalty-title { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-      .loyalty-text { font-size: 12px; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { width: 80mm; margin: 0 auto; padding: 4mm; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.4; color: #000; }
     </style></head><body>
-      <div class="text-center">
-        ${branding?.logo ? `<img src="${branding.logo}" class="logo" />` : `<span style="font-size: 24px;">🍣</span>`}
-        <div class="store-name">${storeName}</div>
-        <div class="mb-1">${tagline}</div>
-        <div class="mb-1">${phone} • ${website}</div>
-        ${address.map(l => `<div>${l}</div>`).join('')}
+      <div style="text-align:center;margin-bottom:6px;">
+        ${branding?.logo ? `<img src="${branding.logo}" style="max-width:56px;max-height:56px;display:block;margin:0 auto 4px;filter:grayscale(1) contrast(2);" />` : ''}
+        <div style="font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">${storeName}</div>
+        ${addr.map(l => `<div style="font-size:11px;">${l}</div>`).join('')}
+        ${phone ? `<div style="font-size:11px;">${phone}</div>` : ''}
       </div>
-      <hr class="dashed">
-      <div class="col-2"><span>Order No:</span><span>${receiptModal.orderNumber}</span></div>
-      <div class="col-2"><span>Date:</span><span>${date}</span></div>
-      <div class="col-2"><span>Time:</span><span>${time}</span></div>
-      <div class="col-2"><span>Order Type:</span><span style="text-transform: capitalize">${orderType.replace('_', ' ')}</span></div>
-      ${hasCustomer ? `<br/>${customerSection}` : ''}
-      <hr class="dashed">
-      <div class="text-center">ITEMS</div>
-      <hr class="dashed">
+      ${SEP}
+      <div>
+        <div>Order: #${receiptModal.orderNumber}</div>
+        <div>Date:  ${dateStr}  ${timeStr}</div>
+        <div>Type:  ${orderType.replace('_', ' ')}</div>
+      </div>
+      ${customerSection}
+      ${SEP}
       ${itemRows}
-      <hr class="dashed">
-      <div class="totals"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
-      ${taxAmount > 0 ? `<div class="totals"><span>Tax:</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
-      ${gratuityAmount > 0 ? `<div class="totals"><span>Gratuity:</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
-      <hr class="dashed">
-      <div class="totals" style="font-weight: bold; font-size: 15px;"><span>TOTAL:</span><span>${formatCurrency(total)}</span></div>
-      <hr class="dashed">
-      
-      <div class="text-center mb-1">
-        <div class="loyalty-title">COLLECT LOYALTY POINTS</div>
-        <div class="loyalty-text">Kindly scan the QR code below to earn<br>points on this order and redeem them<br>for discounts and free delivery.</div>
+      ${SEP}
+      <div style="display:flex;justify-content:space-between;font-size:11px;"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
+      ${taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Tax:</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
+      ${gratuityAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Gratuity:</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
+      ${SEP2}
+      <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;">
+        <span>TOTAL:</span><span>${formatCurrency(total)}</span>
       </div>
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=zenpos:${receiptModal.orderNumber}" class="qr-code" />
-      <div class="text-center loyalty-text mb-2">${footer}</div>
-      <hr class="dashed">
-    <script>window.onload=function(){setTimeout(function(){window.print();},500);};</script></body></html>`;
+      ${SEP2}
+      ${paidSection}
+      ${qrSection}
+    <script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script></body></html>`;
 
     const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
     document.body.appendChild(iframe);
-    
     if (iframe.contentWindow) {
       iframe.contentWindow.document.open();
       iframe.contentWindow.document.write(html);
       iframe.contentWindow.document.close();
-
       iframe.contentWindow.addEventListener('afterprint', () => {
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 1000);
+        setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000);
       });
     }
   };
@@ -272,7 +267,7 @@ export const CartSidebar = ({
       setCreatedOrderNumber(newOrder.orderNumber ?? null);
       if (onOrderCreated) onOrderCreated(newOrder);
       if (paymentStatus === 'Paid') {
-        setReceiptModal({ orderNumber: newOrder.orderNumber ?? '—', paidAmount: parseFloat(amountPaid) || 0 });
+        setReceiptModal({ orderNumber: newOrder.orderNumber ?? '—', paidAmount: parseFloat(amountPaid) || 0, trackingToken: newOrder.trackingToken });
         setPrintReady(false);
         setTimeout(() => setPrintReady(true), 3000);
       } else {
@@ -999,114 +994,126 @@ export const CartSidebar = ({
 
               {/* Receipt paper */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center bg-[#1a1d21]">
-                <div id="zen-receipt-print" className="w-full max-w-[320px] bg-[#f8f9fa] text-black pt-6 px-5 pb-6 relative shadow-xl font-mono text-xs leading-snug">
-                  <div className="text-center mb-3">
-                    {branding?.logo ? (
-                      <img src={branding.logo} alt="Logo" className="w-12 h-12 mx-auto mb-1 object-contain grayscale contrast-200" />
-                    ) : (
-                      <span className="text-3xl block mb-1">🍣</span>
-                    )}
-                    <h3 className="font-bold text-base mb-1">{branding?.restaurantName || 'SAKURA SUSHI'}</h3>
-                    <div className="text-[11px] mb-0.5">{(branding as any)?.tagline || 'Fresh Rolls • Ramen • Bento'}</div>
-                    <div className="text-[11px] mb-0.5">{branding?.phone || '(212) 555-0199'} • {(branding as any)?.website || 'www.sakurasushi.example.com'}</div>
-                    {(branding?.address || '123 Blossom Ave, Tokyo Town,\nNY 10001').split('\n').filter(Boolean).map((line, i) => (
-                      <div key={i} className="text-[11px]">{line}</div>
-                    ))}
-                  </div>
-                  
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
-                  
-                  <div className="grid grid-cols-[80px_1fr] gap-x-2 text-[11px] my-2">
-                    <span>Order No:</span><span>{receiptModal.orderNumber}</span>
-                    <span>Date:</span><span>{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    <span>Time:</span><span>{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span>Order Type:</span><span className="capitalize">{orderType.replace('_', ' ')}</span>
-                  </div>
-
-                  {(deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address) && (
-                    <>
-                      <div className="w-full h-2"></div>
-                      <div className="grid grid-cols-[80px_1fr] gap-x-2 text-[11px] mb-2">
-                        <span>Customer:</span><span>{deliveryDetails.name || '—'}</span>
-                        <span>Phone:</span><span>{deliveryDetails.phone || '—'}</span>
-                        <span>Address:</span><span>{deliveryDetails.address || '—'}</span>
+                {(() => {
+                  const trackingUrl = receiptModal.trackingToken
+                    ? `${window.location.origin}/track/${receiptModal.trackingToken}`
+                    : `${window.location.origin}/track/${receiptModal.orderNumber}`;
+                  const now = new Date();
+                  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  const hasCustomer = deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address;
+                  const Sep = () => <div className="border-t border-dashed border-black/50 my-1.5" />;
+                  const Sep2 = () => <div className="border-t-2 border-black my-1.5" />;
+                  return (
+                    <div id="zen-receipt-print" className="w-full max-w-[300px] bg-white text-black font-mono text-[12px] leading-snug shadow-2xl">
+                      {/* Header */}
+                      <div className="text-center pt-5 px-4 pb-3">
+                        {branding?.logo && (
+                          <img src={branding.logo} alt="Logo" className="w-12 h-12 mx-auto mb-2 object-contain" style={{ filter: 'grayscale(1) contrast(2)' }} />
+                        )}
+                        <div className="font-bold text-[15px] uppercase tracking-wide">{branding?.restaurantName || 'ZEN POS'}</div>
+                        {(branding?.address || '').split('\n').filter(Boolean).map((l, i) => (
+                          <div key={i} className="text-[11px]">{l}</div>
+                        ))}
+                        {branding?.phone && <div className="text-[11px]">{branding.phone}</div>}
                       </div>
-                    </>
-                  )}
 
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
-                  <div className="text-center font-bold text-[11px] tracking-widest my-1">ITEMS</div>
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
+                      <div className="px-4"><Sep /></div>
 
-                  <div className="space-y-3 mb-3">
-                    {cart.map(item => {
-                      const variations = Object.values(item.selectedVariations || {}) as any[];
-                      const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
-      const supps = Object.values(item.selectedSupplements || {});
-      const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-                      const lineTotal = ((item.price + varAdj) * item.quantity * (1 - (item.discount || 0) / 100));
-                      const varNames = variations.map((o: any) => o.name).join(', ');
-                      const noteStr = [varNames, item.notes].filter(Boolean).join(' | ');
+                      {/* Order info */}
+                      <div className="px-4 py-1 text-[12px]">
+                        <div>Order: #{receiptModal.orderNumber}</div>
+                        <div>Date:  {dateStr}  {timeStr}</div>
+                        <div className="capitalize">Type:  {orderType.replace('_', ' ')}</div>
+                      </div>
 
-                      return (
-                        <div key={item.cartItemId} className="text-[11px]">
-                          <div className="flex justify-between">
-                            <span>{item.quantity}x {item.name}</span>
-                            <span>{formatCurrency(lineTotal)}</span>
+                      {/* Customer */}
+                      {hasCustomer && (
+                        <>
+                          <div className="px-4"><Sep /></div>
+                          <div className="px-4 py-1 text-[12px]">
+                            <div className="font-bold">CUSTOMER DETAILS:</div>
+                            {deliveryDetails.name && <div>{deliveryDetails.name}</div>}
+                            {deliveryDetails.phone && <div>{deliveryDetails.phone}</div>}
+                            {deliveryDetails.address && <div>{deliveryDetails.address}</div>}
                           </div>
-                          {noteStr && (
-                            <div className="pl-5 text-[10px] text-gray-700 mt-0.5">
-                              Note: {noteStr}
+                        </>
+                      )}
+
+                      <div className="px-4"><Sep /></div>
+
+                      {/* Items */}
+                      <div className="px-4 py-1 space-y-2">
+                        {cart.map(item => {
+                          const variations = Object.values(item.selectedVariations || {}) as any[];
+                          const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
+                          const supps = Object.values(item.selectedSupplements || {}) as any[];
+                          const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
+                          const lineTotal = (item.price + varAdj + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
+                          const modifiers = [...variations.map((o: any) => o.name), ...supps.map((o: any) => o.name)].filter(Boolean).join(', ');
+                          const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
+                          return (
+                            <div key={item.cartItemId}>
+                              <div className="flex justify-between">
+                                <span>{item.quantity}x {item.name}</span>
+                                <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
+                              </div>
+                              {noteStr && <div className="pl-4 text-[11px] text-gray-600">{noteStr}</div>}
                             </div>
-                          )}
+                          );
+                        })}
+                      </div>
+
+                      {orderNote && (
+                        <>
+                          <div className="px-4"><Sep /></div>
+                          <div className="px-4 text-[11px] text-gray-700 italic">Note: {orderNote}</div>
+                        </>
+                      )}
+
+                      <div className="px-4"><Sep /></div>
+
+                      {/* Subtotals */}
+                      <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                        {taxAmount > 0 && <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(taxAmount)}</span></div>}
+                        {gratuityAmount > 0 && <div className="flex justify-between"><span>Gratuity:</span><span>{formatCurrency(gratuityAmount)}</span></div>}
+                      </div>
+
+                      <div className="px-4"><Sep2 /></div>
+                      <div className="px-4 flex justify-between font-bold text-[14px]">
+                        <span>TOTAL:</span><span>{formatCurrency(total)}</span>
+                      </div>
+                      <div className="px-4"><Sep2 /></div>
+
+                      {/* Cash / Change */}
+                      {receiptModal.paidAmount > 0 && (
+                        <div className="px-4 py-1 space-y-0.5 text-[12px]">
+                          <div className="flex justify-between"><span>Cash Paid:</span><span>{formatCurrency(receiptModal.paidAmount)}</span></div>
+                          <div className="flex justify-between font-bold text-green-700"><span>Change:</span><span>{formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span></div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      )}
 
-                  {orderNote && (
-                    <>
-                      <div className="border-t border-dashed border-black/40 my-2"></div>
-                      <div className="text-[10px] text-gray-700 font-bold uppercase">Note: {orderNote}</div>
-                    </>
-                  )}
+                      <div className="px-4"><Sep /></div>
 
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
+                      {/* QR / Loyalty */}
+                      <div className="text-center px-4 py-3">
+                        <div className="font-bold text-[12px] tracking-wider mb-1">*** FIDELITY PROGRAM ***</div>
+                        <div className="text-[11px] mb-3 leading-snug">Scan QR to collect points<br />Redeem discounts &amp; free delivery</div>
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(trackingUrl)}`}
+                          alt="QR Code"
+                          className="w-28 h-28 mx-auto block"
+                        />
+                        <div className="font-bold text-[11px] tracking-[3px] mt-2">SCAN ME</div>
+                      </div>
 
-                  <div className="space-y-1 text-[11px]">
-                    <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
-                    {taxAmount > 0 && <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(taxAmount)}</span></div>}
-                    {gratuityAmount > 0 && <div className="flex justify-between"><span>Gratuity:</span><span>{formatCurrency(gratuityAmount)}</span></div>}
-                  </div>
-
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
-                  
-                  <div className="flex justify-between font-bold text-[13px] my-2">
-                    <span>TOTAL:</span><span>{formatCurrency(total)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-[11px]"><span>Cash Paid:</span><span>{formatCurrency(receiptModal.paidAmount)}</span></div>
-                  <div className="flex justify-between font-bold text-[#16a34a] text-[12px] mt-1">
-                    <span>Change:</span><span>{formatCurrency(Math.max(0, receiptModal.paidAmount - total))}</span>
-                  </div>
-
-                  <div className="border-t border-dashed border-black/40 my-2"></div>
-
-                  <div className="text-center mt-4">
-                    <div className="font-bold text-[12px] mb-1">COLLECT LOYALTY POINTS</div>
-                    <div className="text-[10px] leading-tight mb-3">
-                      Kindly scan the QR code below to earn<br/>points on this order and redeem them<br/>for discounts and free delivery.
+                      <div className="px-4"><Sep /></div>
+                      <div className="text-center text-[11px] py-2 px-4">{branding?.footerText || 'Thank you for your order!'}</div>
+                      <div className="h-4" />
                     </div>
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=zenpos:${receiptModal.orderNumber}`} 
-                      alt="QR Code" 
-                      className="w-24 h-24 mx-auto block mb-3 mix-blend-multiply" 
-                    />
-                    <div className="text-[10px] mb-1">{branding?.footerText || 'Thank you for your order!'}</div>
-                  </div>
-                  
-                  <div className="border-t border-dashed border-black/40 mt-3 pt-0"></div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* Print button */}

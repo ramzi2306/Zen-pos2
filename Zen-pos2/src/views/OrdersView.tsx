@@ -1400,109 +1400,112 @@ export const OrdersView = ({
 
               {/* Receipt paper */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center bg-[#1a1d21]">
-                <div id="zen-order-receipt-print" className="w-full max-w-[300px] bg-white text-black font-mono shadow-2xl">
-                  {/* Restaurant header */}
-                  <div className="text-center pt-5 px-4 pb-3 border-b-2 border-black">
-                    {b.logo && (
-                      <img src={b.logo} alt="logo" className="w-14 h-14 object-contain mx-auto mb-2" />
-                    )}
-                    <h3 className="font-bold text-base tracking-widest uppercase">{b.restaurantName || 'ZEN OMAKASE'}</h3>
-                    <div className="text-[10px] text-gray-500 mt-1 leading-relaxed">
-                      {(b.address || '').split('\n').filter(Boolean).map((line: string, i: number) => (
-                        <div key={i}>{line}</div>
-                      ))}
-                      {b.phone && <div>{b.phone}</div>}
-                      {b.email && <div>{b.email}</div>}
-                    </div>
-                  </div>
-
-                  {/* Meta */}
-                  <div className="px-4 py-2 flex justify-between text-[10px] text-gray-500 uppercase border-b border-dashed border-gray-300">
-                    <span>{receiptModal.createdAt ? new Date(receiptModal.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                    <span># {receiptModal.orderNumber}</span>
-                  </div>
-                  <div className="px-4 py-1 text-center text-[11px] font-bold tracking-wider uppercase text-gray-700">
-                    {(receiptModal.orderType || 'dine_in').replace('_', ' ')}
-                    {receiptModal.table ? ` · Table ${receiptModal.table}` : ''}
-                  </div>
-
-                  {/* Customer */}
-                  {receiptModal.customer && (receiptModal.customer.name || receiptModal.customer.phone || receiptModal.customer.address) && (
-                    <div className="px-4 py-2 border-t border-dashed border-gray-300 text-[11px]">
-                      <div className="text-[9px] font-bold tracking-widest text-gray-400 uppercase mb-1">Customer</div>
-                      {receiptModal.customer.name && <div><span className="font-bold">Name:</span> {receiptModal.customer.name}</div>}
-                      {receiptModal.customer.phone && <div><span className="font-bold">Phone:</span> {receiptModal.customer.phone}</div>}
-                      {receiptModal.customer.address && <div><span className="font-bold">Addr:</span> {receiptModal.customer.address}</div>}
-                    </div>
-                  )}
-
-                  {/* Items */}
-                  <div className="px-4 pt-2 pb-1 border-t border-dashed border-gray-300">
-                    <div className="text-[9px] font-bold tracking-widest text-gray-400 uppercase mb-2">Items</div>
-                    <div className="space-y-3">
-                      {receiptModal.items.map((item, i) => {
-                        const itemPrice = getCartItemPrice(item);
-                        const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
-                        const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(' · ');
-                        const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => `+${o.name}`).join(' · ');
-                        const allModifiers = [varNames, suppNames].filter(Boolean).join(' | ');
-                        return (
-                          <div key={i}>
-                            <div className="flex justify-between items-baseline">
-                              <span className="font-bold text-[13px] flex-1 pr-2">{item.name}</span>
-                              <span className="font-bold text-[13px] whitespace-nowrap">{formatCurrency(lineTotal)}</span>
-                            </div>
-                             {item.quantity > 1 && (
-                               <div className="text-[10px] text-gray-500">{item.quantity} × {formatCurrency(itemPrice)}</div>
-                             )}
-                             {allModifiers && (
-                               <div className="text-[10px] text-gray-500 italic">{allModifiers}</div>
-                             )}
-                            {item.notes && (
-                              <div className="mt-1 text-[11px] font-bold bg-gray-100 border-l-[3px] border-black px-2 py-1">
-                                ✎ {item.notes}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Order note */}
-                  {receiptModal.notes && (
-                    <div className="px-4 py-2 border-t border-dashed border-gray-300">
-                      <div className="text-[9px] font-bold tracking-widest text-gray-400 uppercase mb-1">Order Note</div>
-                      <div className="text-[13px] font-bold border-[1.5px] border-black px-3 py-2 leading-snug">
-                        {receiptModal.notes}
+                {(() => {
+                  const trackingUrl = receiptModal.trackingToken
+                    ? `${window.location.origin}/track/${receiptModal.trackingToken}`
+                    : `${window.location.origin}/track/${receiptModal.orderNumber}`;
+                  const createdAt = receiptModal.createdAt ? new Date(receiptModal.createdAt) : new Date();
+                  const dateStr = createdAt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  const timeStr = createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                  const hasCustomer = receiptModal.customer && (receiptModal.customer.name || receiptModal.customer.phone || receiptModal.customer.address);
+                  const Sep = () => <div className="border-t border-dashed border-black/50 my-1.5" />;
+                  const Sep2 = () => <div className="border-t-2 border-black my-1.5" />;
+                  return (
+                    <div id="zen-order-receipt-print" className="w-full max-w-[300px] bg-white text-black font-mono text-[12px] leading-snug shadow-2xl">
+                      {/* Header */}
+                      <div className="text-center pt-5 px-4 pb-3">
+                        {b.logo && (
+                          <img src={b.logo} alt="logo" className="w-12 h-12 object-contain mx-auto mb-2" style={{ filter: 'grayscale(1) contrast(2)' }} />
+                        )}
+                        <div className="font-bold text-[15px] uppercase tracking-wide">{b.restaurantName || 'ZEN POS'}</div>
+                        {(b.address || '').split('\n').filter(Boolean).map((line: string, i: number) => (
+                          <div key={i} className="text-[11px]">{line}</div>
+                        ))}
+                        {b.phone && <div className="text-[11px]">{b.phone}</div>}
                       </div>
-                    </div>
-                  )}
 
-                  {/* Totals */}
-                  <div className="px-4 pt-2 pb-3 border-t-2 border-black space-y-1">
-                    <div className="flex justify-between text-[11px] text-gray-600"><span>Subtotal</span><span>{formatCurrency(receiptModal.subtotal)}</span></div>
-                    {receiptModal.tax > 0 && (
-                      <div className="flex justify-between text-[11px] text-gray-600"><span>Tax</span><span>{formatCurrency(receiptModal.tax)}</span></div>
-                    )}
-                    <div className="flex justify-between font-bold text-[15px] pt-1 border-t border-dashed border-gray-300">
-                      <span>TOTAL</span><span>{formatCurrency(receiptModal.total)}</span>
-                    </div>
-                  </div>
+                      <div className="px-4"><Sep /></div>
 
-                  {/* QR Code */}
-                  {b.printQrCode && receiptModal.orderNumber && (
-                    <div className="flex flex-col items-center py-3 px-4 border-t border-dashed border-gray-300 gap-1">
-                      <QRCode value={receiptModal.orderNumber} size={72} />
-                      <span className="text-[9px] text-gray-400 tracking-widest">{receiptModal.orderNumber}</span>
-                    </div>
-                  )}
+                      {/* Order info */}
+                      <div className="px-4 py-1">
+                        <div>Order: #{receiptModal.orderNumber}</div>
+                        <div>Date:  {dateStr}  {timeStr}</div>
+                        <div className="capitalize">Type:  {(receiptModal.orderType || 'dine_in').replace('_', ' ')}{receiptModal.table ? `  ·  Table ${receiptModal.table}` : ''}</div>
+                      </div>
 
-                  {/* Footer */}
-                  <div className="text-center py-3 px-4 border-t border-dashed border-gray-300 text-[10px] text-gray-400 italic">
-                    {b.footerText || 'Thank you for dining with us!'}
-                  </div>
-                </div>
+                      {/* Customer */}
+                      {hasCustomer && (
+                        <>
+                          <div className="px-4"><Sep /></div>
+                          <div className="px-4 py-1">
+                            <div className="font-bold">CUSTOMER DETAILS:</div>
+                            {receiptModal.customer!.name && <div>{receiptModal.customer!.name}</div>}
+                            {receiptModal.customer!.phone && <div>{receiptModal.customer!.phone}</div>}
+                            {receiptModal.customer!.address && <div>{receiptModal.customer!.address}</div>}
+                          </div>
+                        </>
+                      )}
+
+                      <div className="px-4"><Sep /></div>
+
+                      {/* Items */}
+                      <div className="px-4 py-1 space-y-2">
+                        {receiptModal.items.map((item, i) => {
+                          const itemPrice = getCartItemPrice(item);
+                          const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
+                          const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
+                          const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
+                          const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');
+                          const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
+                          return (
+                            <div key={i}>
+                              <div className="flex justify-between">
+                                <span>{item.quantity}x {item.name}</span>
+                                <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
+                              </div>
+                              {noteStr && <div className="pl-4 text-[11px] text-gray-600">{noteStr}</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {receiptModal.notes && (
+                        <>
+                          <div className="px-4"><Sep /></div>
+                          <div className="px-4 text-[11px] text-gray-700 italic">Note: {receiptModal.notes}</div>
+                        </>
+                      )}
+
+                      <div className="px-4"><Sep /></div>
+
+                      {/* Subtotals */}
+                      <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
+                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(receiptModal.subtotal)}</span></div>
+                        {receiptModal.tax > 0 && <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(receiptModal.tax)}</span></div>}
+                      </div>
+
+                      <div className="px-4"><Sep2 /></div>
+                      <div className="px-4 flex justify-between font-bold text-[14px]">
+                        <span>TOTAL:</span><span>{formatCurrency(receiptModal.total)}</span>
+                      </div>
+                      <div className="px-4"><Sep2 /></div>
+
+                      <div className="px-4"><Sep /></div>
+
+                      {/* QR / Loyalty */}
+                      <div className="text-center px-4 py-3">
+                        <div className="font-bold text-[12px] tracking-wider mb-1">*** FIDELITY PROGRAM ***</div>
+                        <div className="text-[11px] mb-3 leading-snug">Scan QR to collect points<br />Redeem discounts &amp; free delivery</div>
+                        <QRCode value={trackingUrl} size={110} />
+                        <div className="font-bold text-[11px] tracking-[3px] mt-2">SCAN ME</div>
+                      </div>
+
+                      <div className="px-4"><Sep /></div>
+                      <div className="text-center text-[11px] py-2 px-4">{b.footerText || 'Thank you for dining with us!'}</div>
+                      <div className="h-4" />
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Print button */}
