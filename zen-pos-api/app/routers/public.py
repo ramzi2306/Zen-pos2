@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Header, Response, WebSocket, WebSocketDisconnect
 from typing import List, Optional, Tuple
 import uuid
@@ -78,7 +78,7 @@ async def get_public_menu(response: Response):
                         description=p.description if p.description else "",
                         price=p.price if p.price is not None else 0.0,
                         image=None,  # images loaded separately
-                        category=p.category,
+                        category=p.category or "",
                         in_stock=p.in_stock if p.in_stock is not None else True,
                         variations=[
                             PublicVariationGroup(
