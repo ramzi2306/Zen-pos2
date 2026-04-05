@@ -2779,7 +2779,7 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClose: () => void, onSaved?: () => void }) => {
+const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClose: () => void, onSaved?: (saved: Product) => void }) => {
   const { localization } = useLocalization();
   const [name, setName] = useState(product?.name || '');
   const [description, setDescription] = useState(product?.description || '');
@@ -2938,14 +2938,15 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
       supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment || 0 })) })),
     };
     try {
-      if (product) {
-        await api.products.updateProduct(product.id, payload);
-      } else {
-        await api.products.createProduct(payload);
-      }
-      if (onSaved) onSaved();
+      const saved = product
+        ? await api.products.updateProduct(product.id, payload)
+        : await api.products.createProduct(payload);
+      if (onSaved) onSaved(saved);
       onClose();
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || 'Failed to save product. Please try again.');
+    }
   };
 
   return (
@@ -3515,7 +3516,14 @@ const ProductManagementView = () => {
             setIsAddProductOpen(false);
             setEditingProduct(null);
           }}
-          onSaved={loadProducts}
+          onSaved={(saved) => {
+            setProducts(prev => {
+              const exists = prev.find(p => p.id === saved.id);
+              return exists
+                ? prev.map(p => p.id === saved.id ? saved : p)
+                : [saved, ...prev];
+            });
+          }}
         />
       )}
     </div>
