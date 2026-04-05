@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Order, CartItem, User } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCartItemPrice, getSubtotal } from '../utils/cartUtils';
+import { buildReceiptHtml, firePrint } from '../utils/printReceipt';
 import * as api from '../api';
 import { zenWs } from '../api/websocket';
 import { playSound } from '../utils/sounds';
@@ -64,7 +65,7 @@ export const OrdersView = ({
   onRefresh?: () => void,
   branding?: BrandingData,
 }) => {
-  const { formatCurrency } = useLocalization();
+  const { formatCurrency, localization } = useLocalization();
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
   const [statusFilter, setStatusFilter] = useState<string>('active');
@@ -261,48 +262,43 @@ export const OrdersView = ({
 
   const handlePrintReceipt = () => {
     if (!receiptModal) return;
-
-    // Inject a print stylesheet that hides everything except the receipt div
-    const styleId = 'zen-receipt-print-style';
-    let style = document.getElementById(styleId) as HTMLStyleElement | null;
-    if (!style) {
-      style = document.createElement('style');
-      style.id = styleId;
-      document.head.appendChild(style);
-    }
-    style.textContent = `
-      @media print {
-        @page { size: 80mm auto; margin: 0; }
-        body > * { display: none !important; }
-        #zen-receipt-print-root { display: block !important; position: fixed; inset: 0; z-index: 99999; background: #fff; }
-        #zen-order-receipt-print { width: 80mm !important; max-width: 80mm !important; margin: 0 auto; box-shadow: none !important; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; }
-      }
-    `;
-
-    // Wrap the receipt div in a print-root so we can show only it
-    let printRoot = document.getElementById('zen-receipt-print-root');
-    if (!printRoot) {
-      printRoot = document.createElement('div');
-      printRoot.id = 'zen-receipt-print-root';
-      printRoot.style.display = 'none';
-      document.body.appendChild(printRoot);
-    }
-
-    const receiptEl = document.getElementById('zen-order-receipt-print');
-    if (!receiptEl) return;
-
-    // Clone the receipt into the print root
-    printRoot.innerHTML = '';
-    printRoot.appendChild(receiptEl.cloneNode(true));
-
-    window.print();
-
-    // Cleanup after dialog closes
-    setTimeout(() => {
-      printRoot!.innerHTML = '';
-      style!.textContent = '';
-    }, 1000);
+    const trackingUrl = receiptModal.trackingToken
+      ? `${window.location.origin}/track/${receiptModal.trackingToken}`
+      : undefined;
+    const items = receiptModal.items.map(item => {
+      const itemPrice = getCartItemPrice(item);
+      const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
+      const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
+      const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
+      const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');
+      return { name: item.name, quantity: item.quantity, lineTotal, modifiers, notes: item.notes };
+    });
+    const html = buildReceiptHtml({
+      branding: b,
+      orderNumber: receiptModal.orderNumber,
+      orderType: receiptModal.orderType ?? 'dine_in',
+      date: receiptModal.createdAt ? new Date(receiptModal.createdAt) : new Date(),
+      items,
+      customer: receiptModal.customer
+        ? { name: receiptModal.customer.name, phone: receiptModal.customer.phone, address: receiptModal.customer.address }
+        : undefined,
+      notes: receiptModal.notes || undefined,
+      subtotal: receiptModal.subtotal ?? receiptModal.total,
+      taxAmount: receiptModal.tax ?? 0,
+      taxRate: localization.taxEnabled ? localization.taxRate : undefined,
+      total: receiptModal.total,
+      trackingUrl,
+      formatCurrency,
+    });
+    firePrint(html);
   };
+
+  useEffect(() => {
+    if (printReady && receiptModal) {
+      handlePrintReceipt();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printReady, receiptModal]);
 
   const handlePrint = () => {
     if (!selectedOrder) return;
@@ -310,7 +306,7 @@ export const OrdersView = ({
     setSelectedOrder(null);
     setOrderRect(null);
     setPrintReady(false);
-    setTimeout(() => setPrintReady(true), 1500);
+    setTimeout(() => setPrintReady(true), 3000);
   };
 
   const handleCancelOrder = async () => {
@@ -1481,7 +1477,7 @@ export const OrdersView = ({
                       {/* Subtotals */}
                       <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
                         <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(receiptModal.subtotal)}</span></div>
-                        {receiptModal.tax > 0 && <div className="flex justify-between"><span>Tax:</span><span>{formatCurrency(receiptModal.tax)}</span></div>}
+                        {receiptModal.tax > 0 && <div className="flex justify-between"><span>Tax{localization.taxEnabled ? ` (${localization.taxRate}%)` : ''}:</span><span>{formatCurrency(receiptModal.tax)}</span></div>}
                       </div>
 
                       <div className="px-4"><Sep2 /></div>
@@ -1496,7 +1492,7 @@ export const OrdersView = ({
                       <div className="text-center px-4 py-3">
                         <div className="font-bold text-[12px] tracking-wider mb-1">*** FIDELITY PROGRAM ***</div>
                         <div className="text-[11px] mb-3 leading-snug">Scan QR to collect points<br />Redeem discounts &amp; free delivery</div>
-                        <QRCode value={trackingUrl} size={110} />
+                        <div className="flex justify-center my-2"><QRCode value={trackingUrl} size={110} /></div>
                         <div className="font-bold text-[11px] tracking-[3px] mt-2">SCAN ME</div>
                       </div>
 

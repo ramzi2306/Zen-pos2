@@ -5248,52 +5248,61 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                   </div>
                   
                   <div className="flex-shrink-0">
-                    <div className="w-56 bg-white p-6 shadow-xl rounded-sm text-black font-mono text-[10px] leading-tight">
-                      <div className="text-center mb-4">
-                        <p className="font-bold text-sm uppercase tracking-widest mb-1">{branding.restaurantName || 'ZEN OMAKASE'}</p>
-                        {(branding.address || '').split('\n').filter(Boolean).map((line, i) => (
-                          <p key={i} className="text-[8px] opacity-70">{line}</p>
-                        ))}
-                        {branding.phone && <p className="text-[8px] opacity-70">Tel: {branding.phone}</p>}
-                        {branding.email && <p className="text-[8px] opacity-70">{branding.email}</p>}
-                      </div>
-
-                      <div className="border-t border-b border-dashed border-black/20 py-3 my-3 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Ootoro Sashimi</span>
-                          <span>{formatCurrency(45)}</span>
+                    {(() => {
+                      const Sep = () => <div className="border-t border-dashed border-black/30 my-1" />;
+                      const Sep2 = () => <div className="border-t-2 border-black my-1" />;
+                      const mockItems = [
+                        { name: '1x Ootoro Sashimi', price: 1800 },
+                        { name: '1x Sake Selection', price: 950 },
+                        { name: '1x Seasonal Nigiri', price: 600 },
+                      ];
+                      const mockSubtotal = mockItems.reduce((s, i) => s + i.price, 0);
+                      const mockTotal = mockSubtotal;
+                      return (
+                        <div className="w-52 bg-white shadow-xl text-black font-mono text-[9px] leading-snug">
+                          <div className="text-center pt-4 px-3 pb-2">
+                            {branding.logo && <img src={branding.logo} alt="logo" className="w-8 h-8 object-contain mx-auto mb-1" style={{ filter: 'grayscale(1) contrast(2)' }} />}
+                            <div className="font-bold text-[11px] uppercase tracking-wide">{branding.restaurantName || 'ZEN POS'}</div>
+                            {(branding.address || '').split('\n').filter(Boolean).map((line, i) => (
+                              <div key={i} className="text-[8px] opacity-70">{line}</div>
+                            ))}
+                            {branding.phone && <div className="text-[8px] opacity-70">{branding.phone}</div>}
+                          </div>
+                          <div className="px-3"><Sep /></div>
+                          <div className="px-3 py-0.5 text-[8px] opacity-60">
+                            <div>Order: #0001</div>
+                            <div>Date:  {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</div>
+                            <div>Type:  Dine in</div>
+                          </div>
+                          <div className="px-3"><Sep /></div>
+                          <div className="px-3 py-1 space-y-1">
+                            {mockItems.map((item, i) => (
+                              <div key={i} className="flex justify-between">
+                                <span>{item.name}</span>
+                                <span>{formatCurrency(item.price)}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="px-3"><Sep /></div>
+                          <div className="px-3 py-0.5 text-[8px] opacity-70">
+                            <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(mockSubtotal)}</span></div>
+                          </div>
+                          <div className="px-3"><Sep2 /></div>
+                          <div className="px-3 flex justify-between font-bold text-[10px]">
+                            <span>TOTAL:</span><span>{formatCurrency(mockTotal)}</span>
+                          </div>
+                          <div className="px-3"><Sep2 /></div>
+                          <div className="text-center text-[8px] py-2 px-3 italic opacity-60">{branding.footerText || 'Thank you for dining with us!'}</div>
+                          {branding.printQrCode && (
+                            <div className="flex flex-col items-center gap-0.5 pb-3">
+                              <div className="text-[7px] font-bold tracking-wider">*** FIDELITY PROGRAM ***</div>
+                              <QRCode value={branding.restaurantName || 'ZEN POS'} size={52} />
+                              <div className="text-[7px] opacity-50 uppercase tracking-widest">SCAN ME</div>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex justify-between">
-                          <span>Sake Selection</span>
-                          <span>{formatCurrency(32)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Seasonal Nigiri</span>
-                          <span>{formatCurrency(120)}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between font-bold text-xs mb-4">
-                        <span>TOTAL</span>
-                        <span>{formatCurrency(197)}</span>
-                      </div>
-
-                      <div className="text-center italic opacity-60 mb-4 px-4 text-[8px]">
-                        {branding.footerText || 'Thank you for dining with us!'}
-                      </div>
-
-                      {branding.printQrCode && (
-                        <div className="flex flex-col items-center gap-1 mt-2">
-                          <QRCode
-                            value={branding.address || branding.restaurantName || 'ZEN POS'}
-                            size={64}
-                            bgColor="transparent"
-                            fgColor="#111111"
-                          />
-                          <p className="text-[7px] opacity-40 uppercase tracking-widest">Scan for info</p>
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

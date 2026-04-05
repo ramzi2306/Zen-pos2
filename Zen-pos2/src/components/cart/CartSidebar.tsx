@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
+import { getSubtotal } from '../../utils/cartUtils';
+import { buildReceiptHtml, firePrint, ReceiptItem } from '../../utils/printReceipt';
 import { CartItem, Order, Customer, CustomerDetail, VariationOption, SupplementOption } from '../../data';
 import * as api from '../../api';
 import { SwipeableCartItem } from './CartItem';
@@ -109,147 +110,64 @@ export const CartSidebar = ({
   );
 
   // ── Handlers ────────────────────────────────────────────────────────────────
-  const handlePrint = () => {
-    const printContent = document.getElementById('receipt-content');
-    if (!printContent) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Receipt</title>
-          <style>
-            body { font-family: monospace; padding: 20px; }
-            .receipt { width: 300px; margin: 0 auto; }
-            .text-center { text-align: center; }
-            .flex { display: flex; justify-content: space-between; }
-            .border-b { border-bottom: 1px dashed #ccc; margin: 10px 0; }
-            .font-bold { font-weight: bold; }
-            .text-sm { font-size: 14px; }
-            .text-xs { font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="receipt">${printContent.innerHTML}</div>
-          <script>window.onload = () => { window.print(); window.close(); };<\/script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
-  const handlePrintReceipt = () => {
-    if (!receiptModal) return;
-    const storeName = branding?.restaurantName || 'ZEN POS';
-    const addr = (branding?.address || '').split('\n').filter(Boolean);
-    const phone = branding?.phone || '';
-    const footer = branding?.footerText || 'Thank you for your order!';
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const trackingUrl = receiptModal.trackingToken
-      ? `${window.location.origin}/track/${receiptModal.trackingToken}`
-      : `${window.location.origin}/track/${receiptModal.orderNumber}`;
-
-    const SEP = `<hr style="border:none;border-top:1px dashed #000;margin:6px 0;">`;
-    const SEP2 = `<hr style="border:none;border-top:2px solid #000;margin:6px 0;">`;
-
-    const itemRows = cart.map(item => {
+  const _buildCartReceiptItems = (): ReceiptItem[] =>
+    cart.map(item => {
       const variations = Object.values(item.selectedVariations || {}) as VariationOption[];
       const varAdj = variations.reduce((s: number, o: VariationOption) => s + (o.price || 0), 0);
       const supps = Object.values(item.selectedSupplements || {}) as SupplementOption[];
       const suppAdj = supps.reduce((s: number, o: SupplementOption) => s + (o.priceAdjustment || 0), 0);
-      
       const basePrice = variations.length > 0 ? varAdj : item.price;
-      const lineTotal = ((basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100));
-      
-      const modifiers = [
-        ...variations.map((o: VariationOption) => o.name),
-        ...supps.map((o: SupplementOption) => o.name),
-      ].filter(Boolean).join(', ');
-      const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
-      return `
-        <div style="margin-bottom:6px;">
-          <div style="display:flex;justify-content:space-between;">
-            <span>${item.quantity}x ${item.name}</span>
-            <span style="white-space:nowrap;margin-left:8px;">${formatCurrency(lineTotal)}</span>
-          </div>
-          ${noteStr ? `<div style="padding-left:16px;font-size:11px;color:#444;">${noteStr}</div>` : ''}
-        </div>`;
-    }).join('');
+      const lineTotal = (basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
+      const modifiers = [...variations.map((o: VariationOption) => o.name), ...supps.map((o: SupplementOption) => o.name)].filter(Boolean).join(', ');
+      return { name: item.name, quantity: item.quantity, lineTotal, modifiers, notes: item.notes };
+    });
 
-    const hasCustomer = deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address;
-    const customerSection = hasCustomer ? `
-      ${SEP}
-      <div style="font-weight:bold;margin-bottom:4px;">CUSTOMER DETAILS:</div>
-      ${deliveryDetails.name ? `<div>${deliveryDetails.name}</div>` : ''}
-      ${deliveryDetails.phone ? `<div>${deliveryDetails.phone}</div>` : ''}
-      ${deliveryDetails.address ? `<div>${deliveryDetails.address}</div>` : ''}
-    ` : '';
+  const handlePrint = () => {
+    const html = buildReceiptHtml({
+      branding: branding ?? {},
+      orderNumber: createdOrderNumber ?? undefined,
+      orderType,
+      items: _buildCartReceiptItems(),
+      customer: (deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address)
+        ? { name: deliveryDetails.name, phone: deliveryDetails.phone, address: deliveryDetails.address }
+        : undefined,
+      notes: orderNote || undefined,
+      subtotal,
+      taxAmount,
+      taxRate: localization.taxEnabled ? localization.taxRate : undefined,
+      gratuityAmount,
+      gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
+      total,
+      trackingUrl: createdOrderNumber ? `${window.location.origin}/track/${createdOrderNumber}` : undefined,
+      formatCurrency,
+    });
+    firePrint(html);
+  };
 
-    const paidAmount = receiptModal.paidAmount;
-    const changeAmt = paidAmount > total ? paidAmount - total : 0;
-    const paidSection = paidAmount > 0 ? `
-      ${SEP}
-      <div style="display:flex;justify-content:space-between;"><span>Cash Paid:</span><span>${formatCurrency(paidAmount)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:bold;color:#166534;"><span>Change:</span><span>${formatCurrency(changeAmt)}</span></div>
-    ` : '';
-
-    const qrSection = `
-      ${SEP}
-      <div style="text-align:center;padding:6px 0;">
-        <div style="font-weight:bold;letter-spacing:1px;">*** FIDELITY PROGRAM ***</div>
-        <div style="font-size:11px;margin:4px 0;">Scan QR to collect points<br>Redeem discounts &amp; free delivery</div>
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(trackingUrl)}" style="width:110px;height:110px;display:block;margin:6px auto;" />
-        <div style="font-size:11px;font-weight:bold;letter-spacing:2px;margin-top:4px;">SCAN ME</div>
-      </div>
-      ${SEP}
-      <div style="text-align:center;font-size:11px;padding:4px 0;">${footer}</div>`;
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-      @page { size: 80mm auto; margin: 0; }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { width: 80mm; margin: 0 auto; padding: 4mm; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.4; color: #000; }
-    </style></head><body>
-      <div style="text-align:center;margin-bottom:6px;">
-        ${branding?.logo ? `<img src="${branding.logo}" style="max-width:56px;max-height:56px;display:block;margin:0 auto 4px;filter:grayscale(1) contrast(2);" />` : ''}
-        <div style="font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">${storeName}</div>
-        ${addr.map(l => `<div style="font-size:11px;">${l}</div>`).join('')}
-        ${phone ? `<div style="font-size:11px;">${phone}</div>` : ''}
-      </div>
-      ${SEP}
-      <div>
-        <div>Order: #${receiptModal.orderNumber}</div>
-        <div>Date:  ${dateStr}  ${timeStr}</div>
-        <div>Type:  ${orderType.replace('_', ' ')}</div>
-      </div>
-      ${customerSection}
-      ${SEP}
-      ${itemRows}
-      ${SEP}
-      <div style="display:flex;justify-content:space-between;font-size:11px;"><span>Subtotal:</span><span>${formatCurrency(subtotal)}</span></div>
-      ${taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Tax:</span><span>${formatCurrency(taxAmount)}</span></div>` : ''}
-      ${gratuityAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Gratuity:</span><span>${formatCurrency(gratuityAmount)}</span></div>` : ''}
-      ${SEP2}
-      <div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;">
-        <span>TOTAL:</span><span>${formatCurrency(total)}</span>
-      </div>
-      ${SEP2}
-      ${paidSection}
-      ${qrSection}
-    <script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script></body></html>`;
-
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-    document.body.appendChild(iframe);
-    if (iframe.contentWindow) {
-      iframe.contentWindow.document.open();
-      iframe.contentWindow.document.write(html);
-      iframe.contentWindow.document.close();
-      iframe.contentWindow.addEventListener('afterprint', () => {
-        setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000);
-      });
-    }
+  const handlePrintReceipt = () => {
+    if (!receiptModal) return;
+    const html = buildReceiptHtml({
+      branding: branding ?? {},
+      orderNumber: receiptModal.orderNumber,
+      orderType,
+      items: _buildCartReceiptItems(),
+      customer: (deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address)
+        ? { name: deliveryDetails.name, phone: deliveryDetails.phone, address: deliveryDetails.address }
+        : undefined,
+      notes: orderNote || undefined,
+      subtotal,
+      taxAmount,
+      taxRate: localization.taxEnabled ? localization.taxRate : undefined,
+      gratuityAmount,
+      gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
+      total,
+      paidAmount: receiptModal.paidAmount,
+      trackingUrl: receiptModal.trackingToken
+        ? `${window.location.origin}/track/${receiptModal.trackingToken}`
+        : undefined,
+      formatCurrency,
+    });
+    firePrint(html);
   };
 
   useEffect(() => {
@@ -517,62 +435,85 @@ export const CartSidebar = ({
             </div>
 
             {/* Paper receipt */}
-            <div className="flex-1 overflow-y-auto p-6 bg-[#1a1d21] flex flex-col items-center">
-              <div id="receipt-content" className="w-full max-w-[320px] bg-white text-black pt-8 px-6 pb-6 relative shadow-2xl font-mono">
-                <div className="text-center mb-6">
-                  <h3 className="font-bold text-xl mb-1">{branding?.restaurantName || 'ZEN OMAKASE'}</h3>
-                  {(branding?.address || '').split('\n').filter(Boolean).map((line, i) => (
-                    <p key={i} className="text-xs text-gray-500">{line}</p>
-                  ))}
-                  {branding?.phone && <p className="text-xs text-gray-500">{branding.phone}</p>}
-                </div>
-                <div className="border-b border-dashed border-gray-300 pb-3 mb-4 flex justify-between text-[10px] text-gray-500 uppercase">
-                  <span>Date: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  <span>Order: {createdOrderNumber ?? '—'}</span>
-                </div>
-                {(deliveryDetails.name || deliveryDetails.address || deliveryDetails.phone) && (
-                  <div className="mb-4 text-[10px] uppercase tracking-wider border-b border-dashed border-gray-200 pb-3">
-                    <div className="font-bold mb-1">Customer Details</div>
-                    {deliveryDetails.name && <div>Name: {deliveryDetails.name}</div>}
-                    {deliveryDetails.phone && <div>Phone: {deliveryDetails.phone}</div>}
-                    {deliveryDetails.address && <div>Address: {deliveryDetails.address}</div>}
-                  </div>
-                )}
-                <div className="space-y-4 mb-6">
-                  {cart.map(item => (
-                    <div key={item.cartItemId} className="text-sm">
-                      <div className="flex justify-between font-bold">
-                        <span>{item.name}</span>
-                        <span>{formatCurrency((getCartItemPrice(item) - (item.discount || 0)) * item.quantity)}</span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {item.quantity > 1 ? `${item.quantity}x @ ${formatCurrency(getCartItemPrice(item) - (item.discount || 0))} ` : ''}
-                        {item.selectedVariations && Object.values(item.selectedVariations).map((opt: any) => opt.name).join(', ')}
-                        {item.notes && ` - ${item.notes}`}
-                      </div>
+            <div className="flex-1 overflow-y-auto p-4 bg-[#1a1d21] flex flex-col items-center">
+              {(() => {
+                const Sep = () => <div className="border-t border-dashed border-black/40 my-1.5" />;
+                const Sep2 = () => <div className="border-t-2 border-black my-1.5" />;
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const hasCustomer = deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address;
+                return (
+                  <div className="w-full max-w-[300px] bg-white text-black font-mono text-[12px] leading-snug shadow-2xl">
+                    <div className="text-center pt-5 px-4 pb-3">
+                      {branding?.logo && <img src={branding.logo} alt="logo" className="w-12 h-12 object-contain mx-auto mb-2" style={{ filter: 'grayscale(1) contrast(2)' }} />}
+                      <div className="font-bold text-[15px] uppercase tracking-wide">{branding?.restaurantName || 'ZEN POS'}</div>
+                      {(branding?.address || '').split('\n').filter(Boolean).map((line, i) => (
+                        <div key={i} className="text-[11px]">{line}</div>
+                      ))}
+                      {branding?.phone && <div className="text-[11px]">{branding.phone}</div>}
                     </div>
-                  ))}
-                </div>
-                {orderNote && (
-                  <div className="border-t border-dashed border-gray-300 pt-3 mb-3 text-[10px] text-gray-600 uppercase tracking-wider">
-                    <span className="font-bold">Note:</span> {orderNote}
+                    <div className="px-4"><Sep /></div>
+                    <div className="px-4 py-1">
+                      <div>Order: #{createdOrderNumber ?? '—'}</div>
+                      <div>Date:  {dateStr}  {timeStr}</div>
+                      <div className="capitalize">Type:  {orderType.replace(/_/g, ' ')}</div>
+                    </div>
+                    {hasCustomer && (
+                      <>
+                        <div className="px-4"><Sep /></div>
+                        <div className="px-4 py-1">
+                          <div className="font-bold">CUSTOMER DETAILS:</div>
+                          {deliveryDetails.name && <div>{deliveryDetails.name}</div>}
+                          {deliveryDetails.phone && <div>{deliveryDetails.phone}</div>}
+                          {deliveryDetails.address && <div>{deliveryDetails.address}</div>}
+                        </div>
+                      </>
+                    )}
+                    <div className="px-4"><Sep /></div>
+                    <div className="px-4 py-1 space-y-2">
+                      {cart.map(item => {
+                        const variations = Object.values(item.selectedVariations || {}) as VariationOption[];
+                        const varAdj = variations.reduce((s: number, o: VariationOption) => s + (o.price || 0), 0);
+                        const supps = Object.values(item.selectedSupplements || {}) as SupplementOption[];
+                        const suppAdj = supps.reduce((s: number, o: SupplementOption) => s + (o.priceAdjustment || 0), 0);
+                        const basePrice = variations.length > 0 ? varAdj : item.price;
+                        const lineTotal = (basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
+                        const modifiers = [...variations.map((o: VariationOption) => o.name), ...supps.map((o: SupplementOption) => o.name)].filter(Boolean).join(', ');
+                        const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
+                        return (
+                          <div key={item.cartItemId}>
+                            <div className="flex justify-between">
+                              <span>{item.quantity}x {item.name}</span>
+                              <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
+                            </div>
+                            {noteStr && <div className="pl-4 text-[11px] text-gray-600">{noteStr}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {orderNote && (
+                      <>
+                        <div className="px-4"><Sep /></div>
+                        <div className="px-4 text-[11px] text-gray-700 italic">Note: {orderNote}</div>
+                      </>
+                    )}
+                    <div className="px-4"><Sep /></div>
+                    <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
+                      <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(subtotal)}</span></div>
+                      {taxAmount > 0 && <div className="flex justify-between"><span>Tax ({localization.taxRate}%):</span><span>{formatCurrency(taxAmount)}</span></div>}
+                      {gratuityAmount > 0 && <div className="flex justify-between"><span>Gratuity ({localization.gratuityRate}%):</span><span>{formatCurrency(gratuityAmount)}</span></div>}
+                    </div>
+                    <div className="px-4"><Sep2 /></div>
+                    <div className="px-4 flex justify-between font-bold text-[14px]">
+                      <span>TOTAL:</span><span>{formatCurrency(total)}</span>
+                    </div>
+                    <div className="px-4"><Sep2 /></div>
+                    <div className="text-center text-[11px] py-3 px-4 italic">{branding?.footerText || 'Thank you for your order!'}</div>
+                    <div className="h-4" />
                   </div>
-                )}
-                <div className="border-t border-dashed border-gray-300 pt-3 space-y-2 text-sm">
-                  <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
-                  {taxAmount > 0 && <div className="flex justify-between text-gray-600"><span>Tax ({localization.taxRate}%)</span><span>{formatCurrency(taxAmount)}</span></div>}
-                  {gratuityAmount > 0 && <div className="flex justify-between text-gray-600"><span>Gratuity ({localization.gratuityRate}%)</span><span>{formatCurrency(gratuityAmount)}</span></div>}
-                  <div className="flex justify-between text-lg font-bold mt-3 pt-3 border-t border-dashed border-gray-300">
-                    <span>TOTAL</span>
-                    <span>{formatCurrency(total)}</span>
-                  </div>
-                </div>
-                {/* Jagged receipt edge */}
-                <div className="absolute -bottom-2 left-0 w-full h-2" style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='16' height='8' viewBox='0 0 16 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h16L8 8z' fill='%23ffffff'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: 'repeat-x'
-                }} />
-              </div>
+                );
+              })()}
             </div>
 
             {/* Action buttons */}
