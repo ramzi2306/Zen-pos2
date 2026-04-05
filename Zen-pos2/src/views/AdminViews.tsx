@@ -2796,15 +2796,19 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     api.products.listCategories().then(cats => setApiCategories(cats.map(c => c.name))).catch(console.error);
   }, []);
 
+  const [imageUploadError, setImageUploadError] = useState('');
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImageUploading(true);
+    setImageUploadError('');
     try {
       const { url } = await api.settings.uploadFile(file);
       setImage(url);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Image upload failed:', err);
+      setImageUploadError(err?.message || 'Upload failed — check BunnyNet settings or try again.');
     } finally {
       setImageUploading(false);
     }
@@ -2985,6 +2989,9 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
               )}
               <input type="file" accept="image/*" disabled={imageUploading} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 disabled:cursor-not-allowed" onChange={handleImageUpload} />
             </div>
+            {imageUploadError && (
+              <p className="text-xs text-red-400 font-medium mt-1">{imageUploadError}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -3405,7 +3412,16 @@ const ProductManagementView = () => {
     } catch(err) { console.error('Delete failed', err); }
   };
 
-  const loadProducts = () => { api.products.listProducts().then(setProducts).catch(console.error); };
+  const loadProducts = () => {
+    api.products.listProducts().then(prods => {
+      setProducts(prods);
+      api.products.listProductImages().then(images => {
+        const map: Record<string, string> = {};
+        images.forEach(i => { if (i.image) map[i.id] = i.image; });
+        setProducts(prev => prev.map(p => map[p.id] ? { ...p, image: map[p.id] } : p));
+      }).catch(() => {});
+    }).catch(console.error);
+  };
 
   useEffect(() => { loadProducts(); }, []);
 
