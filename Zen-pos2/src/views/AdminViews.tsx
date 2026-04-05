@@ -3404,13 +3404,21 @@ const ProductManagementView = () => {
   };
   const deleteSelectedProducts = async () => {
     if (!confirm(`Delete ${selectedProductIds.size} product(s)?`)) return;
-    try {
-      for (const id of Array.from(selectedProductIds)) {
+    const ids = Array.from(selectedProductIds);
+    const failed: string[] = [];
+    for (const id of ids) {
+      try {
         await api.products.deleteProduct(id);
+        setProducts(prev => prev.filter(p => p.id !== id));
+      } catch (err: any) {
+        console.error('Delete failed for', id, err);
+        failed.push(id);
       }
-      setSelectedProductIds(new Set());
-      loadProducts();
-    } catch(err) { console.error('Delete failed', err); }
+    }
+    setSelectedProductIds(new Set(failed));
+    if (failed.length > 0) {
+      alert(`Failed to delete ${failed.length} product(s). Check console for details.`);
+    }
   };
 
   const loadProducts = () => {
@@ -3545,19 +3553,18 @@ const SalesView = () => {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([
+    Promise.allSettled([
       api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u)),
       api.analytics.getBestsellers(5),
       api.analytics.getLeaderboard(),
       api.analytics.getSalesSummary(),
       api.register.listRegisterReports(),
     ]).then(([ords, bs, lb, sum, rawReports]) => {
-      setOrders(ords);
-      setBestsellers(bs);
-      setLeaderboard(lb);
-      setSummary(sum);
-      // Sort reports by closedAt descending
-      setRegisterReports(rawReports.sort((a, b) => b.closedAt - a.closedAt));
+      if (ords.status === 'fulfilled') setOrders(ords.value);
+      if (bs.status === 'fulfilled') setBestsellers(bs.value);
+      if (lb.status === 'fulfilled') setLeaderboard(lb.value);
+      if (sum.status === 'fulfilled') setSummary(sum.value);
+      if (rawReports.status === 'fulfilled') setRegisterReports(rawReports.value.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 

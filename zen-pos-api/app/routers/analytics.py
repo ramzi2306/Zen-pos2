@@ -70,30 +70,41 @@ async def bestsellers(limit: int = 5):
             dependencies=[Depends(require_permission("view_orders"))])
 async def kitchen_leaderboard():
     start = _start_of_month()
-    orders = await OrderDocument.find(
-        OrderDocument.status == "Done",
-        OrderDocument.created_at >= start,
-    ).to_list()
+    try:
+        orders = await OrderDocument.find(
+            OrderDocument.status == "Done",
+            OrderDocument.created_at >= start,
+        ).to_list()
+    except Exception:
+        return []
 
     cook_counts: Counter = Counter()
     for order in orders:
-        if order.cook and hasattr(order.cook, "ref"):
-            cook_id = str(order.cook.ref.id)
-            cook_counts[cook_id] += 1
+        try:
+            if order.cook and hasattr(order.cook, "ref") and order.cook.ref:
+                cook_id = str(order.cook.ref.id)
+                cook_counts[cook_id] += 1
+            elif order.cook and isinstance(order.cook, str):
+                cook_counts[order.cook] += 1
+        except Exception:
+            continue
 
     if not cook_counts:
         return []
 
     entries = []
     for rank, (cook_id, count) in enumerate(cook_counts.most_common(), start=1):
-        user = await UserDocument.get(cook_id)
-        entries.append(LeaderboardEntry(
-            user_id=cook_id,
-            name=user.full_name if user else "Unknown",
-            avatar=getattr(user, "avatar", "") or "",
-            orders_completed=count,
-            rank=rank,
-        ))
+        try:
+            user = await UserDocument.get(cook_id)
+            entries.append(LeaderboardEntry(
+                user_id=cook_id,
+                name=user.full_name if user else "Unknown",
+                avatar=getattr(user, "avatar", "") or "",
+                orders_completed=count,
+                rank=rank,
+            ))
+        except Exception:
+            continue
     return entries
 
 
