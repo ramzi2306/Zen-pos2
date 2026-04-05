@@ -1,3 +1,19 @@
+import QRCodeLib from 'qr.js/lib/QRCode';
+import ErrorCorrectLevel from 'qr.js/lib/ErrorCorrectLevel';
+
+/** Generate an inline SVG QR code — no external network request needed. */
+function generateQrSvg(value: string, size: number): string {
+  const qr = new QRCodeLib(-1, ErrorCorrectLevel['L']);
+  qr.addData(value);
+  qr.make();
+  const cells: boolean[][] = qr.modules;
+  const n = cells.length;
+  const fgD = cells.map((row: boolean[], r: number) =>
+    row.map((cell: boolean, c: number) => cell ? `M ${c} ${r} l 1 0 0 1 -1 0 Z` : '').join(' ')
+  ).join(' ');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${n} ${n}" style="display:block;margin:6px auto;"><path d="${fgD}" fill="#000000"/></svg>`;
+}
+
 export interface ReceiptBranding {
   restaurantName?: string;
   address?: string;
@@ -65,8 +81,9 @@ export function buildReceiptHtml(d: ReceiptData): string {
     ? `${SEP}<div style="display:flex;justify-content:space-between;"><span>Cash Paid:</span><span>${formatCurrency(paidAmount)}</span></div><div style="display:flex;justify-content:space-between;font-weight:bold;color:#166534;"><span>Change:</span><span>${formatCurrency(changeAmt)}</span></div>`
     : '';
 
+  const qrSvg = d.trackingUrl ? generateQrSvg(d.trackingUrl, 110) : '';
   const qrSection = d.trackingUrl
-    ? `${SEP}<div style="text-align:center;padding:6px 0;"><div style="font-weight:bold;letter-spacing:1px;">*** FIDELITY PROGRAM ***</div><div style="font-size:11px;margin:4px 0;">Scan QR to collect points<br>Redeem discounts &amp; free delivery</div><img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(d.trackingUrl)}" style="width:110px;height:110px;display:block;margin:6px auto;" /><div style="font-size:11px;font-weight:bold;letter-spacing:2px;margin-top:4px;">SCAN ME</div></div>`
+    ? `${SEP}<div style="text-align:center;padding:6px 0;"><div style="font-weight:bold;letter-spacing:1px;">*** FIDELITY PROGRAM ***</div><div style="font-size:11px;margin:4px 0;">Scan QR to collect points<br>Redeem discounts &amp; free delivery</div>${qrSvg}<div style="font-size:11px;font-weight:bold;letter-spacing:2px;margin-top:4px;">SCAN ME</div></div>`
     : '';
 
   const notesSection = d.notes
@@ -75,7 +92,7 @@ export function buildReceiptHtml(d: ReceiptData): string {
 
   const orderTypeDisplay = (d.orderType || 'dine_in').replace(/_/g, ' ');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{size:80mm auto;margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{width:80mm;margin:0 auto;padding:4mm;font-family:'Courier New',Courier,monospace;font-size:12px;line-height:1.4;color:#000;}</style></head><body><div style="text-align:center;margin-bottom:6px;">${branding.logo ? `<img src="${branding.logo}" style="max-width:56px;max-height:56px;display:block;margin:0 auto 4px;filter:grayscale(1) contrast(2);" />` : ''}<div style="font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">${storeName}</div>${addr.map(l => `<div style="font-size:11px;">${l}</div>`).join('')}${branding.phone ? `<div style="font-size:11px;">${branding.phone}</div>` : ''}</div>${SEP}<div><div>Order: #${d.orderNumber || '\u2014'}</div><div>Date:  ${dateStr}  ${timeStr}</div><div>Type:  ${orderTypeDisplay}</div></div>${customerSection}${SEP}${itemRows}${notesSection}${SEP}<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Subtotal:</span><span>${formatCurrency(d.subtotal)}</span></div>${d.taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>${taxLabel}</span><span>${formatCurrency(d.taxAmount)}</span></div>` : ''}${(d.gratuityAmount ?? 0) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>${gratuityLabel}</span><span>${formatCurrency(d.gratuityAmount!)}</span></div>` : ''}${SEP2}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;"><span>TOTAL:</span><span>${formatCurrency(d.total)}</span></div>${SEP2}${paidSection}${qrSection}${SEP}<div style="text-align:center;font-size:11px;padding:4px 0;">${footer}</div><script>window.onload=function(){setTimeout(function(){window.print();},500);};<\/script></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{size:80mm auto;margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{width:80mm;margin:0 auto;padding:4mm;font-family:'Courier New',Courier,monospace;font-size:12px;line-height:1.4;color:#000;}</style></head><body><div style="text-align:center;margin-bottom:6px;">${branding.logo ? `<img src="${branding.logo}" style="max-width:56px;max-height:56px;display:block;margin:0 auto 4px;filter:grayscale(1) contrast(2);" />` : ''}<div style="font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">${storeName}</div>${addr.map(l => `<div style="font-size:11px;">${l}</div>`).join('')}${branding.phone ? `<div style="font-size:11px;">${branding.phone}</div>` : ''}</div>${SEP}<div><div>Order: #${d.orderNumber || '\u2014'}</div><div>Date:  ${dateStr}  ${timeStr}</div><div>Type:  ${orderTypeDisplay}</div></div>${customerSection}${SEP}${itemRows}${notesSection}${SEP}<div style="display:flex;justify-content:space-between;font-size:11px;"><span>Subtotal:</span><span>${formatCurrency(d.subtotal)}</span></div>${d.taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>${taxLabel}</span><span>${formatCurrency(d.taxAmount)}</span></div>` : ''}${(d.gratuityAmount ?? 0) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:11px;"><span>${gratuityLabel}</span><span>${formatCurrency(d.gratuityAmount!)}</span></div>` : ''}${SEP2}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:15px;"><span>TOTAL:</span><span>${formatCurrency(d.total)}</span></div>${SEP2}${paidSection}${qrSection}${SEP}<div style="text-align:center;font-size:11px;padding:4px 0;">${footer}</div><script>window.onload=function(){window.print();};<\/script></body></html>`;
 }
 
 export function firePrint(html: string): void {
