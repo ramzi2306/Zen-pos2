@@ -131,6 +131,8 @@ export const OrdersView = ({
       if (e.type === 'new_order') {
         refetch();
         playSound('new_order');
+      } else if (e.type === 'order_update') {
+        refetch();
       }
     });
 

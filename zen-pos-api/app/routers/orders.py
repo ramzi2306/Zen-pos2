@@ -10,6 +10,7 @@ from app.schemas.order import (
 )
 from app.services import order_service
 from app.core.exceptions import NotFoundError
+from app.ws.manager import manager
 
 router = APIRouter()
 
@@ -65,7 +66,9 @@ async def create_order(
     current_user: UserDocument = Depends(require_permission("view_menu")),
 ):
     order = await order_service.create_order(body, location_id=current_user.location_id)
-    return _to_out(order)
+    out = _to_out(order)
+    await manager.broadcast("order_update", {"action": "created", "id": str(order.id), "order_number": order.order_number})
+    return out
 
 
 @router.patch("/{order_id}", response_model=OrderOut,
@@ -80,13 +83,16 @@ async def update_order(order_id: str, body: OrderUpdate):
     for key, value in update_data.items():
         setattr(order, key, value)
     await order.save()
-    return _to_out(order)
+    out = _to_out(order)
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id, "status": out.status})
+    return out
 
 
 @router.post("/{order_id}/assign-cook", response_model=OrderOut,
              dependencies=[Depends(require_permission("view_orders"))])
 async def assign_cook(order_id: str, body: AssignCookRequest):
     order = await order_service.assign_cook(order_id, body.cook_id)
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id})
     return _to_out(order)
 
 
@@ -94,6 +100,7 @@ async def assign_cook(order_id: str, body: AssignCookRequest):
              dependencies=[Depends(require_permission("view_orders"))])
 async def assign_assistant(order_id: str, body: AssignAssistantRequest):
     order = await order_service.add_assistant(order_id, body.user_id)
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id})
     return _to_out(order)
 
 
@@ -109,6 +116,7 @@ async def submit_review(order_id: str, body: ReviewSchema):
 async def verify_online_order(order_id: str):
     """Move an online order from Verification → Queued (cashier confirms order)."""
     order = await order_service.transition_status(order_id, "Queued")
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id, "status": "Queued"})
     return _to_out(order)
 
 
@@ -117,6 +125,7 @@ async def verify_online_order(order_id: str):
 async def add_to_kitchen(order_id: str):
     """Move an order to Queued status so kitchen can start preparing it."""
     order = await order_service.transition_status(order_id, "Queued")
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id, "status": "Queued"})
     return _to_out(order)
 
 
@@ -124,6 +133,7 @@ async def add_to_kitchen(order_id: str):
                dependencies=[Depends(require_permission("view_orders"))])
 async def cancel_order(order_id: str):
     await order_service.transition_status(order_id, "Cancelled")
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id, "status": "Cancelled"})
 
 
 def _link_id(obj) -> Optional[str]:

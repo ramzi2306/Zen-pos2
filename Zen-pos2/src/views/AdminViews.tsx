@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AttendanceView } from './AttendanceView';
 import { motion, AnimatePresence } from 'motion/react';
+import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie } from 'recharts';
 import QRCode from 'react-qr-code';
@@ -2393,12 +2394,18 @@ export const InventoryView = () => {
   const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
   const [deliveries, setDeliveries] = useState<PurchaseLog[]>([]);
 
-  const loadData = () => {
+  const loadData = useCallback(() => {
     api.inventory.listIngredients().then(setIngredients).catch(console.error);
     api.inventory.listPurchases().then(setDeliveries).catch(console.error);
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    return zenWs.onEvent(e => {
+      if (e.type === 'ingredient_update') loadData();
+    });
+  }, [loadData]);
 
   const handleDeleteIngredient = async (id: string) => {
     if (!confirm('Are you sure you want to delete this ingredient?')) return;
@@ -3421,7 +3428,7 @@ const ProductManagementView = () => {
     }
   };
 
-  const loadProducts = () => {
+  const loadProducts = useCallback(() => {
     api.products.listProducts().then(prods => {
       setProducts(prods);
       api.products.listProductImages().then(images => {
@@ -3430,9 +3437,15 @@ const ProductManagementView = () => {
         setProducts(prev => prev.map(p => map[p.id] ? { ...p, image: map[p.id] } : p));
       }).catch(() => {});
     }).catch(console.error);
-  };
+  }, []);
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  useEffect(() => {
+    return zenWs.onEvent(e => {
+      if (e.type === 'product_update') loadProducts();
+    });
+  }, [loadProducts]);
 
   return (
     <div className="space-y-8">
@@ -3814,12 +3827,18 @@ const CustomersView = () => {
     } catch(err) { console.error('Delete failed', err); }
   };
 
-  const loadCustomers = (q?: string) => {
+  const loadCustomers = useCallback((q?: string) => {
     setLoading(true);
     api.customers.listCustomers(q).then(setCustomers).catch(console.error).finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { loadCustomers(); }, []);
+  useEffect(() => { loadCustomers(); }, [loadCustomers]);
+
+  useEffect(() => {
+    return zenWs.onEvent(e => {
+      if (e.type === 'customer_update' || e.type === 'order_update') loadCustomers();
+    });
+  }, [loadCustomers]);
 
   const handleSearch = (v: string) => {
     setSearch(v);
@@ -4971,9 +4990,15 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     } catch(err) { console.error('Fire failed', err); }
   };
 
-  const loadUsers = () => { api.users.listUsers().then(setUsers).catch(console.error); };
+  const loadUsers = useCallback(() => { api.users.listUsers().then(setUsers).catch(console.error); }, []);
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  useEffect(() => {
+    return zenWs.onEvent(e => {
+      if (e.type === 'user_update') loadUsers();
+    });
+  }, [loadUsers]);
 
   // Clear open modals when the user switches between admin sections
   useEffect(() => {

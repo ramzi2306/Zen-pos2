@@ -10,6 +10,7 @@ from app.schemas.ingredient import (
     UsageLogCreate, UsageLogOut,
 )
 from app.core.exceptions import NotFoundError
+from app.ws.manager import manager
 
 router = APIRouter()
 
@@ -46,6 +47,7 @@ async def list_ingredients():
 async def create_ingredient(body: IngredientCreate):
     doc = IngredientInventoryDocument(**body.model_dump())
     await doc.insert()
+    await manager.broadcast("ingredient_update", {"action": "created", "id": str(doc.id)})
     return _ing_to_out(doc)
 
 
@@ -58,6 +60,7 @@ async def update_ingredient(ingredient_id: str, body: IngredientUpdate):
     for k, v in body.model_dump(exclude_unset=True).items():
         setattr(doc, k, v)
     await doc.save()
+    await manager.broadcast("ingredient_update", {"action": "updated", "id": ingredient_id})
     return _ing_to_out(doc)
 
 
@@ -69,6 +72,7 @@ async def delete_ingredient(ingredient_id: str):
         raise NotFoundError("Ingredient not found")
     doc.is_active = False
     await doc.save()
+    await manager.broadcast("ingredient_update", {"action": "deleted", "id": ingredient_id})
 
 
 # ── Purchase Logs ──────────────────────────────────────────
@@ -115,6 +119,8 @@ async def log_purchase(body: PurchaseLogCreate):
     )
     await log.insert()
 
+
+    await manager.broadcast("ingredient_update", {"action": "purchase_logged", "ingredient_id": str(ing.id)})
     return PurchaseLogOut(
         id=str(log.id),
         ingredient_id=str(ing.id),
@@ -169,6 +175,8 @@ async def log_usage(body: UsageLogCreate):
     )
     await log.insert()
 
+
+    await manager.broadcast("ingredient_update", {"action": "usage_logged", "ingredient_id": str(ing.id)})
     return UsageLogOut(
         id=str(log.id),
         ingredient_id=str(ing.id),

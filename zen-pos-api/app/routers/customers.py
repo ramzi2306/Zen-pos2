@@ -7,6 +7,7 @@ from app.models.customer import CustomerDocument
 from app.models.order import OrderDocument
 from app.schemas.customer import CustomerOut, CustomerDetailOut, CustomerOrderOut
 from app.core.exceptions import NotFoundError
+from app.ws.manager import manager
 
 router = APIRouter()
 
@@ -90,3 +91,4 @@ async def delete_customer(customer_id: str):
     if not customer:
         raise NotFoundError("Customer not found")
     await customer.delete()
+    await manager.broadcast("customer_update", {"action": "deleted", "id": customer_id})

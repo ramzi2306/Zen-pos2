@@ -5,6 +5,7 @@ from app.dependencies import get_current_user, require_permission
 from app.models.product import ProductDocument, CategoryDocument
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, CategoryCreate, CategoryOut
 from app.core.exceptions import NotFoundError
+from app.ws.manager import manager
 
 router = APIRouter()
 
@@ -23,6 +24,7 @@ async def list_categories(response: Response):
 async def create_category(body: CategoryCreate):
     cat = CategoryDocument(name=body.name)
     await cat.insert()
+    await manager.broadcast("product_update", {"action": "category_created", "id": str(cat.id)})
     return CategoryOut(id=str(cat.id), name=cat.name)
 
 
@@ -33,6 +35,7 @@ async def delete_category(category_id: str):
     if not cat:
         raise NotFoundError("Category not found")
     await cat.delete()
+    await manager.broadcast("product_update", {"action": "category_deleted", "id": category_id})
 
 
 # ── Products ───────────────────────────────────────────────
@@ -70,6 +73,7 @@ async def get_product(product_id: str):
 async def create_product(body: ProductCreate):
     product = ProductDocument(**body.model_dump())
     await product.insert()
+    await manager.broadcast("product_update", {"action": "created", "id": str(product.id)})
     return _to_out(product)
 
 
@@ -83,6 +87,7 @@ async def update_product(product_id: str, body: ProductUpdate):
     for key, value in update_data.items():
         setattr(product, key, value)
     await product.save()
+    await manager.broadcast("product_update", {"action": "updated", "id": product_id})
     return _to_out(product)
 
 
@@ -94,6 +99,7 @@ async def delete_product(product_id: str):
         raise NotFoundError("Product not found")
     product.is_active = False
     await product.save()
+    await manager.broadcast("product_update", {"action": "deleted", "id": product_id})
 
 
 def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:

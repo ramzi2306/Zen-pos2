@@ -12,6 +12,7 @@ from app.schemas.user import (
 )
 from app.core.exceptions import NotFoundError, ConflictError
 from app.core.security import hash_password
+from app.ws.manager import manager
 
 router = APIRouter()
 
@@ -74,6 +75,7 @@ async def create_user(body: UserCreate):
         location_id=body.location_id,
     )
     await user.insert()
+    await manager.broadcast("user_update", {"action": "created", "id": str(user.id)})
     return await _to_public(user)
 
 
@@ -93,6 +95,7 @@ async def update_user(user_id: str, body: UserUpdate):
     for key, value in update_data.items():
         setattr(user, key, value)
     await user.save()
+    await manager.broadcast("user_update", {"action": "updated", "id": user_id})
     return await _to_detail(user)
 
 
@@ -107,6 +110,7 @@ async def change_role(user_id: str, body: ChangeRoleRequest):
         raise NotFoundError("Role not found")
     user.role = role
     await user.save()
+    await manager.broadcast("user_update", {"action": "updated", "id": user_id})
     return await _to_public(user)
 
 
@@ -129,6 +133,7 @@ async def deactivate_user(user_id: str):
         raise NotFoundError("User not found")
     user.is_active = False
     await user.save()
+    await manager.broadcast("user_update", {"action": "deleted", "id": user_id})
 
 
 async def _to_public(user: UserDocument) -> UserPublic:

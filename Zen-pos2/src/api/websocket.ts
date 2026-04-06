@@ -13,7 +13,12 @@ export type WsEventType =
   | 'urgent'
   | 'status_update'
   | 'order_done'
-  | 'attendance_update';
+  | 'attendance_update'
+  | 'product_update'
+  | 'user_update'
+  | 'order_update'
+  | 'ingredient_update'
+  | 'customer_update';
 
 export interface WsEvent {
   type: WsEventType;
@@ -28,8 +33,11 @@ export interface WsEvent {
   // attendance_update fields
   user_id?: string;
   user_name?: string;
-  action?: 'check_in' | 'check_out' | 'force_check_out';
+  action?: string;
   location_id?: string;
+  // resource update fields
+  id?: string;
+  ingredient_id?: string;
 }
 
 type EventHandler = (event: WsEvent) => void;
