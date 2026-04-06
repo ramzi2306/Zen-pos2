@@ -1505,17 +1505,25 @@ function PublicMenuPageInner() {
   }, [itemCount]);
 
   useEffect(() => {
-    publicApi.getPublicMenu()
-      .then(data => {
-        setProducts(data.flatMap(c => c.products));
+    Promise.all([publicApi.getPublicMenu(), publicApi.getPublicMenuImages()])
+      .then(([data, images]) => {
+        const imageMap: Record<string, string> = {};
+        images.forEach(i => { imageMap[i.id] = i.image; });
+        const allProducts = data.flatMap(c => c.products).map(p => ({
+          ...p,
+          image: imageMap[p.id] ?? p.image,
+          // Remap supplement option `price` → `priceAdjustment` so getCartItemPrice and
+          // VariationModal price display work correctly (they both read priceAdjustment).
+          supplements: (p.supplements ?? []).map(sg => ({
+            ...sg,
+            options: sg.options.map(o => ({
+              ...o,
+              priceAdjustment: (o as any).priceAdjustment ?? (o as any).price ?? 0,
+            })),
+          })),
+        }));
+        setProducts(allProducts);
         setCategories(['All', ...data.map(c => c.name)]);
-        setLoading(false);
-        // Fetch images separately — doesn't block initial render
-        publicApi.getPublicMenuImages().then(images => {
-          const map: Record<string, string> = {};
-          images.forEach(i => { map[i.id] = i.image; });
-          setProducts(prev => prev.map(p => ({ ...p, image: map[p.id] ?? p.image })));
-        }).catch(() => {});
       })
       .catch(() => setError('Could not load menu. Please try again.'))
       .finally(() => setLoading(false));
@@ -1579,10 +1587,14 @@ function PublicMenuPageInner() {
       publicVariations[groupId] = { id: option.id, name: option.name, price: option.price };
     });
     
-    // Transform supplements (price adjustment)
+    // Transform supplements — public API returns `price` field; cart expects `priceAdjustment`
     const publicSupplements: Record<string, { id: string; name: string; priceAdjustment: number }> = {};
     Object.entries(selectedSupplements).forEach(([groupId, option]) => {
-      publicSupplements[groupId] = { id: option.id, name: option.name, priceAdjustment: option.priceAdjustment };
+      publicSupplements[groupId] = {
+        id: option.id,
+        name: option.name,
+        priceAdjustment: option.priceAdjustment ?? (option as any).price ?? 0,
+      };
     });
 
     addItem({

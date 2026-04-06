@@ -3,6 +3,7 @@
  * All requests go through publicRequest() which sends no Authorization header.
  */
 import { publicRequest, apiRequest } from './client';
+import { getCartItemPrice } from '../utils/cartUtils';
 import type {
   PublicMenuCategory,
   PublicTrackingInfo,
@@ -35,21 +36,38 @@ export async function createOnlineOrder(
   const raw = await publicRequest<any>('/public/orders', {
     method: 'POST',
     body: JSON.stringify({
-      items: payload.items.map(i => ({
-        product_id: i.productId,
-        product_name: i.name,
-        unit_price: i.price,
-        quantity: i.quantity,
-        notes: i.note ?? '',
-        selected_variations: Object.entries(i.selectedVariations ?? {}).map(
-          ([groupId, opt]) => ({
+      items: payload.items.map(i => {
+        // Compute the real per-unit price (variation override + supplement adjustments)
+        // so the backend receives an accurate unit_price and doesn't need to re-derive it.
+        const unitPrice = getCartItemPrice({
+          price: i.price,
+          selectedVariations: i.selectedVariations as any,
+          selectedSupplements: i.selectedSupplements as any,
+          cartItemId: 'temp',
+          quantity: 1,
+        } as any);
+        return {
+          product_id: i.productId,
+          product_name: i.name,
+          unit_price: unitPrice,
+          quantity: i.quantity,
+          notes: i.note ?? '',
+          // Variations as metadata only (price already baked into unit_price)
+          selected_variations: Object.entries(i.selectedVariations ?? {}).map(([groupId, opt]) => ({
             group_id: groupId,
             option_id: opt.id,
             option_name: opt.name,
-            price_adjustment: opt.priceAdjustment,
-          })
-        ),
-      })),
+            price_adjustment: 0,
+          })),
+          // Supplements as metadata only
+          selected_supplements: Object.entries(i.selectedSupplements ?? {}).map(([groupId, opt]) => ({
+            group_id: groupId,
+            option_id: opt.id,
+            option_name: opt.name,
+            price_adjustment: 0,
+          })),
+        };
+      }),
       customer: {
         name: payload.customer.name,
         phone: payload.customer.phone,

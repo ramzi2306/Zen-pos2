@@ -44,12 +44,16 @@ export const ProductCard = ({
     className="group bg-surface-container rounded-lg overflow-hidden flex flex-col hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer"
   >
     {/* Thumbnail */}
-    <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest">
-      <img
-        src={product.image}
-        alt={product.name}
-        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
-      />
+    <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest flex items-center justify-center">
+      {product.image ? (
+        <img
+          src={product.image}
+          alt={product.name}
+          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+          onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }}
+        />
+      ) : null}
+      <span className={`material-symbols-outlined text-5xl text-outline-variant/30 absolute ${product.image ? 'hidden' : ''}`}>restaurant</span>
       {product.tags?.includes('Chef Choice') && (
         <div className="absolute top-2 left-2">
           <span className="bg-secondary text-on-secondary text-[8px] font-headline font-bold uppercase tracking-micro px-1.5 py-0.5 rounded-sm">
@@ -62,15 +66,13 @@ export const ProductCard = ({
     {/* Info */}
     <div className="flex-1 p-3 md:p-4 flex flex-col justify-between">
       <div className="mb-2 md:mb-4">
-        <div className="flex justify-between items-start mb-1 md:mb-2 gap-2">
-          <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2">
-            {product.name}
-          </h3>
-          <span className="font-headline font-bold text-primary text-sm md:text-base whitespace-nowrap">
-            {priceLabel}
-          </span>
-        </div>
-        <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
+        <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2 mb-0.5">
+          {product.name}
+        </h3>
+        <span className="font-headline font-bold text-primary text-sm md:text-base">
+          {priceLabel}
+        </span>
+        <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">
           {product.description}
         </p>
       </div>

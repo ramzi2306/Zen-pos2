@@ -89,7 +89,7 @@ async def get_public_menu(response: Response):
                                     PublicVariationOption(
                                         id=vo.id,
                                         name=vo.name,
-                                        price_adjustment=vo.price if vo.price else 0
+                                        price=vo.price if vo.price else 0
                                     ) for vo in (vg.options or [])
                                 ]
                             ) for vg in (p.variations or [])
@@ -102,7 +102,7 @@ async def get_public_menu(response: Response):
                                     PublicVariationOption(
                                         id=so.id,
                                         name=so.name,
-                                        price_adjustment=so.price_adjustment if so.price_adjustment else 0
+                                        price=so.price_adjustment if so.price_adjustment else 0
                                     ) for so in (sg.options or [])
                                 ]
                             ) for sg in (p.supplements or [])
@@ -144,19 +144,28 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
         product = await ProductDocument.get(item.product_id)
         # We process it even if the specific product query fails, as long as input data is there
         
+        # unit_price from the frontend is already the fully computed per-unit price
+        # (includes variation override + supplement adjustments). Variations and supplements
+        # are stored as metadata with price_adjustment=0 to avoid double-counting.
         variations = []
-        variation_adj = 0
         for v_input in item.selected_variations:
-            variation_adj += v_input.price_adjustment
             variations.append(SelectedVariation(
                 group_id=v_input.group_id,
-                group_name=v_input.group_id, # Fallback name
+                group_name=v_input.group_id,
                 option_id=v_input.option_id,
                 option_name=v_input.option_name,
-                price_adjustment=v_input.price_adjustment
+                price_adjustment=0
             ))
-        
-        item_total = (item.unit_price + variation_adj) * item.quantity
+        for s_input in item.selected_supplements:
+            variations.append(SelectedVariation(
+                group_id=s_input.group_id,
+                group_name=s_input.group_id,
+                option_id=s_input.option_id,
+                option_name=s_input.option_name,
+                price_adjustment=0
+            ))
+
+        item_total = item.unit_price * item.quantity
         subtotal += item_total
         
         order_items.append(OrderItem(

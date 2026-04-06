@@ -5,7 +5,7 @@ from datetime import datetime
 class PublicVariationOption(BaseModel):
     id: str
     name: str
-    price_adjustment: float = 0
+    price: float = 0  # renamed from price_adjustment — matches frontend VariationOption.price
 
 class PublicVariationGroup(BaseModel):
     id: str
@@ -43,6 +43,7 @@ class OnlineOrderItemInput(BaseModel):
     quantity: int
     notes: Optional[str] = ""
     selected_variations: List[SelectedVariationInput] = []
+    selected_supplements: List[SelectedVariationInput] = []  # supplements share the same structure
 
 class OnlineCustomerInput(BaseModel):
     name: str

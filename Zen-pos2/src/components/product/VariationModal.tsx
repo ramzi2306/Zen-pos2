@@ -82,7 +82,7 @@ export const VariationModal = ({
         onClick={onClose}
       />
 
-      {/* Elevated product card clone */}
+      {/* Elevated product card clone — mirrors ProductCard layout */}
       <motion.div
         initial={{ top: productRect.top, left: productRect.left, width: productRect.width, height: productRect.height, scale: 1 }}
         animate={{ top: safeTop, scale }}
@@ -90,8 +90,12 @@ export const VariationModal = ({
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="fixed z-[160] bg-surface-container rounded-lg overflow-hidden flex flex-col border border-outline-variant/20 shadow-2xl pointer-events-none origin-top"
       >
-        <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest">
-          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+        <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest flex items-center justify-center">
+          {product.image ? (
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="material-symbols-outlined text-5xl text-outline-variant/30">restaurant</span>
+          )}
           {product.tags?.includes('Chef Choice') && (
             <div className="absolute top-2 left-2">
               <span className="bg-secondary text-on-secondary text-[8px] font-headline font-bold uppercase tracking-micro px-1.5 py-0.5 rounded-sm">Chef Choice</span>
@@ -100,11 +104,9 @@ export const VariationModal = ({
         </div>
         <div className="flex-1 p-3 md:p-4 flex flex-col justify-between">
           <div className="mb-2 md:mb-4">
-            <div className="flex justify-between items-start mb-1 md:mb-2 gap-2">
-              <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2">{product.name}</h3>
-              <span className="font-headline font-bold text-primary text-sm md:text-base whitespace-nowrap">{formatCurrency(currentPrice)}</span>
-            </div>
-            <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed">{product.description}</p>
+            <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2 mb-0.5">{product.name}</h3>
+            <span className="font-headline font-bold text-primary text-sm md:text-base">{formatCurrency(currentPrice)}</span>
+            <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">{product.description}</p>
           </div>
           <div className="flex justify-between items-end mt-auto">
             <span className={`text-[9px] font-headline font-bold uppercase tracking-micro flex items-center gap-1.5 ${product.stockLevel === 'Low' ? 'text-error' : 'text-tertiary'}`}>
