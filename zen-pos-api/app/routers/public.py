@@ -18,6 +18,7 @@ from app.schemas.public import (
     OnlineOrderRequest, PublicOrderResponse, OTPRequest, OTPVerify, PublicReviewInput
 )
 from app.routers.ws import manager
+from app.services.meta_service import track_order_purchase
 
 router = APIRouter()
 
@@ -223,6 +224,14 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
             "order_number": order_number,
             "source": "online"
         }
+    )
+
+    # 4.5 Track Meta CAPI
+    background_tasks.add_task(
+        track_order_purchase,
+        order,
+        req.customer.phone,
+        req.customer.name
     )
     
     # 5. Automatically create a session for the customer so history is "logged in"

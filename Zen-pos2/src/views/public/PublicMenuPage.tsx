@@ -297,6 +297,9 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   useEffect(() => {
     import('../../api/settings').then(m => m.getIntegration()).then(i => {
       setFirebaseActive(i.firebaseEnabled);
+      if (i.metaPixelEnabled && i.metaPixelId) {
+        import('../../utils/pixel').then(p => p.initPixel(i.metaPixelId));
+      }
     }).catch(() => setFirebaseActive(false));
   }, []);
 
@@ -533,6 +536,13 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       setPlaced(result, snap); setCartSnapshot(snap); setView('placed');
       clearCart();
       setUi({ view: 'placed', note: '' });
+
+      // Track Purchase
+      import('../../utils/pixel').then(p => p.trackPurchase({
+        id: result.orderId,
+        total: subtotal,
+        items: snap
+      }, result.trackingToken));
 
       // Persist the session if returned, so history is auto-logged
       if (result.sessionToken) {
@@ -1517,6 +1527,14 @@ function PublicMenuPageInner() {
     // Check for explicit false; if undefined or true, treat as in stock.
     if (product.inStock === false) return;
 
+    // Track ViewContent
+    import('../../utils/pixel').then(p => p.trackViewContent({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      category: product.category
+    }));
+
     const hasVariations = product.variations && product.variations.length > 0;
     const hasSupplements = product.supplements && product.supplements.length > 0;
 
@@ -1541,6 +1559,14 @@ function PublicMenuPageInner() {
         image: product.image, 
         quantity: 1 
       });
+
+      // Track AddToCart
+      import('../../utils/pixel').then(p => p.trackAddToCart({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1
+      }));
     }
   };
 
@@ -1568,6 +1594,14 @@ function PublicMenuPageInner() {
       selectedVariations: publicVariations,
       selectedSupplements: publicSupplements,
     });
+
+    // Track AddToCart
+    import('../../utils/pixel').then(p => p.trackAddToCart({
+      id: selectedProduct.id,
+      name: selectedProduct.name,
+      price: selectedProduct.price,
+      quantity: 1
+    }));
     setSelectedProduct(null);
     setSelectedVariations({});
     setSelectedSupplements({});
