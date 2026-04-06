@@ -87,6 +87,11 @@ class IntegrationUpdate(BaseModel):
     bunny_storage_region: Optional[str] = None
     bunny_cdn_hostname: Optional[str] = None
     bunny_pull_zone_id: Optional[str] = None
+    meta_pixel_enabled: Optional[bool] = None
+    meta_pixel_id: Optional[str] = None
+    meta_capi_enabled: Optional[bool] = None
+    meta_capi_token: Optional[str] = None
+    meta_capi_test_event_code: Optional[str] = None
 
 
 class IntegrationOut(BaseModel):
@@ -116,3 +121,8 @@ class IntegrationOut(BaseModel):
     bunny_storage_region: str
     bunny_cdn_hostname: str
     bunny_pull_zone_id: str
+    meta_pixel_enabled: bool
+    meta_pixel_id: str
+    meta_capi_enabled: bool
+    meta_capi_token: str
+    meta_capi_test_event_code: str

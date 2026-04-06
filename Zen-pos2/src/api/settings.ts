@@ -58,6 +58,11 @@ export interface IntegrationData {
   bunnyStorageRegion: string;
   bunnyCdnHostname: string;
   bunnyPullZoneId: string;
+  metaPixelEnabled: boolean;
+  metaPixelId: string;
+  metaCapiEnabled: boolean;
+  metaCapiToken: string;
+  metaCapiTestEventCode: string;
 }
 
 export const DEFAULT_BRANDING: BrandingData = {
@@ -140,6 +145,11 @@ function mapIntegration(raw: any): IntegrationData {
     bunnyStorageRegion: raw.bunny_storage_region ?? '',
     bunnyCdnHostname:   raw.bunny_cdn_hostname  ?? '',
     bunnyPullZoneId:    raw.bunny_pull_zone_id  ?? '',
+    metaPixelEnabled:      raw.meta_pixel_enabled       ?? false,
+    metaPixelId:           raw.meta_pixel_id            ?? '',
+    metaCapiEnabled:       raw.meta_capi_enabled        ?? false,
+    metaCapiToken:         raw.meta_capi_token          ?? '',
+    metaCapiTestEventCode: raw.meta_capi_test_event_code ?? '',
   };
 }
 
@@ -244,6 +254,11 @@ export async function updateIntegration(data: IntegrationData): Promise<Integrat
       bunny_storage_region: data.bunnyStorageRegion,
       bunny_cdn_hostname:   data.bunnyCdnHostname,
       bunny_pull_zone_id:   data.bunnyPullZoneId,
+      meta_pixel_enabled:        data.metaPixelEnabled,
+      meta_pixel_id:             data.metaPixelId,
+      meta_capi_enabled:         data.metaCapiEnabled,
+      meta_capi_token:           data.metaCapiToken,
+      meta_capi_test_event_code: data.metaCapiTestEventCode,
     }),
   });
   return mapIntegration(raw);

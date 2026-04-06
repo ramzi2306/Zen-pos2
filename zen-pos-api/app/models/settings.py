@@ -74,6 +74,11 @@ class IntegrationDocument(Document):
     bunny_storage_region: str = ""
     bunny_cdn_hostname: str = ""
     bunny_pull_zone_id: str = ""
+    meta_pixel_enabled: bool = False
+    meta_pixel_id: str = ""
+    meta_capi_enabled: bool = False
+    meta_capi_token: str = ""
+    meta_capi_test_event_code: str = ""
 
     class Settings:
         name = "settings"

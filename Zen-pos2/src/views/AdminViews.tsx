@@ -4360,6 +4360,8 @@ const DEFAULT_INTEGRATION = {
   bunnyEnabled: false,
   bunnyApiKey: '', bunnyStorageZone: '', bunnyStorageRegion: '',
   bunnyCdnHostname: '', bunnyPullZoneId: '',
+  metaPixelEnabled: false, metaPixelId: '',
+  metaCapiEnabled: false, metaCapiToken: '', metaCapiTestEventCode: '',
 };
 
 const IntegrationView = () => {
@@ -4658,6 +4660,81 @@ const IntegrationView = () => {
                 {bunnyTestStatus.message}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Meta Pixel */}
+        <div className="bg-surface-container rounded-2xl p-8 border border-outline-variant/10">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#1877f2]/10 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </div>
+              <div>
+                <div className="font-headline font-bold text-on-surface">Meta Pixel</div>
+                <div className="text-xs text-on-surface-variant">Track conversions and events on your storefront via Meta Pixel and Conversions API</div>
+              </div>
+            </div>
+            <Toggle value={cfg.metaPixelEnabled} onChange={v => update('metaPixelEnabled', v)} />
+          </div>
+
+          <div className={`space-y-6 transition-opacity duration-200 ${cfg.metaPixelEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+            {/* Pixel ID */}
+            <div>
+              <label className={labelClass}>Pixel ID</label>
+              <input
+                type="text"
+                value={cfg.metaPixelId}
+                onChange={e => update('metaPixelId', e.target.value)}
+                placeholder="e.g. 1234567890123456"
+                className={inputClass}
+              />
+              <p className="text-xs text-on-surface-variant mt-1">Found in Meta Events Manager → your Pixel → Settings</p>
+            </div>
+
+            {/* Conversions API */}
+            <div className="border-t border-outline-variant/10 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="text-sm font-bold text-on-surface">Conversions API (CAPI)</div>
+                  <div className="text-xs text-on-surface-variant mt-0.5">Server-side event tracking — works alongside the browser Pixel for higher match quality and ad-blocker resilience</div>
+                </div>
+                <Toggle value={cfg.metaCapiEnabled} onChange={v => update('metaCapiEnabled', v)} />
+              </div>
+
+              <div className={`space-y-4 transition-opacity duration-200 ${cfg.metaCapiEnabled ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+                <div>
+                  <label className={labelClass}>Access Token</label>
+                  <input
+                    type="password"
+                    value={cfg.metaCapiToken}
+                    onChange={e => update('metaCapiToken', e.target.value)}
+                    placeholder="Your CAPI Access Token"
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-on-surface-variant mt-1">Generate in Meta Events Manager → your Pixel → Settings → Conversions API → Generate Access Token</p>
+                </div>
+                <div>
+                  <label className={labelClass}>Test Event Code <span className="normal-case font-normal text-on-surface-variant">(optional)</span></label>
+                  <input
+                    type="text"
+                    value={cfg.metaCapiTestEventCode}
+                    onChange={e => update('metaCapiTestEventCode', e.target.value)}
+                    placeholder="e.g. TEST12345"
+                    className={inputClass}
+                  />
+                  <p className="text-xs text-on-surface-variant mt-1">Use this during testing — remove it in production</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Info banner */}
+            <div className="flex items-start gap-3 bg-[#1877f2]/5 border border-[#1877f2]/20 rounded-xl px-4 py-3">
+              <span className="material-symbols-outlined text-[#1877f2] text-[18px] mt-0.5">info</span>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                The Pixel script is injected into your public storefront and fires <strong className="text-on-surface">PageView</strong>, <strong className="text-on-surface">ViewContent</strong>, <strong className="text-on-surface">AddToCart</strong>, and <strong className="text-on-surface">Purchase</strong> events automatically. CAPI sends the same events server-side for deduplication.
+              </p>
+            </div>
           </div>
         </div>
       </div>
