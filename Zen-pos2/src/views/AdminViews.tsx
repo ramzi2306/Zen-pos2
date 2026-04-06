@@ -24,6 +24,49 @@ const CurrencySymbol = ({ prefix = '' }: { prefix?: string }) => {
   );
 };
 
+const ConfirmModal = ({
+  title,
+  message,
+  confirmLabel = 'Delete',
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) => (
+  <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={onClose} />
+    <div className="relative w-full max-w-sm bg-surface-container rounded-[2rem] border border-outline-variant/20 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+      <div className="p-8 flex flex-col items-center text-center gap-4">
+        <div className="w-16 h-16 rounded-full bg-error/10 flex items-center justify-center">
+          <span className="material-symbols-outlined text-4xl text-error">delete_forever</span>
+        </div>
+        <div>
+          <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight">{title}</h3>
+          <p className="text-on-surface-variant text-sm mt-2">{message}</p>
+        </div>
+        <div className="flex gap-3 w-full mt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-2xl bg-surface-container-highest text-on-surface font-bold text-sm hover:bg-surface-variant transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { onConfirm(); onClose(); }}
+            className="flex-1 py-3 rounded-2xl bg-error text-on-error font-bold text-sm hover:opacity-90 transition-all"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?: { start: string, end: string }, onClose: () => void }) => {
   const { formatCurrency } = useLocalization();
   const [amount, setAmount] = useState('');
@@ -2393,6 +2436,7 @@ export const InventoryView = () => {
   const [editingIngredient, setEditingIngredient] = useState<IngredientItem | null>(null);
   const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
   const [deliveries, setDeliveries] = useState<PurchaseLog[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
   const loadData = useCallback(() => {
     api.inventory.listIngredients().then(setIngredients).catch(console.error);
@@ -2408,7 +2452,6 @@ export const InventoryView = () => {
   }, [loadData]);
 
   const handleDeleteIngredient = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this ingredient?')) return;
     try {
       await api.inventory.deleteIngredient(id);
       loadData();
@@ -2588,7 +2631,7 @@ export const InventoryView = () => {
                           <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
                         <button 
-                          onClick={() => handleDeleteIngredient(item.id)}
+                          onClick={() => setConfirmDelete({ id: item.id, name: item.name })}
                           className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center text-error hover:bg-error/20 transition-all"
                         >
                           <span className="material-symbols-outlined text-sm">delete</span>
@@ -2679,6 +2722,14 @@ export const InventoryView = () => {
 
         {isCreateIngredientOpen && <CreateIngredientModal onClose={() => setIsCreateIngredientOpen(false)} onCreated={loadData} />}
         {editingIngredient && <CreateIngredientModal ingredient={editingIngredient} onClose={() => setEditingIngredient(null)} onCreated={loadData} />}
+        {confirmDelete && (
+          <ConfirmModal
+            title="Delete Ingredient"
+            message={`Are you sure you want to delete "${confirmDelete.name}"? This action cannot be undone.`}
+            onConfirm={() => handleDeleteIngredient(confirmDelete.id)}
+            onClose={() => setConfirmDelete(null)}
+          />
+        )}
       </div>
     </div>
   );
@@ -2688,6 +2739,7 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
   const [name, setName] = useState('');
   const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
   const [loading, setLoading] = useState(false);
+  const [confirmCatDelete, setConfirmCatDelete] = useState<{ id: string; name: string } | null>(null);
 
   const loadCategories = () => {
     api.products.listCategories().then(setCategories).catch(console.error);
@@ -2711,8 +2763,7 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
     }
   };
 
-  const handleDelete = async (id: string, catName: string) => {
-    if (!confirm(`Delete category "${catName}"?`)) return;
+  const handleDelete = async (id: string) => {
     try {
       await api.products.deleteCategory(id);
       loadCategories();
@@ -2759,7 +2810,7 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
               <div key={c.id} className="flex items-center justify-between bg-surface-container-highest/30 border border-outline-variant/10 rounded-xl p-3">
                 <span className="text-sm font-bold text-on-surface ml-3">{c.name}</span>
                 <button 
-                  onClick={() => handleDelete(c.id, c.name)}
+                  onClick={() => setConfirmCatDelete({ id: c.id, name: c.name })}
                   className="w-8 h-8 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-all flex items-center justify-center shrink-0"
                   title="Delete Category"
                 >
@@ -2774,13 +2825,21 @@ const CategoryModal = ({ onClose }: { onClose: () => void }) => {
         </div>
 
         <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex gap-4 shrink-0">
-          <button 
+          <button
             onClick={onClose}
             className="w-full py-4 bg-surface-container-highest text-on-surface rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all"
           >
             Done
           </button>
         </div>
+        {confirmCatDelete && (
+          <ConfirmModal
+            title="Delete Category"
+            message={`Are you sure you want to delete "${confirmCatDelete.name}"?`}
+            onConfirm={() => handleDelete(confirmCatDelete.id)}
+            onClose={() => setConfirmCatDelete(null)}
+          />
+        )}
       </div>
     </div>
   );
@@ -2939,10 +2998,13 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   };
 
   const handleSave = async () => {
+    // Skip base64 images — they are legacy DB values and will fail the backend validator.
+    // Omitting the field in PATCH leaves the existing DB value unchanged.
+    const safeImage = image && !image.startsWith('data:') ? image : undefined;
     const payload = {
-      name, description, price: parseFloat(price) || 0, category, image: image || undefined,
-      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0 })) })),
-      supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment || 0 })) })),
+      name, description, price: parseFloat(price) || 0, category, image: safeImage,
+      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0, ingredients: (o.ingredients || []).map((ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null })) })) })),
+      supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment ?? o.price_adjustment ?? 0, ingredients: (o.ingredients || []).map((ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null })) })) })),
     };
     try {
       const saved = product
@@ -3398,6 +3460,7 @@ const ProductManagementView = () => {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [confirmProductDelete, setConfirmProductDelete] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
   const toggleProductSelect = (id: string) => {
@@ -3410,7 +3473,6 @@ const ProductManagementView = () => {
     else setSelectedProductIds(new Set(products.map(p => p.id)));
   };
   const deleteSelectedProducts = async () => {
-    if (!confirm(`Delete ${selectedProductIds.size} product(s)?`)) return;
     const ids = Array.from(selectedProductIds);
     const failed: string[] = [];
     for (const id of ids) {
@@ -3456,8 +3518,8 @@ const ProductManagementView = () => {
         </div>
         <div className="flex gap-4">
           {selectedProductIds.size > 0 && (
-            <button 
-              onClick={deleteSelectedProducts}
+            <button
+              onClick={() => setConfirmProductDelete(true)}
               className="px-6 py-3 bg-error/10 text-error rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">delete</span>
@@ -3545,6 +3607,15 @@ const ProductManagementView = () => {
                 : [saved, ...prev];
             });
           }}
+        />
+      )}
+
+      {confirmProductDelete && (
+        <ConfirmModal
+          title={`Delete ${selectedProductIds.size} Product${selectedProductIds.size > 1 ? 's' : ''}`}
+          message={`This will permanently remove ${selectedProductIds.size} product${selectedProductIds.size > 1 ? 's' : ''} from the menu. This action cannot be undone.`}
+          onConfirm={deleteSelectedProducts}
+          onClose={() => setConfirmProductDelete(false)}
         />
       )}
     </div>
@@ -3806,6 +3877,7 @@ const CustomersView = () => {
   const [selected, setSelected] = useState<CustomerDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set());
+  const [confirmCustomerDelete, setConfirmCustomerDelete] = useState(false);
 
   const toggleCustomerSelect = (id: string) => {
     const next = new Set(selectedCustomerIds);
@@ -3817,7 +3889,6 @@ const CustomersView = () => {
     else setSelectedCustomerIds(new Set(customers.map(c => c.id)));
   };
   const deleteSelectedCustomers = async () => {
-    if (!confirm(`Delete ${selectedCustomerIds.size} customer(s)?`)) return;
     try {
       for (const id of Array.from(selectedCustomerIds)) {
         await api.customers.deleteCustomer(id);
@@ -3882,8 +3953,8 @@ const CustomersView = () => {
             {search && <button onClick={() => handleSearch('')} className="text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined text-[18px]">close</span></button>}
           </div>
           {selectedCustomerIds.size > 0 && (
-            <button 
-              onClick={deleteSelectedCustomers}
+            <button
+              onClick={() => setConfirmCustomerDelete(true)}
               className="px-6 py-3 bg-error/10 text-error rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">delete</span>
@@ -3998,6 +4069,15 @@ const CustomersView = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {confirmCustomerDelete && (
+        <ConfirmModal
+          title={`Delete ${selectedCustomerIds.size} Customer${selectedCustomerIds.size > 1 ? 's' : ''}`}
+          message={`This will permanently remove ${selectedCustomerIds.size} customer record${selectedCustomerIds.size > 1 ? 's' : ''}. This action cannot be undone.`}
+          onConfirm={deleteSelectedCustomers}
+          onClose={() => setConfirmCustomerDelete(false)}
+        />
+      )}
     </div>
   );
 };
@@ -4962,6 +5042,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [confirmFireBulk, setConfirmFireBulk] = useState(false);
+  const [confirmFireUser, setConfirmFireUser] = useState<string | null>(null);
 
   const toggleUserSelect = (id: string) => {
     const next = new Set(selectedUserIds);
@@ -4973,7 +5055,6 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     else setSelectedUserIds(new Set(users.map(u => u.id)));
   };
   const fireSelectedUsers = async () => {
-    if (!confirm(`Fire ${selectedUserIds.size} personnel? This will deactivate their access.`)) return;
     try {
       for (const id of Array.from(selectedUserIds)) {
         await api.users.deleteUser(id);
@@ -4983,7 +5064,6 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     } catch(err) { console.error('Fire failed', err); }
   };
   const fireUser = async (id: string) => {
-    if (!confirm(`Fire this personnel? This will deactivate their access.`)) return;
     try {
       await api.users.deleteUser(id);
       loadUsers();
@@ -5537,8 +5617,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 <div className="flex items-center gap-4">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">PERSONNEL REGISTRY</h3>
                   {selectedUserIds.size > 0 && (
-                    <button 
-                      onClick={fireSelectedUsers}
+                    <button
+                      onClick={() => setConfirmFireBulk(true)}
                       className="px-4 py-2 bg-error/10 text-error rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-error/20 transition-all flex items-center gap-2"
                     >
                       <span className="material-symbols-outlined text-sm">person_remove</span>
@@ -5607,8 +5687,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                           >
                             <span className="material-symbols-outlined text-sm">edit_note</span>
                           </button>
-                          <button 
-                            onClick={() => fireUser(user.id)}
+                          <button
+                            onClick={() => setConfirmFireUser(user.id)}
                             className="p-2 bg-error/10 hover:bg-error/20 text-error rounded-lg transition-colors flex items-center justify-center"
                             title="Fire Personnel"
                           >
@@ -6033,6 +6113,26 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
           <EditScheduleModal
             onClose={() => { setIsEditScheduleOpen(false); loadUsers(); }}
             users={users}
+          />
+        )}
+
+        {confirmFireBulk && (
+          <ConfirmModal
+            title={`Fire ${selectedUserIds.size} Personnel`}
+            message={`This will deactivate access for ${selectedUserIds.size} staff member${selectedUserIds.size > 1 ? 's' : ''}. This action cannot be undone.`}
+            confirmLabel="Fire"
+            onConfirm={fireSelectedUsers}
+            onClose={() => setConfirmFireBulk(false)}
+          />
+        )}
+
+        {confirmFireUser && (
+          <ConfirmModal
+            title="Fire Personnel"
+            message="This will permanently deactivate this staff member's access. This action cannot be undone."
+            confirmLabel="Fire"
+            onConfirm={() => fireUser(confirmFireUser)}
+            onClose={() => setConfirmFireUser(null)}
           />
         )}
       </div>

@@ -163,7 +163,10 @@ function AppShell() {
     const token = api.getAccessToken();
     if (token) zenWs.connect(token);
 
+    const SILENT_EVENTS = new Set(['product_update', 'user_update', 'order_update', 'ingredient_update', 'customer_update']);
+
     const unsub = zenWs.onEvent((event: WsEvent) => {
+      const isSilent = SILENT_EVENTS.has(event.type);
       const notif: AppNotification = {
         id: `${Date.now()}-${Math.random()}`,
         type: event.type as AppNotification['type'],
@@ -174,7 +177,7 @@ function AppShell() {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         read: false,
       };
-      setNotifications(prev => [notif, ...prev].slice(0, 50));
+      if (!isSilent) setNotifications(prev => [notif, ...prev].slice(0, 50));
 
       // Debounced order refresh — collapses rapid WS events into one fetch
       if (currentUser?.permissions.includes('view_orders')) {
@@ -188,16 +191,17 @@ function AppShell() {
         }, 300);
       }
 
-      // Toast pop-up (auto-dismiss after 4 s)
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      setToast(notif);
-      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+      // Toast pop-up and sounds only for staff-facing events
+      if (!isSilent) {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(notif);
+        toastTimerRef.current = setTimeout(() => setToast(null), 4000);
 
-      // Play the right sound
-      if (event.type === 'new_order') playSound('new_order');
-      else if (event.type === 'urgent') playSound('urgent');
-      else if (event.type === 'status_update' && event.status === 'Done') playSound('status_done');
-      else if (event.type === 'status_update' && event.status === 'Served') playSound('ready');
+        if (event.type === 'new_order') playSound('new_order');
+        else if (event.type === 'urgent') playSound('urgent');
+        else if (event.type === 'status_update' && event.status === 'Done') playSound('status_done');
+        else if (event.type === 'status_update' && event.status === 'Served') playSound('ready');
+      }
     });
 
     return unsub;

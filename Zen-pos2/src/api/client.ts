@@ -53,7 +53,11 @@ export async function publicRequest<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    const detail = error.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('; ')
+      : detail || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
   if (res.status === 204) return {} as T;
   return res.json();
@@ -82,7 +86,11 @@ export async function apiRequest<T>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    const detail = error.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map((e: any) => `${e.loc?.join('.')}: ${e.msg}`).join('; ')
+      : detail || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
 
   if (res.status === 204) return {} as T;
