@@ -179,8 +179,9 @@ function AppShell() {
       };
       if (!isSilent) setNotifications(prev => [notif, ...prev].slice(0, 50));
 
-      // Debounced order refresh — collapses rapid WS events into one fetch
-      if (currentUser?.permissions.includes('view_orders')) {
+      // Debounced order refresh — only for order-related events, collapses rapid events into one fetch
+      const ORDER_EVENTS = new Set(['new_order', 'order_update', 'status_update', 'urgent', 'order_done']);
+      if (ORDER_EVENTS.has(event.type) && currentUser?.permissions.includes('view_orders')) {
         if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
         wsRefreshTimerRef.current = setTimeout(() => {
           api.orders.listOrders(
@@ -299,10 +300,10 @@ function AppShell() {
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch orders when admin switches location filter
+  // Re-fetch orders when admin switches location filter — use ref so stale closure never captures old users array
   useEffect(() => {
     if (!currentUser || !hasPermission('view_orders')) return;
-    api.orders.listOrders(users, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+    api.orders.listOrders(usersRef.current, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
   }, [activeLocationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasPermission = (permission: Permission): boolean => {

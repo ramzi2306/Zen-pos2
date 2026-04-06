@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, VariationOption, SupplementOption } from '../data';
 import { AnimatePresence } from 'motion/react';
 import * as api from '../api';
@@ -23,23 +23,20 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       api.products.listProducts(),
       api.products.listCategories(),
       api.settings.getBranding(),
-    ]).then(([prods, cats, branding]) => {
-      setProducts(prods);
+      api.products.listProductImages(),
+    ]).then(([prods, cats, branding, images]) => {
+      const imageMap: Record<string, string> = {};
+      images.forEach(i => { imageMap[i.id] = i.image; });
+      setProducts(prods.map(p => ({ ...p, image: imageMap[p.id] ?? p.image })));
       setCategories(['All', ...cats.map(c => c.name)]);
       setDailySpecial(branding.dailySpecial || '');
-      setLoading(false);
-      // Fetch images separately — doesn't block initial render
-      api.products.listProductImages().then(images => {
-        const map: Record<string, string> = {};
-        images.forEach(i => { map[i.id] = i.image; });
-        setProducts(prev => prev.map(p => ({ ...p, image: map[p.id] ?? p.image })));
-      }).catch(() => {});
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  const filteredProducts = activeCategory === 'All'
-    ? products
-    : products.filter(p => p.category === activeCategory);
+  const filteredProducts = useMemo(
+    () => activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory),
+    [products, activeCategory],
+  );
 
   const handleProductClick = (product: Product, e: React.MouseEvent<HTMLDivElement>) => {
     const hasVariations = product.variations && product.variations.length > 0;

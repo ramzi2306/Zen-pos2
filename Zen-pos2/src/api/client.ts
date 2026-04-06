@@ -15,30 +15,34 @@ export function clearTokens(): void {
   localStorage.removeItem('refresh_token');
 }
 
-let isRefreshing = false;
+// Single shared promise — concurrent 401s all wait for the same refresh instead of
+// the second caller getting null and triggering a logout.
+let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
-  if (isRefreshing) return null;
+  if (refreshPromise) return refreshPromise;
   const refresh = localStorage.getItem('refresh_token');
   if (!refresh) return null;
-  isRefreshing = true;
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
-    if (!res.ok) { clearTokens(); return null; }
-    const data = await res.json();
-    localStorage.setItem('access_token', data.access_token);
-    if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
-    return data.access_token;
-  } catch {
-    clearTokens();
-    return null;
-  } finally {
-    isRefreshing = false;
-  }
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!res.ok) { clearTokens(); return null; }
+      const data = await res.json();
+      localStorage.setItem('access_token', data.access_token);
+      if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+      return data.access_token as string;
+    } catch {
+      clearTokens();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
 }
 
 /** Public (unauthenticated) request — no Authorization header. */

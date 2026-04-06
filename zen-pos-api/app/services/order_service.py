@@ -1,6 +1,9 @@
+import logging
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from app.core.exceptions import NotFoundError, BadRequestError
 from app.models.order import OrderDocument, OrderItem, CustomerInfo, SelectedVariation
@@ -58,6 +61,7 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
         recent = await OrderDocument.find(
             OrderDocument.created_at >= cutoff,
+            OrderDocument.status.nin(["Cancelled", "Draft"]),
         ).to_list()
         new_pids = sorted(i.product_id for i in items)
         for ro in recent:
@@ -248,8 +252,8 @@ async def _decrement_ingredients(order: "OrderDocument") -> None:
                     reason="Service",
                     date=today,
                 ).insert()
-            except Exception:
-                pass  # Never fail the order transition due to inventory errors
+            except Exception as e:
+                logger.warning("Inventory update failed for item %s: %s", item.product_id, e)
 
 
 async def _generate_order_number() -> str:

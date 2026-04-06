@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getSubtotal } from '../../utils/cartUtils';
 import { buildReceiptHtml, firePrint, ReceiptItem } from '../../utils/printReceipt';
@@ -74,6 +74,7 @@ export const CartSidebar = ({
   const [viewMode, setViewMode] = useState<'cart' | 'receipt'>('cart');
   const [isClientListModalOpen, setIsClientListModalOpen] = useState(false);
   const [apiClients, setApiClients] = useState<Customer[]>([]);
+  const clientsLoadedRef = useRef(false);
   const [clientModalSearch, setClientModalSearch] = useState('');
   const [historyCustomer, setHistoryCustomer] = useState<CustomerDetail | null>(null);
   const [newOrderMenuRect, setNewOrderMenuRect] = useState<DOMRect | null>(null);
@@ -100,13 +101,21 @@ export const CartSidebar = ({
     setToast(null);
   };
 
-  // Load clients when sidebar opens
+  // Load clients once — skip subsequent opens to avoid redundant API calls
   useEffect(() => {
-    if (isOpen) api.customers.listCustomers().then(setApiClients).catch(() => {});
+    if (isOpen && !clientsLoadedRef.current) {
+      api.customers.listCustomers().then(clients => {
+        setApiClients(clients);
+        clientsLoadedRef.current = true;
+      }).catch(() => {});
+    }
   }, [isOpen]);
 
-  const filteredClients = apiClients.filter(
-    c => c.phone.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())
+  const filteredClients = useMemo(
+    () => apiClients.filter(
+      c => c.phone.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())
+    ),
+    [apiClients, customerSearch],
   );
 
   // ── Handlers ────────────────────────────────────────────────────────────────

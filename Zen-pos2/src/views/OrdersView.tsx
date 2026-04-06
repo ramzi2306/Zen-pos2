@@ -97,12 +97,16 @@ export const OrdersView = ({
     api.orders.listOrders(users, selectedDate).then(setOrders).catch(console.error);
   }, [selectedDate]);
 
+  // Keep a ref so the interval callback always sees current orders without being recreated on every change
+  const ordersRef = useRef(orders);
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
+
   // Auto-transition "Out for delivery" → "Done" after 45 minutes.
-  // Checks every 60 s; uses order.endTime (ms epoch) as the transition-start timestamp.
+  // Interval is created once (empty deps) — ordersRef gives it fresh data each tick.
   useEffect(() => {
     const DELIVERY_TIMEOUT_MS = 45 * 60 * 1000;
     const interval = setInterval(async () => {
-      const outForDelivery = orders.filter(o => o.status === 'Out for delivery' && o.endTime);
+      const outForDelivery = ordersRef.current.filter(o => o.status === 'Out for delivery' && o.endTime);
       for (const order of outForDelivery) {
         const elapsed = Date.now() - order.endTime!;
         if (elapsed >= DELIVERY_TIMEOUT_MS) {
@@ -119,7 +123,7 @@ export const OrdersView = ({
       }
     }, 60_000);
     return () => clearInterval(interval);
-  }, [orders, setOrders]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for new online orders arriving from the storefront (WebSocket + storage)
   useEffect(() => {

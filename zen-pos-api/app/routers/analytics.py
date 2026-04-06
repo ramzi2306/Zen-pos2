@@ -2,6 +2,8 @@ from typing import List
 from collections import Counter
 from datetime import datetime, timezone
 
+from beanie import PydanticObjectId
+from beanie.operators import In
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
@@ -92,19 +94,25 @@ async def kitchen_leaderboard():
     if not cook_counts:
         return []
 
+    # Batch-fetch all cooks in a single query instead of N individual lookups
+    ranked = cook_counts.most_common()
+    try:
+        object_ids = [PydanticObjectId(uid) for uid, _ in ranked]
+        users_list = await UserDocument.find(In(UserDocument.id, object_ids)).to_list()
+        user_map = {str(u.id): u for u in users_list}
+    except Exception:
+        user_map = {}
+
     entries = []
-    for rank, (cook_id, count) in enumerate(cook_counts.most_common(), start=1):
-        try:
-            user = await UserDocument.get(cook_id)
-            entries.append(LeaderboardEntry(
-                user_id=cook_id,
-                name=user.full_name if user else "Unknown",
-                avatar=getattr(user, "avatar", "") or "",
-                orders_completed=count,
-                rank=rank,
-            ))
-        except Exception:
-            continue
+    for rank, (cook_id, count) in enumerate(ranked, start=1):
+        user = user_map.get(cook_id)
+        entries.append(LeaderboardEntry(
+            user_id=cook_id,
+            name=user.full_name if user else "Unknown",
+            avatar=getattr(user, "avatar", "") or "",
+            orders_completed=count,
+            rank=rank,
+        ))
     return entries
 
 
@@ -112,18 +120,34 @@ async def kitchen_leaderboard():
             dependencies=[Depends(require_permission("view_orders"))])
 async def sales_summary():
     start = _start_of_month()
-    all_orders = await OrderDocument.find(
-        OrderDocument.status != "Cancelled",
-    ).to_list()
-    month_orders = [o for o in all_orders if getattr(o, "created_at", None) and o.created_at >= start]
-
-    total_rev = sum(o.total for o in all_orders)
-    month_rev = sum(o.total for o in month_orders)
-
+    # Aggregation pipeline — DB does the maths, never loads all orders into memory
+    pipeline = [
+        {"$match": {"status": {"$ne": "Cancelled"}}},
+        {"$group": {
+            "_id": None,
+            "total_orders": {"$sum": 1},
+            "total_revenue": {"$sum": "$total"},
+            "month_orders": {
+                "$sum": {"$cond": [{"$gte": ["$created_at", start]}, 1, 0]},
+            },
+            "month_revenue": {
+                "$sum": {"$cond": [{"$gte": ["$created_at", start]}, "$total", 0]},
+            },
+        }},
+    ]
+    results = await OrderDocument.aggregate(pipeline).to_list()
+    if not results:
+        return SalesSummary(
+            total_orders=0, total_revenue=0.0, avg_order_value=0.0,
+            orders_this_month=0, revenue_this_month=0.0,
+        )
+    r = results[0]
+    total_orders = r.get("total_orders", 0)
+    total_rev = float(r.get("total_revenue", 0.0))
     return SalesSummary(
-        total_orders=len(all_orders),
+        total_orders=total_orders,
         total_revenue=round(total_rev, 2),
-        avg_order_value=round(total_rev / len(all_orders), 2) if all_orders else 0.0,
-        orders_this_month=len(month_orders),
-        revenue_this_month=round(month_rev, 2),
+        avg_order_value=round(total_rev / total_orders, 2) if total_orders else 0.0,
+        orders_this_month=r.get("month_orders", 0),
+        revenue_this_month=round(float(r.get("month_revenue", 0.0)), 2),
     )
