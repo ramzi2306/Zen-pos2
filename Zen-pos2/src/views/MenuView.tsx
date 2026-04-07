@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product, VariationOption, SupplementOption } from '../data';
 import { AnimatePresence } from 'motion/react';
 import * as api from '../api';
+import { zenWs } from '../api/websocket';
 import { ProductCard } from '../components/product/ProductCard';
 import { VariationModal } from '../components/product/VariationModal';
 import { CategoryFilter } from '../components/product/CategoryFilter';
@@ -18,7 +19,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
   const [showSpecialModal, setShowSpecialModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadProducts = useCallback(() => {
     Promise.all([
       api.products.listProducts(),
       api.products.listCategories(),
@@ -32,6 +33,15 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       setDailySpecial(branding.dailySpecial || '');
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { loadProducts(); }, [loadProducts]);
+
+  // Refresh menu whenever an admin creates/edits/deletes a product
+  useEffect(() => {
+    return zenWs.onEvent(e => {
+      if (e.type === 'product_update') loadProducts();
+    });
+  }, [loadProducts]);
 
   const filteredProducts = useMemo(
     () => activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory),

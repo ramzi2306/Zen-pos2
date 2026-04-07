@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import httpx
 
+from app.dependencies import get_current_user
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.schemas.settings import (
     BrandingUpdate, BrandingOut,
@@ -114,7 +115,7 @@ from pathlib import Path
 import os
 STATIC_DIR = Path(os.getenv("STATIC_DIR", Path(__file__).resolve().parent.parent.parent / "static"))
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(get_current_user)])
 async def upload_file(file: UploadFile = File(...)):
     doc = await _get_integration()
 

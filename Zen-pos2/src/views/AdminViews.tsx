@@ -2856,6 +2856,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const [supplements, setSupplements] = useState<any[]>(product?.supplements || []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(product?.ingredients || []);
   const [apiCategories, setApiCategories] = useState<string[]>([]);
+  const [inStock, setInStock] = useState(product?.inStock !== false);
   const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
@@ -2863,6 +2864,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   }, []);
 
   const [imageUploadError, setImageUploadError] = useState('');
+  const [formError, setFormError] = useState('');
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2881,7 +2883,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   };
 
   const addVariationGroup = () => {
-    setVariations([...variations, { id: `vg_${Date.now()}`, name: '', options: [] }]);
+    setVariations([...variations, { id: crypto.randomUUID(), name: '', options: [] }]);
   };
 
   const updateGroupName = (index: number, name: string) => {
@@ -2896,7 +2898,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
   const addOption = (groupIndex: number) => {
     const newVars = [...variations];
-    newVars[groupIndex].options.push({ id: `vo_${Date.now()}`, name: '', price: 0 });
+    newVars[groupIndex].options.push({ id: crypto.randomUUID(), name: '', price: 0 });
     setVariations(newVars);
   };
 
@@ -2913,7 +2915,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   };
 
   const addSupplementGroup = () => {
-    setSupplements([...supplements, { id: `sg_${Date.now()}`, name: '', options: [] }]);
+    setSupplements([...supplements, { id: crypto.randomUUID(), name: '', options: [] }]);
   };
 
   const updateSupplementGroupName = (index: number, name: string) => {
@@ -2928,7 +2930,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
   const addSupplementOption = (groupIndex: number) => {
     const newSupps = [...supplements];
-    newSupps[groupIndex].options.push({ id: `so_${Date.now()}`, name: '', priceAdjustment: 0 });
+    newSupps[groupIndex].options.push({ id: crypto.randomUUID(), name: '', priceAdjustment: 0 });
     setSupplements(newSupps);
   };
 
@@ -2958,7 +2960,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   };
 
   const addIngredient = () => {
-    setIngredients([...ingredients, { id: `ing_${Date.now()}`, name: '', amount: 0, unit: 'g' }]);
+    setIngredients([...ingredients, { id: crypto.randomUUID(), name: '', amount: 0, unit: 'g' }]);
   };
 
   const updateIngredient = (index: number, field: keyof Ingredient, value: any) => {
@@ -2975,7 +2977,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const newVars = [...variations];
     const option = newVars[groupIndex].options[optionIndex];
     if (!option.ingredients) option.ingredients = [];
-    option.ingredients.push({ id: `ing_${Date.now()}`, name: '', amount: 0, unit: 'g' });
+    option.ingredients.push({ id: crypto.randomUUID(), name: '', amount: 0, unit: 'g' });
     setVariations(newVars);
   };
 
@@ -2998,13 +3000,23 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
   };
 
   const handleSave = async () => {
+    setFormError('');
+    if (!name.trim()) { setFormError('Product name is required.'); return; }
+    if (!category) { setFormError('Please select a category.'); return; }
+    const parsedPrice = parseFloat(price);
+    const hasVariations = variations.length > 0 && variations.some((vg: any) => vg.options.length > 0);
+    if (!hasVariations && (isNaN(parsedPrice) || parsedPrice < 0)) { setFormError('Please enter a valid price.'); return; }
+
     // Skip base64 images — they are legacy DB values and will fail the backend validator.
     // Omitting the field in PATCH leaves the existing DB value unchanged.
     const safeImage = image && !image.startsWith('data:') ? image : undefined;
+    const mapIng = (ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null });
     const payload = {
-      name, description, price: parseFloat(price) || 0, category, image: safeImage,
-      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0, ingredients: (o.ingredients || []).map((ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null })) })) })),
-      supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment ?? o.price_adjustment ?? 0, ingredients: (o.ingredients || []).map((ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null })) })) })),
+      name: name.trim(), description, price: parsedPrice || 0, category, image: safeImage,
+      in_stock: inStock,
+      ingredients: ingredients.map(mapIng),
+      variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0, ingredients: (o.ingredients || []).map(mapIng) })) })),
+      supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment ?? o.price_adjustment ?? 0, ingredients: (o.ingredients || []).map(mapIng) })) })),
     };
     try {
       const saved = product
@@ -3014,7 +3026,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
       onClose();
     } catch (err: any) {
       console.error(err);
-      alert(err?.message || 'Failed to save product. Please try again.');
+      setFormError(err?.message || 'Failed to save product. Please try again.');
     }
   };
 
@@ -3077,11 +3089,12 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
             </div>
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Category</label>
-              <select 
+              <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
                 className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
               >
+                <option value="">Select a category…</option>
                 {apiCategories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
@@ -3129,9 +3142,24 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
             );
           })()}
 
+          {/* In-Stock Toggle */}
+          <div className="flex items-center justify-between bg-surface-container-highest/30 border border-outline-variant/20 rounded-2xl px-6 py-4">
+            <div>
+              <p className="text-sm font-bold text-on-surface">Available in Stock</p>
+              <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-0.5">Uncheck to mark as unavailable on the menu</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInStock(v => !v)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${inStock ? 'bg-primary' : 'bg-outline-variant/40'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${inStock ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
           <div className="space-y-3">
             <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Description</label>
-            <textarea 
+            <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Product description..."
@@ -3434,8 +3462,13 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
           </div>
         </div>
 
-        <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex gap-4 shrink-0">
-          <button 
+        <div className="px-8 pb-2 bg-surface-container-low border-t border-outline-variant/10 shrink-0">
+          {formError && (
+            <p className="text-xs text-red-400 font-medium pt-4 text-center">{formError}</p>
+          )}
+        </div>
+        <div className="px-8 pb-8 bg-surface-container-low flex gap-4 shrink-0">
+          <button
             onClick={onClose}
             className="flex-1 py-4 bg-surface-container-highest text-on-surface rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all"
           >
@@ -3490,14 +3523,18 @@ const ProductManagementView = () => {
     }
   };
 
+  // Suppress WS-triggered reloads for 2s after a local save to avoid a redundant
+  // round-trip that would overwrite the already-correct optimistic state.
+  const skipWsReloadUntil = useRef(0);
+
   const loadProducts = useCallback(() => {
-    api.products.listProducts().then(prods => {
-      setProducts(prods);
-      api.products.listProductImages().then(images => {
-        const map: Record<string, string> = {};
-        images.forEach(i => { if (i.image) map[i.id] = i.image; });
-        setProducts(prev => prev.map(p => map[p.id] ? { ...p, image: map[p.id] } : p));
-      }).catch(() => {});
+    Promise.all([
+      api.products.listProducts(),
+      api.products.listProductImages(),
+    ]).then(([prods, images]) => {
+      const map: Record<string, string> = {};
+      images.forEach(i => { if (i.image) map[i.id] = i.image; });
+      setProducts(prods.map(p => ({ ...p, image: map[p.id] ?? p.image })));
     }).catch(console.error);
   }, []);
 
@@ -3505,7 +3542,7 @@ const ProductManagementView = () => {
 
   useEffect(() => {
     return zenWs.onEvent(e => {
-      if (e.type === 'product_update') loadProducts();
+      if (e.type === 'product_update' && Date.now() > skipWsReloadUntil.current) loadProducts();
     });
   }, [loadProducts]);
 
@@ -3564,7 +3601,17 @@ const ProductManagementView = () => {
                 </td>
                 <td className="px-4 py-6">
                   <div className="flex items-center gap-4">
-                    <img src={product.image} alt={product.name} className="w-12 h-12 rounded-lg object-cover" />
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-12 h-12 rounded-lg object-cover"
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden'); }}
+                      />
+                    ) : null}
+                    <div className={`w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center shrink-0 ${product.image ? 'hidden' : ''}`}>
+                      <span className="material-symbols-outlined text-on-surface-variant text-sm">image</span>
+                    </div>
                     <p className="font-bold text-on-surface">{product.name}</p>
                   </div>
                 </td>
@@ -3600,6 +3647,7 @@ const ProductManagementView = () => {
             setEditingProduct(null);
           }}
           onSaved={(saved) => {
+            skipWsReloadUntil.current = Date.now() + 2000;
             setProducts(prev => {
               const exists = prev.find(p => p.id === saved.id);
               return exists

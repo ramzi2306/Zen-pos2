@@ -46,6 +46,7 @@ class ProductOut(BaseModel):
     tags: list[str]
     variations: list[VariationGroupSchema]
     supplements: list[SupplementGroupSchema]
+    ingredients: list[IngredientSchema] = []
 
 
 class ProductCreate(BaseModel):
@@ -80,6 +81,7 @@ class ProductUpdate(BaseModel):
     tags: Optional[list[str]] = None
     variations: Optional[list[VariationGroupSchema]] = None
     supplements: Optional[list[SupplementGroupSchema]] = None
+    ingredients: Optional[list[IngredientSchema]] = None
 
     @field_validator('image')
     @classmethod

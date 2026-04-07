@@ -141,6 +141,10 @@ def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
         }
         for sg in (p.supplements or [])
     ]
+    ingredients = [
+        {"id": ing.id, "name": ing.name, "amount": ing.amount, "unit": ing.unit, "waste_percent": ing.waste_percent}
+        for ing in (p.ingredients or [])
+    ]
     return ProductOut(
         id=str(p.id),
         name=p.name,
@@ -153,4 +157,5 @@ def _to_out(p: ProductDocument, include_image: bool = True) -> ProductOut:
         tags=p.tags or [],
         variations=variations,
         supplements=supplements,
+        ingredients=ingredients,
     )

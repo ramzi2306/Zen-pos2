@@ -47,6 +47,11 @@ interface ApiProduct {
   tags?: string[];
   variations?: ApiVariationGroup[];
   supplements?: ApiSupplementGroup[];
+  ingredients?: ApiIngredient[];
+}
+
+function mapIngredient(ing: ApiIngredient) {
+  return { id: ing.id, name: ing.name, amount: ing.amount, unit: ing.unit, wastePercent: ing.waste_percent };
 }
 
 function mapProduct(raw: ApiProduct): Product {
@@ -60,6 +65,7 @@ function mapProduct(raw: ApiProduct): Product {
     inStock: raw.in_stock,
     stockLevel: raw.stock_level as Product['stockLevel'],
     tags: raw.tags || [],
+    ingredients: (raw.ingredients || []).map(mapIngredient),
     variations: (raw.variations || []).map((vg): VariationGroup => ({
       id: vg.id,
       name: vg.name,
@@ -67,13 +73,7 @@ function mapProduct(raw: ApiProduct): Product {
         id: vo.id,
         name: vo.name,
         price: vo.price,
-        ingredients: (vo.ingredients || []).map(ing => ({
-          id: ing.id,
-          name: ing.name,
-          amount: ing.amount,
-          unit: ing.unit,
-          wastePercent: ing.waste_percent,
-        })),
+        ingredients: (vo.ingredients || []).map(mapIngredient),
       })),
     })),
     supplements: (raw.supplements || []).map((sg): SupplementGroup => ({
@@ -83,13 +83,7 @@ function mapProduct(raw: ApiProduct): Product {
         id: so.id,
         name: so.name,
         priceAdjustment: so.price_adjustment,
-        ingredients: (so.ingredients || []).map(ing => ({
-          id: ing.id,
-          name: ing.name,
-          amount: ing.amount,
-          unit: ing.unit,
-          wastePercent: ing.waste_percent,
-        })),
+        ingredients: (so.ingredients || []).map(mapIngredient),
       })),
     })),
   };
@@ -117,15 +111,16 @@ export interface ProductPayload {
   image?: string;
   in_stock?: boolean;
   tags?: string[];
+  ingredients?: { id: string; name: string; amount: number; unit: string; waste_percent?: number | null }[];
   variations?: {
     id: string;
     name: string;
-    options: { id: string; name: string; price?: number }[];
+    options: { id: string; name: string; price?: number; ingredients?: { id: string; name: string; amount: number; unit: string; waste_percent?: number | null }[] }[];
   }[];
   supplements?: {
     id: string;
     name: string;
-    options: { id: string; name: string; price_adjustment?: number }[];
+    options: { id: string; name: string; price_adjustment?: number; ingredients?: { id: string; name: string; amount: number; unit: string; waste_percent?: number | null }[] }[];
   }[];
 }
 
