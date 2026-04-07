@@ -1,5 +1,6 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, HTTPException
+from pymongo.errors import DuplicateKeyError
 
 from app.dependencies import get_current_user, require_permission
 from app.models.product import ProductDocument, CategoryDocument
@@ -23,7 +24,10 @@ async def list_categories(response: Response):
              dependencies=[Depends(require_permission("view_settings"))])
 async def create_category(body: CategoryCreate):
     cat = CategoryDocument(name=body.name)
-    await cat.insert()
+    try:
+        await cat.insert()
+    except DuplicateKeyError:
+        raise HTTPException(status_code=409, detail=f"Category '{body.name}' already exists.")
     await manager.broadcast("product_update", {"action": "category_created", "id": str(cat.id)})
     return CategoryOut(id=str(cat.id), name=cat.name)
 
