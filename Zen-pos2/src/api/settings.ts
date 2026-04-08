@@ -15,6 +15,7 @@ export interface BrandingData {
   email: string;
   address: string;
   dailySpecial: string;
+  publicMenuCardLayout: 'vertical' | 'horizontal';
 }
 
 export interface LocalizationData {
@@ -80,6 +81,7 @@ export const DEFAULT_BRANDING: BrandingData = {
   email: '',
   address: '',
   dailySpecial: '',
+  publicMenuCardLayout: 'vertical',
 };
 
 function mapBranding(raw: any): BrandingData {

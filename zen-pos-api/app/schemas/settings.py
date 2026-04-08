@@ -17,6 +17,7 @@ class BrandingUpdate(BaseModel):
     email: Optional[str] = None
     address: Optional[str] = None
     daily_special: Optional[str] = None
+    public_menu_card_layout: Optional[str] = None  # "vertical" | "horizontal"
 
 
 class BrandingOut(BaseModel):
@@ -34,6 +35,7 @@ class BrandingOut(BaseModel):
     email: str
     address: str
     daily_special: str = ""
+    public_menu_card_layout: str = "vertical"
 
 
 class LocalizationUpdate(BaseModel):

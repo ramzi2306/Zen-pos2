@@ -19,6 +19,7 @@ class BrandingDocument(Document):
     email: str = ""
     address: str = ""
     daily_special: str = ""
+    public_menu_card_layout: str = "vertical"  # "vertical" | "horizontal"
 
     class Settings:
         name = "settings"
