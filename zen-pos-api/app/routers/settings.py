@@ -130,26 +130,30 @@ async def upload_file(file: UploadFile = File(...)):
     # Upload to BunnyCDN if enabled and configured
     if getattr(doc, 'bunny_enabled', False) and doc.bunny_api_key and doc.bunny_storage_zone and doc.bunny_cdn_hostname:
         region = doc.bunny_storage_region or ""
-        host = f"{region}.storage.bunnycdn.com" if region and region != "de" else "storage.bunnycdn.com"
+        # BunnyCDN Storage Host: {region}.storage.bunnycdn.com
+        # Default region (Falkenstein) is an empty string for the host prefix.
+        host = f"{region}.storage.bunnycdn.com" if region and region.lower() != "de" else "storage.bunnycdn.com"
         
-        url = f"https://{host}/{doc.bunny_storage_zone}/{filename}"
+        # Ensure zone name and filename are properly joined
+        storage_zone = doc.bunny_storage_zone.strip("/")
+        url = f"https://{host}/{storage_zone}/{filename}"
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.put(
                     url,
                     headers={
                         "AccessKey": doc.bunny_api_key,
-                        "Content-Type": file.content_type or "application/octet-stream"
+                        "Content-Type": file.content_type or "application/octet-stream",
                     },
                     content=content
                 )
             if resp.status_code not in (200, 201):
-                raise HTTPException(500, f"Upload failed: {resp.text}")
+                raise HTTPException(500, f"BunnyCDN Upload failed ({resp.status_code}): {resp.text}")
         except Exception as e:
-            raise HTTPException(500, f"Upload error: {str(e)}")
+            raise HTTPException(500, f"BunnyCDN Upload error: {str(e)}")
             
-        cdn_hostname = doc.bunny_cdn_hostname
+        cdn_hostname = doc.bunny_cdn_hostname.strip("/")
         if not cdn_hostname.startswith("http"):
             cdn_hostname = f"https://{cdn_hostname}"
             

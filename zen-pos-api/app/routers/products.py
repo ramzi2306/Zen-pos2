@@ -46,8 +46,8 @@ async def delete_category(category_id: str):
 
 @router.get("/images")
 async def list_product_images(response: Response):
-    """Returns only id→image mapping for lazy loading. 24-hour client cache."""
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    """Returns only id→image mapping for lazy loading. Disabled cache for persistence."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     products = await ProductDocument.find({"is_active": True}).to_list()
     return [{"id": str(p.id), "image": p.image or ""} for p in products]
 

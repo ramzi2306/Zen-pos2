@@ -289,6 +289,25 @@ To scope a future resource (e.g. `inventory`) by location:
 
 ---
 
+## Storage & CDN (BunnyCDN)
+
+The system supports high-performance image delivery via **BunnyCDN**. When enabled, all uploads are automatically pushed to the configured edge storage and served via the global CDN.
+
+### How it works:
+1. **Upload**: The `/settings/upload` endpoint checks if BunnyCDN is active.
+2. **Push**: If active, it performs an async `PUT` to `storage.bunnycdn.com` using the provided Storage Zone and Access Key.
+3. **Save**: The backend returns the CDN URL (e.g., `https://zen-pos.bcdn.net/uuid.png`) which is saved in MongoDB.
+4. **Fallback**: If disabled, files are saved locally to `STATIC_DIR/uploads`. **Note**: Local storage requires a Docker volume for persistence across container restarts.
+
+### Configuration Checklist:
+- `bunny_enabled`: Set to `true` in Integrations settings.
+- `bunny_storage_zone`: Name of the storage zone.
+- `bunny_api_key`: Access Key found in the Storage Zone settings.
+- `bunny_cdn_hostname`: The Pull Zone URL (e.g., `yourzone.bcdn.net`).
+- `bunny_storage_region`: (Optional) e.g., `ny`, `la`, `sg`. Defaults to `de`.
+
+---
+
 ## Getting Started
 
 ### 1. Prerequisites
