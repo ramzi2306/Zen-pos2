@@ -85,5 +85,6 @@ class OrderOut(BaseModel):
     cook_id: Optional[str]
     assistant_ids: list[str]
     review: Optional[ReviewSchema]
+    tracking_token: Optional[str] = None
     created_at: Optional[datetime] = None
     location_id: Optional[str] = None

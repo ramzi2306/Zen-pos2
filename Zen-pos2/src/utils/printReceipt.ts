@@ -3,15 +3,17 @@ import ErrorCorrectLevel from 'qr.js/lib/ErrorCorrectLevel';
 
 /** Generate an inline SVG QR code — no external network request needed. */
 function generateQrSvg(value: string, size: number): string {
-  const qr = new QRCodeLib(-1, ErrorCorrectLevel['L']);
+  // Use Medium error correction for better thermal printer reliability
+  const qr = new QRCodeLib(-1, ErrorCorrectLevel['M']);
   qr.addData(value);
   qr.make();
   const cells: boolean[][] = qr.modules;
   const n = cells.length;
+  // Build a single path string for high performance and clean printing
   const fgD = cells.map((row: boolean[], r: number) =>
-    row.map((cell: boolean, c: number) => cell ? `M ${c} ${r} l 1 0 0 1 -1 0 Z` : '').join(' ')
+    row.map((cell: boolean, c: number) => cell ? `M ${c} ${r} h 1 v 1 h -1 Z` : '').join(' ')
   ).join(' ');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${n} ${n}" style="display:block;margin:6px auto;"><path d="${fgD}" fill="#000000"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" style="display:block;margin:8px auto;image-rendering:pixelated;"><path d="${fgD}" fill="#000000"/></svg>`;
 }
 
 export interface ReceiptBranding {

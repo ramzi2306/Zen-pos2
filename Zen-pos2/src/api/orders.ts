@@ -40,6 +40,7 @@ interface ApiOrder {
   cook_id?: string;
   assistant_ids: string[];
   review?: { stars: number; comment: string };
+  tracking_token?: string;
   created_at?: string;
 }
 
@@ -102,6 +103,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     cook,
     assistants: assistants.length > 0 ? assistants : undefined,
     review: raw.review,
+    trackingToken: raw.tracking_token,
   };
 }
 
@@ -146,7 +148,7 @@ export async function createOrder(
         group_name: groupId,
         option_id: opt.id,
         option_name: opt.name,
-        price_adjustment: opt.priceAdjustment || 0,
+        price_adjustment: (opt as any).price || (opt as any).priceAdjustment || 0,
       })),
     })),
   };

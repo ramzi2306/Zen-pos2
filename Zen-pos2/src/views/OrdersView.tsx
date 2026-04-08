@@ -270,7 +270,7 @@ export const OrdersView = ({
     if (!receiptModal) return;
     const trackingUrl = receiptModal.trackingToken
       ? `${window.location.origin}/track/${receiptModal.trackingToken}`
-      : undefined;
+      : `${window.location.origin}/track/${receiptModal.orderNumber}`;
     const items = receiptModal.items.map(item => {
       const itemPrice = getCartItemPrice(item);
       const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;

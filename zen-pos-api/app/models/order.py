@@ -68,7 +68,7 @@ class OrderDocument(Document):
     review: Optional[Review] = None
     notes: str = ""
     location_id: Optional[str] = None        # auto-set from the creating user's location
-    tracking_token: Optional[str] = None      # for public order tracking
+    tracking_token: str = Field(default_factory=lambda: str(__import__('uuid').uuid4()))      # for public order tracking
     estimated_delivery: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
