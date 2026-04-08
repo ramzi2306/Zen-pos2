@@ -101,6 +101,9 @@ export default defineConfig(({mode}) => {
           target: 'http://127.0.0.1:8000',
           bypass(req) { if (req.headers['accept']?.includes('text/html')) return '/index.html'; },
         },
+        '/uploads': {
+          target: 'http://127.0.0.1:8000',
+        },
         '/ws': {
           target: 'http://127.0.0.1:8000',
           ws: true,

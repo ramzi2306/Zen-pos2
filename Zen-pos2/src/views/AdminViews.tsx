@@ -3009,10 +3009,20 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
     // Skip base64 images — they are legacy DB values and will fail the backend validator.
     // Omitting the field in PATCH leaves the existing DB value unchanged.
-    const safeImage = image && !image.startsWith('data:') ? image : undefined;
+    const safeImage = image && !image.startsWith('data:') ? image : (image === '' ? '' : undefined);
     const mapIng = (ing: any) => ({ id: ing.id, name: ing.name, amount: ing.amount || 0, unit: ing.unit || 'g', waste_percent: ing.wastePercent ?? ing.waste_percent ?? null });
+
+    // Auto-calculate base price from variations if present
+    let finalPrice = parsedPrice || 0;
+    if (hasVariations) {
+      const allPrices = variations.flatMap((vg: any) => vg.options.map((o: any) => o.price || 0)).filter((p: number) => p > 0);
+      if (allPrices.length > 0) {
+        finalPrice = Math.min(...allPrices);
+      }
+    }
+
     const payload = {
-      name: name.trim(), description, price: parsedPrice || 0, category, image: safeImage,
+      name: name.trim(), description, price: finalPrice, category, image: safeImage,
       in_stock: inStock,
       ingredients: ingredients.map(mapIng),
       variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0, ingredients: (o.ingredients || []).map(mapIng) })) })),
@@ -3148,13 +3158,12 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
               <p className="text-sm font-bold text-on-surface">Available in Stock</p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-0.5">Uncheck to mark as unavailable on the menu</p>
             </div>
-            <button
-              type="button"
+            <div 
               onClick={() => setInStock(v => !v)}
-              className={`relative w-12 h-6 rounded-full transition-colors ${inStock ? 'bg-primary' : 'bg-outline-variant/40'}`}
+              className={`relative w-11 h-6 rounded-full cursor-pointer transition-all duration-300 ring-4 ring-transparent ${inStock ? 'bg-secondary' : 'bg-surface-container-highest border border-outline-variant/30'}`}
             >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${inStock ? 'translate-x-6' : 'translate-x-0.5'}`} />
-            </button>
+              <div className={`absolute top-1 w-4 h-4 rounded-full transition-all duration-300 shadow-md ${inStock ? 'translate-x-6 bg-white' : 'translate-x-1 bg-on-surface-variant/40'}`} />
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -3620,7 +3629,17 @@ const ProductManagementView = () => {
                     {product.category}
                   </span>
                 </td>
-                <td className="px-4 py-6 text-right font-bold text-on-surface">{formatCurrency(product.price)}</td>
+                <td className="px-4 py-6 text-right font-bold text-on-surface">
+                  {(() => {
+                    const allPrices = (product.variations ?? [])
+                      .flatMap(vg => vg.options.map(o => o.price ?? 0))
+                      .filter(p => p > 0);
+                    if (!allPrices.length) return formatCurrency(product.price);
+                    const min = Math.min(...allPrices);
+                    const max = Math.max(...allPrices);
+                    return min === max ? formatCurrency(min) : `${formatCurrency(min)} – ${formatCurrency(max)}`;
+                  })()}
+                </td>
                 <td className="px-8 py-6 text-right">
                   <button 
                     onClick={() => setEditingProduct(product)}
