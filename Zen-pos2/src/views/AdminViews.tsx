@@ -3666,13 +3666,24 @@ const ProductManagementView = () => {
             setEditingProduct(null);
           }}
           onSaved={(saved) => {
+            // Block WS-triggered reload for 2s to avoid overwriting optimistic state.
             skipWsReloadUntil.current = Date.now() + 2000;
+            // Apply the response (which was re-fetched from DB) immediately.
             setProducts(prev => {
               const exists = prev.find(p => p.id === saved.id);
               return exists
                 ? prev.map(p => p.id === saved.id ? saved : p)
                 : [saved, ...prev];
             });
+            // Background re-fetch of images after 2.5s to verify DB state
+            // (handles any edge case where the guard window hid a concurrent change).
+            setTimeout(() => {
+              api.products.listProductImages().then(images => {
+                const map: Record<string, string> = {};
+                images.forEach(i => { if (i.image) map[i.id] = i.image; });
+                setProducts(prev => prev.map(p => map[p.id] ? { ...p, image: map[p.id] } : p));
+              }).catch(() => {});
+            }, 2500);
           }}
         />
       )}

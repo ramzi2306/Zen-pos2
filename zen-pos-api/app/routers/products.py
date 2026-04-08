@@ -87,12 +87,22 @@ async def update_product(product_id: str, body: ProductUpdate):
     product = await ProductDocument.get(product_id)
     if not product:
         raise NotFoundError("Product not found")
-    update_data = body.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(product, key, value)
-    await product.save()
+
+    # model_dump(exclude_unset=True) gives only fields sent in the request body,
+    # all as plain Python dicts/lists — no Pydantic model instances.
+    # We write directly to MongoDB via $set to guarantee persistence regardless
+    # of Beanie's in-memory type-checking on nested schema objects.
+    patch = body.model_dump(exclude_unset=True)
+    if patch:
+        await ProductDocument.get_motor_collection().update_one(
+            {"_id": product.id},
+            {"$set": patch},
+        )
+
+    # Re-fetch from DB so _to_out reflects exactly what was persisted.
+    updated = await ProductDocument.get(product_id)
     await manager.broadcast("product_update", {"action": "updated", "id": product_id})
-    return _to_out(product)
+    return _to_out(updated)
 
 
 @router.delete("/{product_id}", status_code=204,
@@ -101,8 +111,10 @@ async def delete_product(product_id: str):
     product = await ProductDocument.get(product_id)
     if not product:
         raise NotFoundError("Product not found")
-    product.is_active = False
-    await product.save()
+    await ProductDocument.get_motor_collection().update_one(
+        {"_id": product.id},
+        {"$set": {"is_active": False}},
+    )
     await manager.broadcast("product_update", {"action": "deleted", "id": product_id})
 
 

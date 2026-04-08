@@ -48,8 +48,8 @@ async def _get_session(token: str) -> Optional[CustomerSessionDocument]:
 
 @router.get("/images")
 async def get_public_images(response: Response):
-    """Returns only id→image mapping for lazy loading. 24-hour client cache."""
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    """Returns only id→image mapping for lazy loading. No cache — images change on product edits."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     products = await ProductDocument.find({"is_active": True}).to_list()
     return [{"id": str(p.id), "image": p.image or ""} for p in products]
 
