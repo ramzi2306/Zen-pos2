@@ -99,7 +99,8 @@ function mapBranding(raw: any): BrandingData {
     phone:          raw.phone           ?? DEFAULT_BRANDING.phone,
     email:          raw.email           ?? DEFAULT_BRANDING.email,
     address:        raw.address         ?? DEFAULT_BRANDING.address,
-    dailySpecial:   raw.daily_special   ?? '',
+    dailySpecial:          raw.daily_special            ?? '',
+    publicMenuCardLayout:  raw.public_menu_card_layout  ?? 'vertical',
   };
 }
 
@@ -177,7 +178,8 @@ export async function updateBranding(data: Partial<BrandingData>): Promise<Brand
     ['phone',          'phone'],
     ['email',          'email'],
     ['address',        'address'],
-    ['dailySpecial',   'daily_special'],
+    ['dailySpecial',          'daily_special'],
+    ['publicMenuCardLayout',  'public_menu_card_layout'],
   ];
   const payload: Record<string, any> = {};
   for (const [camel, snake] of keyMap) {

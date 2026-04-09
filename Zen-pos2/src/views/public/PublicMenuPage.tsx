@@ -1484,6 +1484,7 @@ function PublicMenuPageInner() {
   const branding = getBranding();
   const restaurantName: string = branding.restaurantName || 'Our Restaurant';
   const restaurantLogo: string = branding.logo || '';
+  const cardLayout: 'vertical' | 'horizontal' = branding.publicMenuCardLayout === 'horizontal' ? 'horizontal' : 'vertical';
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
@@ -1667,7 +1668,7 @@ function PublicMenuPageInner() {
             </div>
           )}
           {!error && (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-28 lg:pb-8">
+            <div className={`grid gap-4 md:gap-6 pb-28 lg:pb-8 ${cardLayout === 'horizontal' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
               {loading
                 ? Array.from({ length: 8 }).map((_, i) => (
                     <div key={i} className="rounded-2xl overflow-hidden bg-surface-container animate-pulse">
@@ -1679,7 +1680,7 @@ function PublicMenuPageInner() {
                     </div>
                   ))
                 : filtered.map(product => (
-                    <ProductCard key={product.id} product={product} onClick={e => handleProductClick(product, e)} />
+                    <ProductCard key={product.id} product={product} layout={cardLayout} onClick={e => handleProductClick(product, e)} />
                   ))
               }
             </div>

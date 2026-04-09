@@ -836,29 +836,23 @@ export const OrdersView = ({
               let transformOrigin = 'top';
 
               if (isDesktop) {
-                // Align menu top with card top; raise if it overflows the bottom
-                menuTop = safeTop;
-                if (menuTop + menuHeight > vh - PAD) {
-                  menuTop = Math.max(PAD, vh - PAD - menuHeight);
-                }
+                // Always center the menu vertically in the viewport
+                menuTop = Math.max(PAD, Math.round((vh - menuHeight) / 2));
 
                 // Place to the right of card; fall back to left if it overflows
                 menuLeft = safeLeft + scaledWidth + 16;
-                transformOrigin = 'left top';
+                transformOrigin = 'left center';
                 if (menuLeft + menuWidth > vw - PAD) {
                   menuLeft = safeLeft - menuWidth - 16;
-                  transformOrigin = 'right top';
+                  transformOrigin = 'right center';
                   if (menuLeft < PAD) menuLeft = PAD;
                 }
               } else {
-                // Mobile: menu below the card; raise card if needed
-                if (safeTop + scaledHeight + 16 + menuHeight > vh - PAD) {
-                  safeTop = Math.max(PAD, vh - PAD - menuHeight - 16 - scaledHeight);
-                }
-                menuTop = safeTop + scaledHeight + 16;
+                // Mobile: always center the menu vertically in the viewport
+                menuTop = Math.max(PAD, Math.round((vh - menuHeight) / 2));
 
                 menuLeft = safeLeft;
-                transformOrigin = 'top';
+                transformOrigin = 'center';
                 if (menuLeft + menuWidth > vw - PAD) {
                   menuLeft = Math.max(PAD, vw - PAD - menuWidth);
                 }
@@ -903,7 +897,7 @@ export const OrdersView = ({
                       top: menuTop,
                       left: menuLeft,
                       width: menuWidth,
-                      maxHeight: vh - menuTop - PAD,
+                      maxHeight: vh - PAD * 2,
                       transformOrigin: transformOrigin,
                     }}
                     className="z-[90] bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col"
@@ -1413,7 +1407,7 @@ export const OrdersView = ({
                   const Sep = () => <div className="border-t border-dashed border-black/50 my-1.5" />;
                   const Sep2 = () => <div className="border-t-2 border-black my-1.5" />;
                   return (
-                    <div id="zen-order-receipt-print" className="w-full max-w-[300px] bg-white text-black font-mono text-[12px] leading-snug shadow-2xl">
+                    <div id="zen-order-receipt-print" className="w-full max-w-[300px] bg-white text-black font-mono text-[12px] font-bold leading-snug shadow-2xl">
                       {/* Header */}
                       <div className="text-center pt-5 px-4 pb-3">
                         {b.logo && (
@@ -1494,15 +1488,19 @@ export const OrdersView = ({
 
                       <div className="px-4"><Sep /></div>
 
-                      {/* QR / Loyalty */}
-                      <div className="text-center px-4 py-3">
-                        <div className="font-bold text-[12px] tracking-wider mb-1">*** FIDELITY PROGRAM ***</div>
-                        <div className="text-[11px] mb-3 leading-snug">Scan QR to collect points<br />Redeem discounts &amp; free delivery</div>
-                        <div className="flex justify-center my-2"><QRCode value={trackingUrl} size={110} /></div>
-                        <div className="font-bold text-[11px] tracking-[3px] mt-2">SCAN ME</div>
-                      </div>
+                      {/* QR / Loyalty — only when printQrCode is enabled */}
+                      {b.printQrCode && (
+                        <>
+                          <div className="text-center px-4 py-3">
+                            <div className="font-bold text-[12px] tracking-wider mb-1">*** FIDELITY PROGRAM ***</div>
+                            <div className="text-[11px] mb-3 leading-snug">Scan QR to collect points<br />Redeem discounts &amp; free delivery</div>
+                            <div className="flex justify-center my-2"><QRCode value={trackingUrl} size={110} /></div>
+                            <div className="font-bold text-[11px] tracking-[3px] mt-2">SCAN ME</div>
+                          </div>
+                          <div className="px-4"><Sep /></div>
+                        </>
+                      )}
 
-                      <div className="px-4"><Sep /></div>
                       <div className="text-center text-[11px] py-2 px-4">{b.footerText || 'Thank you for dining with us!'}</div>
                       <div className="h-4" />
                     </div>

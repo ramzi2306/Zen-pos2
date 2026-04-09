@@ -5,27 +5,19 @@ import { useLocalization } from '../../context/LocalizationContext';
 /**
  * ProductCard — grid card for a single menu item.
  *
- * **3D Touch behaviour (handled by parent MenuView):**
- * - If the product has `variations`, clicking calls `onClick` with the DOM rect
- *   so the parent can render the VariationModal anchored to the card.
- * - If no variations, clicking directly adds the item to the cart.
- *
- * Visual features:
- * - Product image with scale-on-hover transition
- * - "Chef Choice" badge (top-left overlay)
- * - Stock level dot indicator (Low → red, otherwise green)
- * - Price right-aligned in headline font
- *
  * @prop product  - The product to display
- * @prop onClick  - Receives the mouse event (used to capture the DOMRect for the
- *                  VariationModal anchor) or triggers addToCart for simple products
+ * @prop layout   - 'vertical' (default): image top, info below.
+ *                  'horizontal': image on right, text+button on left.
+ * @prop onClick  - Receives the mouse event for VariationModal anchoring
  */
 export const ProductCard = ({
   product,
   onClick,
+  layout = 'vertical',
 }: {
   product: Product;
   onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  layout?: 'vertical' | 'horizontal';
 }) => {
   const { formatCurrency } = useLocalization();
 
@@ -39,12 +31,31 @@ export const ProductCard = ({
     return min === max ? formatCurrency(min) : `${formatCurrency(min)} – ${formatCurrency(max)}`;
   })();
 
-  return <div
-    onClick={onClick}
-    className="group bg-surface-container rounded-lg overflow-hidden flex flex-col hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer"
-  >
-    {/* Thumbnail */}
-    <div className="w-full h-32 md:h-40 relative overflow-hidden bg-surface-container-lowest flex items-center justify-center">
+  const stockDot = (
+    <span
+      className={`text-[9px] font-headline font-bold uppercase tracking-micro flex items-center gap-1.5 ${
+        product.stockLevel === 'Low' ? 'text-error' : 'text-tertiary'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${product.stockLevel === 'Low' ? 'bg-error' : 'bg-tertiary'}`} />
+      <span className="hidden sm:inline">{product.stockLevel === 'Low' ? 'Low Stock' : 'In Stock'}</span>
+    </span>
+  );
+
+  const addBtn = (
+    <button className="w-8 h-8 rounded bg-primary-container text-primary flex items-center justify-center hover:bg-secondary hover:text-on-secondary transition-colors shadow-sm flex-shrink-0">
+      <span className="material-symbols-outlined text-lg">add</span>
+    </button>
+  );
+
+  const thumbnail = (isHorizontal: boolean) => (
+    <div
+      className={`relative overflow-hidden bg-surface-container-lowest flex items-center justify-center flex-shrink-0 ${
+        isHorizontal
+          ? 'w-28 h-full rounded-r-lg'
+          : 'w-full h-32 md:h-40 rounded-t-lg'
+      }`}
+    >
       {product.image ? (
         <img
           src={product.image}
@@ -62,35 +73,62 @@ export const ProductCard = ({
         </div>
       )}
     </div>
+  );
 
-    {/* Info */}
-    <div className="flex-1 p-3 md:p-4 flex flex-col justify-between">
-      <div className="mb-2 md:mb-4">
-        <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2 mb-0.5">
-          {product.name}
-        </h3>
-        <span className="font-headline font-bold text-primary text-sm md:text-base">
-          {priceLabel}
-        </span>
-        <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">
-          {product.description}
-        </p>
+  if (layout === 'horizontal') {
+    return (
+      <div
+        onClick={onClick}
+        className="group bg-surface-container rounded-lg overflow-hidden flex flex-row hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer h-28"
+      >
+        {/* Left: info */}
+        <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
+          <div>
+            <h3 className="font-headline font-bold text-sm text-on-surface leading-tight line-clamp-2 mb-0.5">
+              {product.name}
+            </h3>
+            <span className="font-headline font-bold text-primary text-sm">
+              {priceLabel}
+            </span>
+            <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">
+              {product.description}
+            </p>
+          </div>
+          <div className="flex justify-between items-center mt-auto">
+            {stockDot}
+            {addBtn}
+          </div>
+        </div>
+        {/* Right: image */}
+        {thumbnail(true)}
       </div>
+    );
+  }
 
-      {/* Footer: stock + add button */}
-      <div className="flex justify-between items-end mt-auto">
-        <span
-          className={`text-[9px] font-headline font-bold uppercase tracking-micro flex items-center gap-1.5 ${
-            product.stockLevel === 'Low' ? 'text-error' : 'text-tertiary'
-          }`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${product.stockLevel === 'Low' ? 'bg-error' : 'bg-tertiary'}`} />
-          <span className="hidden sm:inline">{product.stockLevel === 'Low' ? 'Low Stock' : 'In Stock'}</span>
-        </span>
-        <button className="w-8 h-8 rounded bg-primary-container text-primary flex items-center justify-center hover:bg-secondary hover:text-on-secondary transition-colors shadow-sm">
-          <span className="material-symbols-outlined text-lg">add</span>
-        </button>
+  // --- vertical (default) ---
+  return (
+    <div
+      onClick={onClick}
+      className="group bg-surface-container rounded-lg overflow-hidden flex flex-col hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer"
+    >
+      {thumbnail(false)}
+      <div className="flex-1 p-3 md:p-4 flex flex-col justify-between">
+        <div className="mb-2 md:mb-4">
+          <h3 className="font-headline font-bold text-sm md:text-base text-on-surface leading-tight line-clamp-2 mb-0.5">
+            {product.name}
+          </h3>
+          <span className="font-headline font-bold text-primary text-sm md:text-base">
+            {priceLabel}
+          </span>
+          <p className="hidden md:block text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">
+            {product.description}
+          </p>
+        </div>
+        <div className="flex justify-between items-end mt-auto">
+          {stockDot}
+          {addBtn}
+        </div>
       </div>
     </div>
-  </div>;
+  );
 };

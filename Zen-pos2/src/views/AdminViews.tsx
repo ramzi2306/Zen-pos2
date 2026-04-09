@@ -5274,6 +5274,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     email: '',
     address: '',
     dailySpecial: '',
+    publicMenuCardLayout: 'vertical' as 'vertical' | 'horizontal',
   });
   // Sync local edit state when app-level branding loads from API
   useEffect(() => { if (appBranding) setBranding(appBranding); }, [appBranding]);
@@ -5536,6 +5537,53 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium h-20 resize-none"
                       />
                     </div>
+
+                    <div className="pt-4">
+                      <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Public Menu Card Layout</label>
+                      <p className="text-[9px] text-on-surface-variant mb-3">Choose how product cards appear in the public menu.</p>
+                      <div className="flex gap-3">
+                        {(['vertical', 'horizontal'] as const).map(opt => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setBranding({...branding, publicMenuCardLayout: opt})}
+                            className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-colors ${branding.publicMenuCardLayout === opt ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}`}
+                          >
+                            {/* Mini preview */}
+                            {opt === 'vertical' ? (
+                              <div className="w-16 h-20 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-col bg-surface-container-lowest">
+                                <div className="h-9 bg-surface-container-high" />
+                                <div className="flex-1 p-1.5 flex flex-col justify-between">
+                                  <div className="space-y-1">
+                                    <div className="h-1.5 bg-on-surface/20 rounded w-full" />
+                                    <div className="h-1.5 bg-primary/40 rounded w-2/3" />
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <div className="w-4 h-4 rounded bg-primary-container" />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-16 h-20 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-row bg-surface-container-lowest">
+                                <div className="flex-1 p-1.5 flex flex-col justify-between">
+                                  <div className="space-y-1">
+                                    <div className="h-1.5 bg-on-surface/20 rounded w-full" />
+                                    <div className="h-1.5 bg-primary/40 rounded w-2/3" />
+                                  </div>
+                                  <div className="flex justify-start">
+                                    <div className="w-4 h-4 rounded bg-primary-container" />
+                                  </div>
+                                </div>
+                                <div className="w-6 bg-surface-container-high" />
+                              </div>
+                            )}
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${branding.publicMenuCardLayout === opt ? 'text-primary' : 'text-on-surface-variant'}`}>
+                              {opt === 'vertical' ? 'Vertical' : 'Horizontal'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="flex-shrink-0">
@@ -5587,7 +5635,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                           {branding.printQrCode && (
                             <div className="flex flex-col items-center gap-0.5 pb-3">
                               <div className="text-[7px] font-bold tracking-wider">*** FIDELITY PROGRAM ***</div>
-                              <QRCode value={branding.restaurantName || 'ZEN POS'} size={52} />
+                              <QRCode value={`${window.location.origin}/track/ORDER-0001`} size={52} />
                               <div className="text-[7px] opacity-50 uppercase tracking-widest">SCAN ME</div>
                             </div>
                           )}
