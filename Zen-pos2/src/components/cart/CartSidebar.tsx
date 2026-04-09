@@ -85,6 +85,7 @@ export const CartSidebar = ({
   const [orderNote, setOrderNote] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
+  const [createdTrackingToken, setCreatedTrackingToken] = useState<string | null>(null);
   const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number; trackingToken?: string } | null>(null);
   const [printReady, setPrintReady] = useState(false);
 
@@ -95,6 +96,7 @@ export const CartSidebar = ({
     setViewMode('cart');
     setOrderNote('');
     setCreatedOrderNumber(null);
+    setCreatedTrackingToken(null);
     setAmountPaid('');
     setDeliveryDetails({ name: '', phone: '', zone: '', address: '' });
     setOrderType('dine_in');
@@ -147,7 +149,9 @@ export const CartSidebar = ({
       gratuityAmount,
       gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
       total,
-      trackingUrl: createdOrderNumber ? `${window.location.origin}/track/${createdOrderNumber}` : undefined,
+      trackingUrl: createdTrackingToken
+        ? `${window.location.origin}/track/${createdTrackingToken}`
+        : createdOrderNumber ? `${window.location.origin}/track/${createdOrderNumber}` : undefined,
       formatCurrency,
     });
     firePrint(html);
@@ -195,6 +199,7 @@ export const CartSidebar = ({
       const method = paymentStatus === 'Paid' ? paymentMethod : 'Cash';
       const newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus, method);
       setCreatedOrderNumber(newOrder.orderNumber ?? null);
+      setCreatedTrackingToken(newOrder.trackingToken ?? null);
       if (onOrderCreated) onOrderCreated(newOrder);
       if (paymentStatus === 'Paid') {
         setReceiptModal({ orderNumber: newOrder.orderNumber ?? '—', paidAmount: parseFloat(amountPaid) || 0, trackingToken: newOrder.trackingToken });
@@ -1011,7 +1016,7 @@ export const CartSidebar = ({
                                 <span>{item.quantity}x {item.name}</span>
                                 <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
                               </div>
-                              {noteStr && <div className="pl-4 text-[11px] text-gray-600">{noteStr}</div>}
+                              {noteStr && <div className="pl-4 text-[11px] font-bold text-black">{noteStr}</div>}
                             </div>
                           );
                         })}
@@ -1020,7 +1025,7 @@ export const CartSidebar = ({
                       {orderNote && (
                         <>
                           <div className="px-4"><Sep /></div>
-                          <div className="px-4 text-[11px] text-gray-700 italic">Note: {orderNote}</div>
+                          <div className="px-4 text-[12px] font-bold text-black">Note: {orderNote}</div>
                         </>
                       )}
 

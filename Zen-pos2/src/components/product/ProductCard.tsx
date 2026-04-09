@@ -81,7 +81,9 @@ export const ProductCard = ({
         onClick={onClick}
         className="group bg-surface-container rounded-lg overflow-hidden flex flex-row hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer h-28"
       >
-        {/* Left: info */}
+        {/* Left: image */}
+        {thumbnail(true)}
+        {/* Right: info */}
         <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
           <div>
             <h3 className="font-headline font-bold text-sm text-on-surface leading-tight line-clamp-2 mb-0.5">
@@ -99,8 +101,6 @@ export const ProductCard = ({
             {addBtn}
           </div>
         </div>
-        {/* Right: image */}
-        {thumbnail(true)}
       </div>
     );
   }

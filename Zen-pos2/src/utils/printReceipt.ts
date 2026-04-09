@@ -95,7 +95,7 @@ export function buildReceiptHtml(d: ReceiptData): string {
     : '';
 
   const notesSection = d.notes
-    ? `${SEP}<div style="font-size:11px;color:#444;font-style:italic;">Note: ${d.notes}</div>`
+    ? `${SEP}<div style="font-size:12px;font-weight:700;color:#000;">Note: ${d.notes}</div>`
     : '';
 
   const orderTypeDisplay = (d.orderType || 'dine_in').replace(/_/g, ' ');

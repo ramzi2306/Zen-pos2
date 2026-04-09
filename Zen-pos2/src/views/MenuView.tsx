@@ -19,6 +19,8 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
   const [showSpecialModal, setShowSpecialModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const [cardLayout, setCardLayout] = useState<'vertical' | 'horizontal'>('vertical');
+
   const loadProducts = useCallback(() => {
     Promise.all([
       api.products.listProducts(),
@@ -31,6 +33,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       setProducts(prods.map(p => ({ ...p, image: imageMap[p.id] ?? p.image })));
       setCategories(['All', ...cats.map(c => c.name)]);
       setDailySpecial(branding.dailySpecial || '');
+      setCardLayout(branding.publicMenuCardLayout === 'horizontal' ? 'horizontal' : 'vertical');
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
@@ -92,7 +95,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
         </div>
 
         {/* Product grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 pb-24">
+        <div className={`grid gap-4 md:gap-6 pb-24 ${cardLayout === 'horizontal' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4'}`}>
           {loading
             ? Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="rounded-2xl overflow-hidden bg-surface-container animate-pulse">
@@ -107,6 +110,7 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
                 <ProductCard
                   key={product.id}
                   product={product}
+                  layout={cardLayout}
                   onClick={(e) => handleProductClick(product, e)}
                 />
               ))

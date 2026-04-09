@@ -5353,9 +5353,30 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         {currentSetting === 'profile' && currentUser && <ProfileSettingsView currentUser={currentUser} onUserUpdate={onUserUpdate ?? (() => {})} />}
         {currentSetting === 'branding' && (
           <>
-            <div className="mb-10">
-              <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface mb-2">Branding</h1>
-              <p className="text-on-surface-variant text-sm">Define your restaurant's visual identity across all digital and physical touchpoints.</p>
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface mb-2">Branding</h1>
+                <p className="text-on-surface-variant text-sm">Define your restaurant's visual identity across all digital and physical touchpoints.</p>
+              </div>
+              <button
+                onClick={handleSaveBranding}
+                disabled={brandingSaving}
+                className="px-6 py-3 bg-secondary text-on-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-[#ffc4b8] transition-colors shadow flex items-center gap-2 disabled:opacity-60"
+              >
+                {brandingSaving ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Saving…
+                  </>
+                ) : brandingSaved ? (
+                  <><span className="material-symbols-outlined">check_circle</span> Saved!</>
+                ) : (
+                  <><span className="material-symbols-outlined">save</span> Save Changes</>
+                )}
+              </button>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
@@ -5565,16 +5586,16 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                               </div>
                             ) : (
                               <div className="w-16 h-20 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-row bg-surface-container-lowest">
+                                <div className="w-6 bg-surface-container-high" />
                                 <div className="flex-1 p-1.5 flex flex-col justify-between">
                                   <div className="space-y-1">
                                     <div className="h-1.5 bg-on-surface/20 rounded w-full" />
                                     <div className="h-1.5 bg-primary/40 rounded w-2/3" />
                                   </div>
-                                  <div className="flex justify-start">
+                                  <div className="flex justify-end">
                                     <div className="w-4 h-4 rounded bg-primary-container" />
                                   </div>
                                 </div>
-                                <div className="w-6 bg-surface-container-high" />
                               </div>
                             )}
                             <span className={`text-[10px] font-bold uppercase tracking-wider ${branding.publicMenuCardLayout === opt ? 'text-primary' : 'text-on-surface-variant'}`}>
@@ -5646,27 +5667,6 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 </div>
               </div>
 
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={handleSaveBranding}
-                  disabled={brandingSaving}
-                  className="px-5 py-2.5 bg-secondary text-on-secondary rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#ffc4b8] transition-colors shadow flex items-center gap-2 disabled:opacity-60"
-                >
-                  {brandingSaving ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Saving…
-                    </>
-                  ) : brandingSaved ? (
-                    <><span className="material-symbols-outlined">check_circle</span> Saved!</>
-                  ) : (
-                    <><span className="material-symbols-outlined">save</span> Save All Changes</>
-                  )}
-                </button>
-              </div>
             </div>
           </>
         )}

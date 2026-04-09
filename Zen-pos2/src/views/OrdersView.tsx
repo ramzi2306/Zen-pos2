@@ -1459,7 +1459,7 @@ export const OrdersView = ({
                                 <span>{item.quantity}x {item.name}</span>
                                 <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
                               </div>
-                              {noteStr && <div className="pl-4 text-[11px] text-gray-600">{noteStr}</div>}
+                              {noteStr && <div className="pl-4 text-[11px] font-bold text-black">{noteStr}</div>}
                             </div>
                           );
                         })}
@@ -1468,7 +1468,7 @@ export const OrdersView = ({
                       {receiptModal.notes && (
                         <>
                           <div className="px-4"><Sep /></div>
-                          <div className="px-4 text-[11px] text-gray-700 italic">Note: {receiptModal.notes}</div>
+                          <div className="px-4 text-[12px] font-bold text-black">Note: {receiptModal.notes}</div>
                         </>
                       )}
 
