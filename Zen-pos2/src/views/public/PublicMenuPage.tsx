@@ -389,26 +389,34 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   // Tracking poll + mock fallback when no real token
   useEffect(() => {
     if (view !== 'tracking') return;
-    const currentToken = placed?.trackingToken || token || ui.placedOrder?.trackingToken;
+    const currentToken = token || placed?.trackingToken || ui.placedOrder?.trackingToken;
     if (!currentToken) return;
 
     // Use URL token if present, otherwise fallout to placed or stored state
     const tToken = currentToken;
 
-    setTracking(prev => prev ?? {
-      orderId: placed?.orderId || ui.placedOrder?.orderId || '',
-      orderNumber: placed?.orderNumber || ui.placedOrder?.orderNumber || '',
-      status: 'Draft',
-      channel: 'online',
-      items: cartSnapshot.length ? cartSnapshot.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: getCartItemPrice(i as any) })) : (ui.placedOrder?.items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })) || []),
-      subtotal: ui.placedOrder?.subtotal || subtotal || 0, 
-      tax: 0, 
-      total: ui.placedOrder?.subtotal || subtotal || 0,
-      customer: { name: name.trim() || ui.name, maskedPhone: phone.trim() || ui.phone, address: address.trim() || ui.address },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      trackingToken: tToken,
-      estimatedDelivery: new Date(Date.now() + 35 * 60000).toISOString(),
+    setTracking(prev => {
+      // If we're tracking a specific token from the URL, don't show the locally placed order unless tokens match
+      const useLocalContext = !token || token === (placed?.trackingToken || ui.placedOrder?.trackingToken);
+      
+      if (prev && prev.trackingToken !== tToken) return null;
+      if (prev) return prev;
+
+      return {
+        orderId: useLocalContext ? (placed?.orderId || ui.placedOrder?.orderId || '') : '',
+        orderNumber: useLocalContext ? (placed?.orderNumber || ui.placedOrder?.orderNumber || '') : tToken,
+        status: 'Loading...',
+        channel: 'online',
+        items: useLocalContext ? (cartSnapshot.length ? cartSnapshot.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: getCartItemPrice(i as any) })) : (ui.placedOrder?.items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })) || [])) : [],
+        subtotal: useLocalContext ? (ui.placedOrder?.subtotal || subtotal || 0) : 0, 
+        tax: 0, 
+        total: useLocalContext ? (ui.placedOrder?.subtotal || subtotal || 0) : 0,
+        customer: useLocalContext ? { name: name.trim() || ui.name, maskedPhone: phone.trim() || ui.phone, address: address.trim() || ui.address } : { name: '...', maskedPhone: '...', address: '...' },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        trackingToken: tToken,
+        estimatedDelivery: undefined,
+      };
     });
 
     let stopped = false;

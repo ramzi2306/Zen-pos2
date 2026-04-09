@@ -256,7 +256,11 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
 
 @router.get("/orders/track/{token}")
 async def track_public_order(token: str):
-    order = await OrderDocument.find_one({"tracking_token": token})
+    from beanie.operators import Or
+    order = await OrderDocument.find_one(Or(
+        OrderDocument.tracking_token == token,
+        OrderDocument.order_number == token
+    ))
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
@@ -460,7 +464,11 @@ async def update_public_customer_profile(customer_id: str, data: dict, x_custome
 
 @router.websocket("/ws/track/{token}")
 async def ws_track(websocket: WebSocket, token: str):
-    order = await OrderDocument.find_one(OrderDocument.tracking_token == token)
+    from beanie.operators import Or
+    order = await OrderDocument.find_one(Or(
+        OrderDocument.tracking_token == token,
+        OrderDocument.order_number == token
+    ))
     if not order:
         await websocket.close(code=4004)
         return
