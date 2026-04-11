@@ -269,6 +269,7 @@ async def track_public_order(token: str):
         "order_number": order.order_number,
         "tracking_token": order.tracking_token,
         "status": order.status,
+        "order_type": order.order_type,
         "estimated_delivery": order.estimated_delivery,
         "review": order.review.model_dump() if order.review else None,
     }

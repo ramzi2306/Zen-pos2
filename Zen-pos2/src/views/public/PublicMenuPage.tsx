@@ -674,7 +674,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                  <>
                    Tracking
                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-widest truncate">
-                     {placed?.orderNumber ?? '...'}
+                     {placed?.orderNumber ?? tracking?.orderNumber ?? '...'}
                    </span>
                  </>
                ) : 
@@ -1076,25 +1076,39 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
           </div>
         )}
         {view === 'tracking' && !trackingNotFound && (() => {
-          const TIMELINE = [
-            { label: 'Queued',    icon: 'receipt_long'    },
-            { label: 'Preparing', icon: 'restaurant'       },
-            { label: 'On the Way',icon: 'delivery_dining'  },
-            { label: 'Delivered', icon: 'home'             },
-          ] as const;
+          const isPickup = tracking?.orderType === 'takeaway' || tracking?.orderType === 'pickup';
+
+          const TIMELINE: { label: string; icon: string }[] = isPickup ? [
+            { label: 'Queued',          icon: 'receipt_long'  },
+            { label: 'Preparing',       icon: 'restaurant'    },
+            { label: 'Ready to Pickup', icon: 'takeout_dining'},
+            { label: 'Picked Up',       icon: 'check_circle'  },
+          ] : [
+            { label: 'Queued',    icon: 'receipt_long'  },
+            { label: 'Preparing', icon: 'restaurant'    },
+            { label: 'On the Way',icon: 'delivery_dining'},
+            { label: 'Delivered', icon: 'home'          },
+          ];
 
           const stepOf = (s: string): number => ({
             'Queued': 0, 'Preparing': 1, 'Packaging': 1,
             'Out for delivery': 2, 'Done': 3,
           } as Record<string, number>)[s] ?? 0;
 
-          const statusMsg = (s: string): [string, string, string] => ({
-            'Queued':           ['Your order is', 'queued', 'and awaiting preparation'],
-            'Preparing':        ['The kitchen is', 'preparing', 'your order'],
-            'Packaging':        ['Your order is being', 'packed', ''],
-            'Out for delivery': ['Your order is', 'on the way', ''],
-            'Done':             ['Your order has been', 'delivered', ''],
-          } as Record<string,[string,string,string]>)[s] ?? ['Your order is being', 'processed', ''];
+          const statusMsg = (s: string): [string, string, string] => isPickup
+            ? ({
+                'Queued':    ['Your order is', 'queued', 'and awaiting preparation'],
+                'Preparing': ['The kitchen is', 'preparing', 'your order'],
+                'Packaging': ['Your order is', 'ready for pickup', ''],
+                'Done':      ['Your order has been', 'picked up', ''],
+              } as Record<string,[string,string,string]>)[s] ?? ['Your order is being', 'processed', '']
+            : ({
+                'Queued':           ['Your order is', 'queued', 'and awaiting preparation'],
+                'Preparing':        ['The kitchen is', 'preparing', 'your order'],
+                'Packaging':        ['Your order is being', 'packed', ''],
+                'Out for delivery': ['Your order is', 'on the way', ''],
+                'Done':             ['Your order has been', 'delivered', ''],
+              } as Record<string,[string,string,string]>)[s] ?? ['Your order is being', 'processed', ''];
 
           const status = tracking?.status ?? '';
           const isVerifying = status === 'Draft' || status === '' || status === 'Verification' || status === 'Needs Verification';

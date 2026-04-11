@@ -91,9 +91,11 @@ export async function createOnlineOrder(
 export async function getOrderTracking(
   trackingToken: string
 ): Promise<PublicTrackingInfo> {
-  return publicRequest<PublicTrackingInfo>(
-    `/public/orders/track/${trackingToken}`
-  );
+  const raw = await publicRequest<any>(`/public/orders/track/${trackingToken}`);
+  return {
+    ...raw,
+    orderType: raw.order_type ?? raw.orderType,
+  } as PublicTrackingInfo;
 }
 
 /** Manually confirm delivery of an order. */

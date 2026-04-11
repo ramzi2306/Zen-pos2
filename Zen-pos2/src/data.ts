@@ -273,6 +273,7 @@ export interface PublicTrackingInfo {
   orderId: string;
   orderNumber: string;
   status: string;
+  orderType?: string;
   channel: 'online';
   items: { name: string; quantity: number; unitPrice: number }[];
   subtotal: number;
