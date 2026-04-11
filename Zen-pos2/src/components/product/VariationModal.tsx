@@ -5,13 +5,13 @@ import { useLocalization } from '../../context/LocalizationContext';
 import { getCartItemPrice } from '../../utils/cartUtils';
 
 /**
- * VariationModal — bottom-sheet (mobile) / centered modal (desktop).
- * Always renders a vertical product card regardless of the grid layout.
- * Works for all products, with or without variations.
+ * VariationModal — 3D-touch-style overlay anchored to the ProductCard.
+ * The elevated card clone is always in vertical layout regardless of the
+ * grid layout used (horizontal or vertical).
  */
 export const VariationModal = ({
   product,
-  productRect: _productRect, // kept for API compat, not used for positioning
+  productRect,
   selectedVariations,
   selectedSupplements,
   onSelectVariation,
@@ -29,7 +29,43 @@ export const VariationModal = ({
   onAdd: () => void;
 }) => {
   const { formatCurrency } = useLocalization();
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+
+  // The clone is always a vertical card — fixed height regardless of card layout
+  const CLONE_HEIGHT = 264;
+  const menuHeight = 460;
+  const scale = 1.03;
+  const scaledHeight = CLONE_HEIGHT * scale;
+  const scaledWidth = productRect.width * scale;
+  const isDesktop = window.innerWidth >= 768;
+
+  let safeTop = productRect.top;
+  let menuTop = 0;
+  let menuLeft = 0;
+  const menuWidth = Math.max(productRect.width, 320);
+  let transformOrigin = 'top';
+
+  if (isDesktop) {
+    if (safeTop + menuHeight > window.innerHeight - 20) {
+      safeTop = Math.max(20, window.innerHeight - 20 - menuHeight);
+    }
+    menuTop = safeTop;
+    menuLeft = productRect.left + scaledWidth + 16;
+    transformOrigin = 'left top';
+    if (menuLeft + menuWidth > window.innerWidth - 20) {
+      menuLeft = productRect.left - menuWidth - 16;
+      transformOrigin = 'right top';
+    }
+  } else {
+    if (safeTop + scaledHeight + 16 + menuHeight > window.innerHeight - 20) {
+      safeTop = Math.max(20, window.innerHeight - 20 - menuHeight - 16 - scaledHeight);
+    }
+    menuTop = safeTop + scaledHeight + 16;
+    menuLeft = productRect.left;
+    transformOrigin = 'top';
+    if (menuLeft + menuWidth > window.innerWidth - 20) {
+      menuLeft = Math.max(20, window.innerWidth - 20 - menuWidth);
+    }
+  }
 
   const currentPrice = getCartItemPrice({
     ...product,
@@ -39,182 +75,180 @@ export const VariationModal = ({
     selectedSupplements,
   });
 
-  const hasOptions =
-    (product.variations && product.variations.length > 0) ||
-    (product.supplements && product.supplements.length > 0);
-
   return (
-    <div className="fixed inset-0 z-[150] flex items-end md:items-center md:justify-center">
+    <div className="fixed inset-0 z-[150]">
       {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
 
-      {/* Panel — always vertical, bottom-sheet on mobile, centered on desktop */}
+      {/*
+       * Elevated product card clone — always rendered as a vertical card.
+       * Starts at the original card's position (productRect) and animates
+       * to the safe position while expanding to vertical proportions.
+       */}
       <motion.div
-        initial={isDesktop ? { opacity: 0, scale: 0.95, y: 8 } : { y: '100%' }}
-        animate={isDesktop ? { opacity: 1, scale: 1, y: 0 } : { y: 0 }}
-        exit={isDesktop ? { opacity: 0, scale: 0.95, y: 8 } : { y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-        className="relative z-[160] w-full md:w-[420px] bg-surface-container-lowest rounded-t-2xl md:rounded-2xl overflow-hidden flex flex-col shadow-2xl"
-        style={{ maxHeight: '90dvh' }}
+        initial={{
+          top: productRect.top,
+          left: productRect.left,
+          width: productRect.width,
+          height: productRect.height,
+          scale: 1,
+        }}
+        animate={{ top: safeTop, height: CLONE_HEIGHT, scale }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed z-[160] bg-surface-container rounded-lg overflow-hidden flex flex-col border border-outline-variant/20 shadow-2xl pointer-events-none origin-top"
       >
-        {/* Product image */}
-        <div className="relative w-full h-52 flex-shrink-0 bg-surface-container overflow-hidden">
+        {/* Image — flex-shrink-0 so it always occupies its height */}
+        <div className="w-full h-[140px] flex-shrink-0 relative overflow-hidden bg-surface-container-lowest flex items-center justify-center">
           {product.image ? (
-            <img
-              src={product.image}
-              alt={product.name}
-              className="w-full h-full object-cover"
-            />
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="material-symbols-outlined text-7xl text-outline-variant/30">restaurant</span>
-            </div>
+            <span className="material-symbols-outlined text-5xl text-outline-variant/30 absolute">restaurant</span>
           )}
-          {/* Gradient so text below reads well */}
-          <div className="absolute inset-0 bg-gradient-to-t from-surface-container-lowest/80 via-transparent to-transparent pointer-events-none" />
           {product.tags?.includes('Chef Choice') && (
-            <div className="absolute top-3 left-3">
+            <div className="absolute top-2 left-2">
               <span className="bg-secondary text-on-secondary text-[8px] font-headline font-bold uppercase tracking-micro px-1.5 py-0.5 rounded-sm">
                 Chef Choice
               </span>
             </div>
           )}
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-          {/* Drag handle (mobile only hint) */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/40 md:hidden pointer-events-none" />
         </div>
 
-        {/* Name + price + description */}
-        <div className="px-5 pt-4 pb-3 flex-shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="font-headline font-bold text-xl text-on-surface leading-tight flex-1">{product.name}</h3>
-            <span className="font-headline font-bold text-primary text-lg flex-shrink-0">{formatCurrency(currentPrice)}</span>
+        {/* Info */}
+        <div className="flex-1 p-3 flex flex-col justify-between overflow-hidden">
+          <div>
+            <h3 className="font-headline font-bold text-sm text-on-surface leading-tight line-clamp-2 mb-0.5">
+              {product.name}
+            </h3>
+            <span className="font-headline font-bold text-primary text-sm">
+              {formatCurrency(currentPrice)}
+            </span>
           </div>
-          {product.description && (
-            <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">{product.description}</p>
-          )}
-          {product.stockLevel && (
-            <span className={`mt-2 inline-flex items-center gap-1.5 text-[9px] font-headline font-bold uppercase tracking-micro ${
+          <div className="flex justify-between items-end mt-auto">
+            <span className={`text-[9px] font-headline font-bold uppercase tracking-micro flex items-center gap-1.5 ${
               product.stockLevel === 'Low' ? 'text-error' : 'text-tertiary'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${product.stockLevel === 'Low' ? 'bg-error' : 'bg-tertiary'}`} />
-              {product.stockLevel === 'Low' ? 'Low Stock' : 'In Stock'}
+              <span className="hidden sm:inline">{product.stockLevel === 'Low' ? 'Low Stock' : 'In Stock'}</span>
             </span>
+            <button className="w-8 h-8 rounded bg-primary-container text-primary flex items-center justify-center shadow-sm">
+              <span className="material-symbols-outlined text-lg">add</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Options + description panel */}
+      <motion.div
+        initial={{ opacity: 0, y: isDesktop ? 0 : -20, x: isDesktop ? (transformOrigin === 'right top' ? 20 : -20) : 0, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+        exit={{ opacity: 0, y: isDesktop ? 0 : -20, x: isDesktop ? (transformOrigin === 'right top' ? 20 : -20) : 0, scale: 0.95 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300, delay: 0.05 }}
+        style={{ position: 'fixed', top: menuTop, left: menuLeft, width: menuWidth, transformOrigin }}
+        className="z-[160] bg-surface-container-lowest rounded-xl shadow-2xl border border-outline-variant/20 overflow-hidden flex flex-col"
+      >
+        <div className="p-4 overflow-y-auto max-h-[55vh] space-y-4">
+          {/* Description — always shown */}
+          {product.description && (
+            <p className="text-xs text-on-surface-variant leading-relaxed border-b border-outline-variant/10 pb-4">
+              {product.description}
+            </p>
+          )}
+
+          {/* Variations */}
+          {product.variations && product.variations.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
+                <span className="material-symbols-outlined text-primary text-sm">settings_input_component</span>
+                <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">Size / Style</span>
+              </div>
+              {product.variations.map(group => (
+                <div key={group.id}>
+                  <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">{group.name}</h4>
+                  <div className="flex flex-col gap-2">
+                    {group.options.map(option => {
+                      const isSelected = selectedVariations[group.id]?.id === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => onSelectVariation(group.id, option)}
+                          className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                              : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
+                          }`}
+                        >
+                          <span className="font-bold text-sm">{option.name}</span>
+                          <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-primary/60'}`}>
+                            {formatCurrency(option.price || 0)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Supplements */}
+          {product.supplements && product.supplements.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
+                <span className="material-symbols-outlined text-tertiary text-sm">add_circle</span>
+                <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">Extras / Supplements</span>
+              </div>
+              {product.supplements.map(group => (
+                <div key={group.id}>
+                  <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">{group.name}</h4>
+                  <div className="flex flex-col gap-2">
+                    {group.options.map(option => {
+                      const isSelected = selectedSupplements[group.id]?.id === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => onSelectSupplement(group.id, option)}
+                          className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
+                            isSelected
+                              ? 'border-tertiary bg-tertiary/10 text-tertiary shadow-sm'
+                              : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-[18px] transition-colors ${isSelected ? 'text-tertiary' : 'text-on-surface-variant/40'}`}>
+                              {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                            </span>
+                            <span className="font-bold text-sm">{option.name}</span>
+                          </div>
+                          {option.priceAdjustment ? (
+                            <span className={`text-xs font-bold ${isSelected ? 'text-tertiary' : 'text-tertiary/60'}`}>
+                              +{formatCurrency(option.priceAdjustment)}
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Options — scrollable */}
-        {hasOptions && (
-          <div className="flex-1 overflow-y-auto px-5 py-2 space-y-6 min-h-0">
-            {/* Variations */}
-            {product.variations && product.variations.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
-                  <span className="material-symbols-outlined text-primary text-sm">settings_input_component</span>
-                  <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">
-                    Size / Style
-                  </span>
-                </div>
-                {product.variations.map(group => (
-                  <div key={group.id}>
-                    <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">
-                      {group.name}
-                    </h4>
-                    <div className="flex flex-col gap-2">
-                      {group.options.map(option => {
-                        const isSelected = selectedVariations[group.id]?.id === option.id;
-                        return (
-                          <button
-                            key={option.id}
-                            onClick={() => onSelectVariation(group.id, option)}
-                            className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
-                              isSelected
-                                ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                                : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
-                            }`}
-                          >
-                            <span className="font-bold text-sm">{option.name}</span>
-                            <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-primary/60'}`}>
-                              {formatCurrency(option.price || 0)}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Supplements */}
-            {product.supplements && product.supplements.length > 0 && (
-              <div className="space-y-4 pb-2">
-                <div className="flex items-center gap-2 pb-2 border-b border-outline-variant/10">
-                  <span className="material-symbols-outlined text-tertiary text-sm">add_circle</span>
-                  <span className="text-[10px] font-headline font-bold uppercase tracking-widest text-on-surface-variant">
-                    Extras / Supplements
-                  </span>
-                </div>
-                {product.supplements.map(group => (
-                  <div key={group.id}>
-                    <h4 className="font-headline font-bold text-xs text-on-surface mb-2 tracking-wide uppercase opacity-60">
-                      {group.name}
-                    </h4>
-                    <div className="flex flex-col gap-2">
-                      {group.options.map(option => {
-                        const isSelected = selectedSupplements[group.id]?.id === option.id;
-                        return (
-                          <button
-                            key={option.id}
-                            onClick={() => onSelectSupplement(group.id, option)}
-                            className={`p-2.5 rounded-lg border text-left transition-all flex justify-between items-center ${
-                              isSelected
-                                ? 'border-tertiary bg-tertiary/10 text-tertiary shadow-sm'
-                                : 'border-outline-variant/10 bg-surface-container hover:bg-surface-container-high text-on-surface'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={`material-symbols-outlined text-[18px] transition-colors ${isSelected ? 'text-tertiary' : 'text-on-surface-variant/40'}`}>
-                                {isSelected ? 'check_box' : 'check_box_outline_blank'}
-                              </span>
-                              <span className="font-bold text-sm">{option.name}</span>
-                            </div>
-                            {option.priceAdjustment ? (
-                              <span className={`text-xs font-bold ${isSelected ? 'text-tertiary' : 'text-tertiary/60'}`}>
-                                +{formatCurrency(option.priceAdjustment)}
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Footer — confirm */}
-        <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low flex-shrink-0">
+        {/* Footer */}
+        <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low">
           <button
             onClick={onAdd}
-            className="w-full py-4 bg-primary text-on-primary rounded-xl text-sm font-bold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98]"
+            className="w-full py-4 bg-primary text-on-primary rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors shadow-lg flex items-center justify-center gap-3 active:scale-[0.98]"
           >
             <span className="material-symbols-outlined">add_shopping_cart</span>
-            Add to Cart — {formatCurrency(currentPrice)}
+            Confirm — {formatCurrency(currentPrice)}
           </button>
         </div>
       </motion.div>
