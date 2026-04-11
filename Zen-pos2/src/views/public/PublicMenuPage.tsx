@@ -1642,11 +1642,11 @@ function PublicMenuPageInner() {
   const [selectedSupplements, setSelectedSupplements] = useState<Record<string, SupplementOption>>({});
   const [productRect, setProductRect] = useState<DOMRect | null>(null);
 
-  // Cart: auto-open on desktop when first item added
+  // Cart: auto-open on desktop only when first item added
   const [cartOpen, setCartOpen] = useState(false);
   const prevCount = useRef(0);
   useEffect(() => {
-    if (itemCount > prevCount.current && prevCount.current === 0) setCartOpen(true);
+    if (itemCount > prevCount.current && prevCount.current === 0 && window.innerWidth >= 1024) setCartOpen(true);
     prevCount.current = itemCount;
   }, [itemCount]);
 
@@ -1678,7 +1678,6 @@ function PublicMenuPageInner() {
   const filtered = activeCategory === 'All' ? products : products.filter(p => p.category === activeCategory);
 
   const handleProductClick = (product: Product, e: React.MouseEvent<HTMLDivElement>) => {
-    // Check for explicit false; if undefined or true, treat as in stock.
     if (product.inStock === false) return;
 
     // Track ViewContent
@@ -1689,39 +1688,16 @@ function PublicMenuPageInner() {
       category: product.category
     }));
 
-    const hasVariations = product.variations && product.variations.length > 0;
-    const hasSupplements = product.supplements && product.supplements.length > 0;
+    // Always open the modal — pre-select first variation option if available
+    const initialVariations: Record<string, VariationOption> = {};
+    product.variations?.forEach(v => {
+      if (v.options.length > 0) initialVariations[v.id] = v.options[0];
+    });
 
-    if (hasVariations || hasSupplements) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const initialVariations: Record<string, VariationOption> = {};
-      const initialSupplements: Record<string, SupplementOption> = {};
-      
-      product.variations?.forEach(v => {
-        if (v.options.length > 0) initialVariations[v.id] = v.options[0];
-      });
-
-      setProductRect(rect);
-      setSelectedProduct(product);
-      setSelectedVariations(initialVariations);
-      setSelectedSupplements(initialSupplements);
-    } else {
-      addItem({ 
-        productId: product.id, 
-        name: product.name, 
-        price: product.price, 
-        image: product.image, 
-        quantity: 1 
-      });
-
-      // Track AddToCart
-      import('../../utils/pixel').then(p => p.trackAddToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1
-      }));
-    }
+    setProductRect(e.currentTarget.getBoundingClientRect());
+    setSelectedProduct(product);
+    setSelectedVariations(initialVariations);
+    setSelectedSupplements({});
   };
 
   const handleAddWithVariations = () => {
@@ -1784,11 +1760,11 @@ function PublicMenuPageInner() {
           </Link>
           <button
             onClick={() => setCartOpen(o => !o)}
-            className="relative flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors"
+            className="relative flex items-center gap-2 px-3 py-2.5 rounded-xl bg-primary text-on-primary hover:opacity-90 transition-opacity shadow-sm shadow-primary/30"
           >
-            <span className="material-symbols-outlined text-on-surface text-[20px]">shopping_basket</span>
+            <span className="material-symbols-outlined text-[20px]">shopping_basket</span>
             {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-tight">
+              <span className="absolute -top-1.5 -right-1.5 bg-on-primary text-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-tight border border-primary/20">
                 {itemCount}
               </span>
             )}
@@ -1861,7 +1837,7 @@ function PublicMenuPageInner() {
 
       {/* Variation modal */}
       <AnimatePresence>
-        {selectedProduct && productRect && (selectedProduct.variations || selectedProduct.supplements) && (
+        {selectedProduct && productRect && (
           <VariationModal
             product={selectedProduct}
             productRect={productRect}

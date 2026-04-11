@@ -52,7 +52,7 @@ export const ProductCard = ({
     <div
       className={`relative overflow-hidden bg-surface-container-lowest flex items-center justify-center flex-shrink-0 ${
         isHorizontal
-          ? 'w-28 h-full rounded-r-lg'
+          ? 'w-24 h-full rounded-r-lg'
           : 'w-full h-32 md:h-40 rounded-t-lg'
       }`}
     >
@@ -79,24 +79,21 @@ export const ProductCard = ({
     return (
       <div
         onClick={onClick}
-        className="group bg-surface-container rounded-lg overflow-hidden flex flex-row hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer h-28"
+        className="group bg-surface-container rounded-lg overflow-hidden flex flex-row hover:bg-surface-container-high transition-colors border border-transparent hover:border-outline-variant/20 cursor-pointer h-24"
       >
         {/* Left: image */}
         {thumbnail(true)}
         {/* Right: info */}
-        <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
-          <div>
+        <div className="flex-1 px-3 py-2.5 flex flex-col justify-between min-w-0 overflow-hidden">
+          <div className="min-w-0">
             <h3 className="font-headline font-bold text-sm text-on-surface leading-tight line-clamp-2 mb-0.5">
               {product.name}
             </h3>
             <span className="font-headline font-bold text-primary text-sm">
               {priceLabel}
             </span>
-            <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed mt-1">
-              {product.description}
-            </p>
           </div>
-          <div className="flex justify-between items-center mt-auto">
+          <div className="flex justify-between items-center flex-shrink-0">
             {stockDot}
             {addBtn}
           </div>
