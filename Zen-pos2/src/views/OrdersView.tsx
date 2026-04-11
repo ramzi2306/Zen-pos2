@@ -587,7 +587,7 @@ export const OrdersView = ({
                     onRefresh?.();
                   } catch (err: any) { console.error(err.message); }
                 }}
-                className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+                className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-sm">local_shipping</span>
                 Out for Delivery
@@ -638,7 +638,7 @@ export const OrdersView = ({
                     onRefresh?.();
                   } catch (err: any) { console.error(err.message); }
                 }}
-                className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+                className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-sm">local_shipping</span>
                 Out for Delivery
@@ -661,7 +661,7 @@ export const OrdersView = ({
                 Mark as Done
               </button>
             )}
-            {(order.status === 'Served' || order.status === 'Done' || order.status === 'Packaging') && !order.review && (
+            {(order.status === 'Out for delivery' || (order.status === 'Packaging' && order.orderType !== 'delivery')) && !order.review && (
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
