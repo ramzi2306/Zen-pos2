@@ -7,6 +7,8 @@ import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, S
 import QRCode from 'react-qr-code';
 import * as api from '../api';
 import type { IngredientItem, PurchaseLog } from '../api/inventory';
+import { DEFAULT_BRANDING } from '../api/settings';
+import type { BrandingData } from '../api/settings';
 import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
 import type { SoundConfig } from '../utils/sounds';
 import { useLocalization, CURRENCY_SYMBOLS } from '../context/LocalizationContext';
@@ -5185,8 +5187,8 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
 export const SettingsView = ({ currentSetting, hasPermission, branding: appBranding, onBrandingUpdate, currentUser, onUserUpdate }: {
   currentSetting: string;
   hasPermission: (p: Permission) => boolean;
-  branding?: import('../api/settings').BrandingData;
-  onBrandingUpdate?: (b: import('../api/settings').BrandingData) => void;
+  branding?: BrandingData;
+  onBrandingUpdate?: (b: BrandingData) => void;
   currentUser?: User;
   onUserUpdate?: (u: User) => void;
 }) => {
@@ -5259,24 +5261,16 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       .then(setAttendanceReport)
       .catch(console.error);
   }, [currentSetting, hrDateRange]);
-  const [branding, setBranding] = useState(() => appBranding ?? {
-    restaurantName: 'Omakase POS',
-    metaTitle: '',
-    logo: '',
-    primaryColor: '#C0C7D4',
-    secondaryColor: '#FFB4A5',
-    accentColor: '#9DD761',
-    compactLayout: true,
-    showItemizedTax: true,
-    printQrCode: false,
-    footerText: 'Thank you for dining with us',
-    phone: '',
-    email: '',
-    address: '',
-    dailySpecial: '',
-    publicMenuCardLayout: 'vertical' as 'vertical' | 'horizontal',
+  const [branding, setBranding] = useState<BrandingData>(() => {
+    // Prioritise prop from App (already fetched from API), then localStorage cache, then hardcoded defaults
+    if (appBranding) return appBranding;
+    try {
+      const cached = localStorage.getItem('zenpos_branding');
+      if (cached) return { ...DEFAULT_BRANDING, ...JSON.parse(cached) };
+    } catch {}
+    return DEFAULT_BRANDING;
   });
-  // Sync local edit state when app-level branding loads from API
+  // Keep in sync when App-level branding updates (API response arrives or external save)
   useEffect(() => { if (appBranding) setBranding(appBranding); }, [appBranding]);
   const [brandingSaving, setBrandingSaving] = useState(false);
   const [brandingSaved, setBrandingSaved] = useState(false);
@@ -5460,80 +5454,6 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     )}
                   </div>
                   
-                  {/* Tracking Image */}
-                  <div className="flex-shrink-0">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Order Tracking Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      id="tracking-image-input"
-                      onChange={async e => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        setBrandingSaving(true);
-                        try {
-                          const { url } = await api.settings.uploadFile(file);
-                          const updatedBranding = { ...branding, trackingImage: url };
-                          setBranding(updatedBranding);
-                          const saved = await api.settings.updateBranding(updatedBranding);
-                          onBrandingUpdate?.(saved);
-                          setBrandingSaved(true);
-                          setTimeout(() => setBrandingSaved(false), 2500);
-                        } catch (err: any) {
-                          console.error('Tracking image upload failed:', err);
-                          alert('Image upload failed');
-                        } finally {
-                          setBrandingSaving(false);
-                        }
-                        e.target.value = '';
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById('tracking-image-input')?.click()}
-                      disabled={brandingSaving}
-                      className={`w-48 h-48 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/30 flex items-center justify-center relative group overflow-hidden transition-colors ${brandingSaving ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-primary/40'}`}
-                    >
-                      {brandingSaving ? (
-                        <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
-                      ) : branding.trackingImage ? (
-                        <img src={branding.trackingImage} alt="Tracking" className="w-full h-full object-contain p-4" />
-                      ) : (
-                        <div className="flex flex-col items-center gap-2 text-on-surface-variant/50">
-                          <span className="material-symbols-outlined text-4xl">local_shipping</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-center">Upload Image</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                        <span className="material-symbols-outlined text-white text-2xl">photo_camera</span>
-                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">{branding.trackingImage ? 'Change' : 'Upload'}</span>
-                      </div>
-                    </button>
-                    {branding.trackingImage && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const updatedBranding = { ...branding, trackingImage: '' };
-                          setBranding(updatedBranding);
-                          setBrandingSaving(true);
-                          try {
-                            const saved = await api.settings.updateBranding(updatedBranding);
-                            onBrandingUpdate?.(saved);
-                          } catch (err: any) {
-                            console.error('Failed to remove tracking image:', err);
-                          } finally {
-                            setBrandingSaving(false);
-                          }
-                        }}
-                        className="mt-2 w-full text-[10px] font-bold uppercase tracking-widest text-error/60 hover:text-error transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
-                    <p className="text-[9px] text-on-surface-variant mt-2 max-w-[12rem] leading-relaxed">Shown on the customer order tracking page. Defaults to the built-in bag illustration.</p>
-                  </div>
-
                   <div className="flex-1">
                     <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Restaurant Name</label>
                     <input
@@ -5591,9 +5511,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Receipt Design */}
-              <div className="bg-surface-container rounded-2xl p-8 shadow-sm border border-outline-variant/10">
+            {/* Receipt Design */}
+            <div className="bg-surface-container rounded-2xl p-8 shadow-sm border border-outline-variant/10 mb-8">
                 <h3 className="text-lg font-bold font-headline mb-8 flex items-center gap-3">
                   <span className="material-symbols-outlined text-secondary">receipt_long</span> Receipt Design
                 </h3>
@@ -5622,63 +5541,6 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       />
                     </div>
 
-                    <div className="pt-4">
-                      <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Daily Specials Message</label>
-                      <p className="text-[9px] text-on-surface-variant mb-3">Displayed as a banner on the menu. Leave empty to hide the banner.</p>
-                      <textarea
-                        value={branding.dailySpecial || ''}
-                        onChange={(e) => setBranding({...branding, dailySpecial: e.target.value})}
-                        placeholder="e.g. Today's special: Kinmedai from Toyosu Market, Shima Aji nigiri. Ask your server for details."
-                        className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium h-20 resize-none"
-                      />
-                    </div>
-
-                    <div className="pt-4">
-                      <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Public Menu Card Layout</label>
-                      <p className="text-[9px] text-on-surface-variant mb-3">Choose how product cards appear in the public menu.</p>
-                      <div className="flex gap-3">
-                        {(['vertical', 'horizontal'] as const).map(opt => (
-                          <button
-                            key={opt}
-                            type="button"
-                            onClick={() => setBranding({...branding, publicMenuCardLayout: opt})}
-                            className={`flex-1 flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-colors ${branding.publicMenuCardLayout === opt ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}`}
-                          >
-                            {/* Mini preview */}
-                            {opt === 'vertical' ? (
-                              <div className="w-16 h-20 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-col bg-surface-container-lowest">
-                                <div className="h-9 bg-surface-container-high" />
-                                <div className="flex-1 p-1.5 flex flex-col justify-between">
-                                  <div className="space-y-1">
-                                    <div className="h-1.5 bg-on-surface/20 rounded w-full" />
-                                    <div className="h-1.5 bg-primary/40 rounded w-2/3" />
-                                  </div>
-                                  <div className="flex justify-end">
-                                    <div className="w-4 h-4 rounded bg-primary-container" />
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="w-16 h-20 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-row bg-surface-container-lowest">
-                                <div className="w-6 bg-surface-container-high" />
-                                <div className="flex-1 p-1.5 flex flex-col justify-between">
-                                  <div className="space-y-1">
-                                    <div className="h-1.5 bg-on-surface/20 rounded w-full" />
-                                    <div className="h-1.5 bg-primary/40 rounded w-2/3" />
-                                  </div>
-                                  <div className="flex justify-end">
-                                    <div className="w-4 h-4 rounded bg-primary-container" />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            <span className={`text-[10px] font-bold uppercase tracking-wider ${branding.publicMenuCardLayout === opt ? 'text-primary' : 'text-on-surface-variant'}`}>
-                              {opt === 'vertical' ? 'Vertical' : 'Horizontal'}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                   
                   <div className="flex-shrink-0">
@@ -5741,6 +5603,146 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 </div>
               </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Public Menu Layout */}
+              <div className="bg-surface-container rounded-2xl p-8 shadow-sm border border-outline-variant/10">
+                <h3 className="text-lg font-bold font-headline mb-2 flex items-center gap-3">
+                  <span className="material-symbols-outlined text-secondary">grid_view</span> Public Menu Layout
+                </h3>
+                <p className="text-xs text-on-surface-variant mb-8">Choose how product cards appear on the customer-facing menu.</p>
+                <div className="flex gap-4">
+                  {(['vertical', 'horizontal'] as const).map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setBranding({...branding, publicMenuCardLayout: opt})}
+                      className={`flex-1 flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-colors ${branding.publicMenuCardLayout === opt ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}`}
+                    >
+                      {opt === 'vertical' ? (
+                        <div className="w-20 h-24 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-col bg-surface-container-lowest">
+                          <div className="h-10 bg-surface-container-high" />
+                          <div className="flex-1 p-1.5 flex flex-col justify-between">
+                            <div className="space-y-1">
+                              <div className="h-1.5 bg-on-surface/20 rounded w-full" />
+                              <div className="h-1.5 bg-primary/40 rounded w-2/3" />
+                            </div>
+                            <div className="flex justify-end"><div className="w-5 h-5 rounded bg-primary-container" /></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-20 h-24 rounded-lg border border-outline-variant/30 overflow-hidden flex flex-col gap-1.5 bg-surface-container-lowest p-1.5">
+                          {[0,1].map(i => (
+                            <div key={i} className="flex-1 rounded border border-outline-variant/20 overflow-hidden flex flex-row bg-surface-container-lowest">
+                              <div className="w-7 bg-surface-container-high" />
+                              <div className="flex-1 p-1 flex flex-col justify-between">
+                                <div className="h-1 bg-on-surface/20 rounded w-full" />
+                                <div className="flex justify-end"><div className="w-3 h-3 rounded bg-primary-container" /></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${branding.publicMenuCardLayout === opt ? 'text-primary' : 'text-on-surface-variant'}`}>
+                        {opt === 'vertical' ? 'Vertical Grid' : 'Horizontal List'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-outline-variant/10">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Daily Specials Message</label>
+                  <p className="text-[9px] text-on-surface-variant mb-3">Displayed as a banner on the public menu. Leave empty to hide the banner.</p>
+                  <textarea
+                    value={branding.dailySpecial || ''}
+                    onChange={(e) => setBranding({...branding, dailySpecial: e.target.value})}
+                    placeholder="e.g. Today's special: Kinmedai from Toyosu Market, Shima Aji nigiri. Ask your server for details."
+                    className="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30 font-medium h-20 resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Order Tracking Image */}
+              <div className="bg-surface-container rounded-2xl p-8 shadow-sm border border-outline-variant/10">
+                <h3 className="text-lg font-bold font-headline mb-2 flex items-center gap-3">
+                  <span className="material-symbols-outlined text-secondary">local_shipping</span> Order Tracking Image
+                </h3>
+                <p className="text-xs text-on-surface-variant mb-8">Illustration shown on the customer order tracking page. Defaults to the built-in bag graphic.</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  id="tracking-image-input"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setBrandingSaving(true);
+                    try {
+                      const { url } = await api.settings.uploadFile(file);
+                      const updatedBranding = { ...branding, trackingImage: url };
+                      setBranding(updatedBranding);
+                      const saved = await api.settings.updateBranding(updatedBranding);
+                      onBrandingUpdate?.(saved);
+                      setBrandingSaved(true);
+                      setTimeout(() => setBrandingSaved(false), 2500);
+                    } catch (err: any) {
+                      console.error('Tracking image upload failed:', err);
+                      alert('Image upload failed');
+                    } finally {
+                      setBrandingSaving(false);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <div className="flex items-start gap-6">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('tracking-image-input')?.click()}
+                    disabled={brandingSaving}
+                    className={`w-40 h-40 flex-shrink-0 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/30 flex items-center justify-center relative group overflow-hidden transition-colors ${brandingSaving ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-primary/40'}`}
+                  >
+                    {brandingSaving ? (
+                      <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
+                    ) : branding.trackingImage ? (
+                      <img src={branding.trackingImage} alt="Tracking" className="w-full h-full object-contain p-3" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-on-surface-variant/50">
+                        <span className="material-symbols-outlined text-4xl">add_photo_alternate</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-center leading-tight">Upload<br/>Image</span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                      <span className="material-symbols-outlined text-white text-2xl">photo_camera</span>
+                      <span className="text-white text-[10px] font-bold uppercase tracking-wider">{branding.trackingImage ? 'Change' : 'Upload'}</span>
+                    </div>
+                  </button>
+                  <div className="flex-1 flex flex-col gap-3 pt-1">
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      Upload a PNG, WebP or SVG. Recommended: transparent background, square format, minimum 400×400 px.
+                    </p>
+                    {branding.trackingImage && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const updatedBranding = { ...branding, trackingImage: '' };
+                          setBranding(updatedBranding);
+                          setBrandingSaving(true);
+                          try {
+                            const saved = await api.settings.updateBranding(updatedBranding);
+                            onBrandingUpdate?.(saved);
+                          } catch (err: any) {
+                            console.error('Failed to remove tracking image:', err);
+                          } finally {
+                            setBrandingSaving(false);
+                          }
+                        }}
+                        className="self-start text-[10px] font-bold uppercase tracking-widest text-error/60 hover:text-error transition-colors"
+                      >
+                        Remove image
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </>
         )}
