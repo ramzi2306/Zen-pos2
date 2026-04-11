@@ -501,7 +501,12 @@ function AppShell() {
     return (
       <Suspense fallback={<AppSpinner />}>
         <PublicCartProvider>
-          <PublicMenuPage />
+          <Routes>
+            <Route path="/" element={<PublicMenuPage />} />
+            <Route path="/checkout" element={<PublicMenuPage />} />
+            <Route path="/history" element={<PublicMenuPage />} />
+            <Route path="/track/:token" element={<PublicMenuPage />} />
+          </Routes>
         </PublicCartProvider>
       </Suspense>
     );
