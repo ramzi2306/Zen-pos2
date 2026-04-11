@@ -185,7 +185,7 @@ def _to_out(o: OrderDocument) -> OrderOut:
         cook_id=cook_id,
         assistant_ids=assistant_ids,
         review=ReviewSchema(**o.review.model_dump()) if o.review else None,
-        tracking_token=getattr(o, "tracking_token", None),
+        tracking_token=o.tracking_token,
         created_at=getattr(o, "created_at", None),
         location_id=o.location_id,
     )

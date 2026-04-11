@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -89,6 +90,7 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
         notes=data.notes,
         is_urgent=data.is_urgent,
         location_id=location_id,
+        tracking_token=str(uuid.uuid4()),
     )
     await order.insert()
 
@@ -161,7 +163,7 @@ async def transition_status(order_id: str, new_status: str, scheduled_time: Opti
     event_type = "urgent" if order.is_urgent and new_status in ("Queued", "Preparing") else "status_update"
     
     # Trackers for this specific order
-    track_topic = f"track_{order.tracking_token}" if hasattr(order, 'tracking_token') else None
+    track_topic = f"track_{order.tracking_token}" if order.tracking_token else None
 
     await ws_manager.broadcast(event_type, {
         "order_id": str(order.id),
