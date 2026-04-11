@@ -627,6 +627,23 @@ export const OrdersView = ({
                 Mark as Done
               </button>
             )}
+            {/* Delivery: after Packaging → Out for delivery */}
+            {order.status === 'Packaging' && order.orderType === 'delivery' && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await api.orders.updateOrderStatus(order.id, 'Out for delivery');
+                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
+                    onRefresh?.();
+                  } catch (err: any) { console.error(err.message); }
+                }}
+                className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-sm">local_shipping</span>
+                Out for Delivery
+              </button>
+            )}
             {/* Takeaway: after Packaging → Done */}
             {order.status === 'Packaging' && order.orderType === 'takeaway' && (
               <button

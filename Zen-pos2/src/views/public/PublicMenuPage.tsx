@@ -282,6 +282,10 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [placed, setPlacedState] = useState<publicApi.CreateOrderResponse | null>(ui.placedOrder ? { orderId: ui.placedOrder.orderId, orderNumber: ui.placedOrder.orderNumber, trackingToken: ui.placedOrder.trackingToken } : null);
   const [cartSnapshot, setCartSnapshotState] = useState<PublicCartItem[]>(ui.placedOrder?.items || []);
   const [firebaseActive, setFirebaseActive] = useState(false);
+  // Checkout order-type state
+  const [checkoutOrderType, setCheckoutOrderType] = useState<'pickup' | 'delivery'>('delivery');
+  const [pickupMode, setPickupMode] = useState<'now' | 'later'>('later');
+  const [pickupTime, setPickupTime] = useState('');
 
   const setPlaced = (p: publicApi.CreateOrderResponse | null, items?: PublicCartItem[]) => {
     setPlacedState(p);
@@ -510,7 +514,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = 'Required';
     if (!phone.trim()) e.phone = 'Required';
-    if (!address.trim()) e.address = 'Required';
+    if (checkoutOrderType === 'delivery' && !address.trim()) e.address = 'Required';
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -520,9 +524,17 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     setSubmitting(true); setServerError('');
     try {
       const snap = [...items];
+      const pickupPrefix = checkoutOrderType === 'pickup'
+        ? pickupMode === 'now' ? '[Pickup: Now] ' : pickupTime ? `[Pickup: ${pickupTime}] ` : '[Pickup] '
+        : '';
       const result = await publicApi.createOnlineOrder({
         items: items,
-        customer: { name, phone, address, note },
+        customer: {
+          name,
+          phone,
+          address: checkoutOrderType === 'delivery' ? address : '',
+          note: `${pickupPrefix}${note}`.trim(),
+        },
       });
       // Persist customer session for future visits
       saveCustomerSession({ phone: phone.trim(), name: name.trim(), address: address.trim(), customerId: foundCustomer?.id, savedAt: Date.now() });
@@ -819,37 +831,148 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
             {/* Step 3 — Details + submit */}
             {checkoutStep === 'details' && (
               <motion.div key="step-details" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col">
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-                  {/* Confirmed phone row */}
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+
+                  {/* ── Confirmed phone ── */}
                   <div className="flex items-center gap-3 bg-surface-container border border-outline-variant/10 rounded-2xl px-4 py-3">
                     <span className="material-symbols-outlined text-tertiary text-[18px] fill-1">check_circle</span>
                     <span className="text-sm text-on-surface flex-1">{phone}</span>
                     <button onClick={() => setCheckoutStep('phone')} className="text-xs font-bold text-primary hover:opacity-70 transition-opacity">Change</button>
                   </div>
-                  {/* Name & address */}
-                  <div className="space-y-3">
+
+                  {/* ── Name ── */}
+                  <label className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all ${errors.name ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 focus-within:border-primary/60 focus-within:bg-surface-container-high'}`}>
+                    <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors.name ? 'text-error' : 'text-outline-variant'}`}>person</span>
+                    <input
+                      placeholder="Full Name" value={name}
+                      onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })); }}
+                      className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none"
+                    />
+                    {errors.name && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.name}</span>}
+                  </label>
+
+                  {/* ── Order type toggle ── */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
                     {([
-                      { k: 'name',    label: 'Full Name', icon: 'person',      val: name,    set: setName    },
-                      { k: 'address', label: 'Address',   icon: 'location_on', val: address, set: setAddress },
-                    ] as const).map(f => (
-                      <label key={f.k} className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all ${errors[f.k] ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 focus-within:border-primary/60 focus-within:bg-surface-container-high'}`}>
-                        <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors[f.k] ? 'text-error' : 'text-outline-variant'}`}>{f.icon}</span>
-                        <input
-                          placeholder={f.label} value={f.val}
-                          onChange={e => { f.set(e.target.value as any); setErrors(p => ({ ...p, [f.k]: '' })); }}
-                          className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none"
-                        />
-                        {errors[f.k] && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors[f.k]}</span>}
-                      </label>
+                      { type: 'pickup'   as const, label: 'Pickup',   icon: 'storefront'      },
+                      { type: 'delivery' as const, label: 'Delivery',  icon: 'delivery_dining' },
+                    ]).map(({ type, label, icon }) => (
+                      <button
+                        key={type}
+                        onClick={() => setCheckoutOrderType(type)}
+                        className={`flex items-center justify-center gap-2 py-3 rounded-2xl border-2 text-sm font-bold transition-all ${
+                          checkoutOrderType === type
+                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                            : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:border-primary/30 hover:bg-surface-container-high'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                        {label}
+                      </button>
                     ))}
-                    <label className="flex items-start gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 focus-within:bg-surface-container-high transition-all">
-                      <span className="material-symbols-outlined text-[18px] text-outline-variant mt-0.5 flex-shrink-0">sticky_note_2</span>
-                      <textarea placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)} rows={2}
-                        className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none resize-none" />
-                    </label>
                   </div>
+
+                  {/* ── Pickup fields ── */}
+                  <AnimatePresence initial={false}>
+                    {checkoutOrderType === 'pickup' && (
+                      <motion.div
+                        key="pickup-fields"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeInOut' }}
+                        className="overflow-hidden space-y-3"
+                      >
+                        {/* Now / Later quick-select */}
+                        <div>
+                          <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Pickup time</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              { mode: 'now'   as const, label: 'Now!',  icon: 'bolt'         },
+                              { mode: 'later' as const, label: 'Later', icon: 'schedule'      },
+                            ]).map(({ mode, label, icon }) => (
+                              <button
+                                key={mode}
+                                onClick={() => setPickupMode(mode)}
+                                className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-bold transition-all ${
+                                  pickupMode === mode
+                                    ? 'border-tertiary bg-tertiary/10 text-tertiary'
+                                    : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Specific time input — only when "Later" */}
+                        <AnimatePresence initial={false}>
+                          {pickupMode === 'later' && (
+                            <motion.label
+                              key="time-input"
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.18, ease: 'easeInOut' }}
+                              className="flex items-center gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 focus-within:bg-surface-container-high transition-all overflow-hidden"
+                            >
+                              <span className="material-symbols-outlined text-[18px] text-outline-variant flex-shrink-0">schedule</span>
+                              <input
+                                type="time" value={pickupTime}
+                                onChange={e => setPickupTime(e.target.value)}
+                                className="flex-1 bg-transparent text-sm text-on-surface focus:outline-none"
+                              />
+                            </motion.label>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Note */}
+                        <label className="flex items-start gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 focus-within:bg-surface-container-high transition-all">
+                          <span className="material-symbols-outlined text-[18px] text-outline-variant mt-0.5 flex-shrink-0">sticky_note_2</span>
+                          <textarea placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)} rows={2}
+                            className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none resize-none" />
+                        </label>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* ── Delivery fields ── */}
+                  <AnimatePresence initial={false}>
+                    {checkoutOrderType === 'delivery' && (
+                      <motion.div
+                        key="delivery-fields"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: 'easeInOut' }}
+                        className="overflow-hidden space-y-3"
+                      >
+                        {/* Address */}
+                        <label className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all ${errors.address ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 focus-within:border-primary/60 focus-within:bg-surface-container-high'}`}>
+                          <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors.address ? 'text-error' : 'text-outline-variant'}`}>location_on</span>
+                          <input
+                            placeholder="Delivery address" value={address}
+                            onChange={e => { setAddress(e.target.value); setErrors(p => ({ ...p, address: '' })); }}
+                            className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none"
+                          />
+                          {errors.address && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.address}</span>}
+                        </label>
+
+                        {/* Note */}
+                        <label className="flex items-start gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 focus-within:bg-surface-container-high transition-all">
+                          <span className="material-symbols-outlined text-[18px] text-outline-variant mt-0.5 flex-shrink-0">sticky_note_2</span>
+                          <textarea placeholder="Note (optional)" value={note} onChange={e => setNote(e.target.value)} rows={2}
+                            className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none resize-none" />
+                        </label>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {serverError && <div className="bg-error/10 border border-error/20 rounded-2xl px-4 py-3 text-sm text-error">{serverError}</div>}
                 </div>
+
                 <div className="flex-shrink-0 p-4 border-t border-outline-variant/10 bg-surface-container-low/60 backdrop-blur-md">
                   <button onClick={placeOrder} disabled={submitting}
                     className="w-full py-4 bg-primary text-on-primary rounded-2xl font-headline font-bold text-sm uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-2">
@@ -1062,8 +1185,8 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                         {/* Icon + bar row */}
                         <div className="flex items-center">
                           {TIMELINE.map((step, i) => {
-                            const done = i < currentStep;
-                            const active = i === currentStep;
+                            const done = isDone || i < currentStep;
+                            const active = !isDone && i === currentStep;
                             return (
                               <React.Fragment key={step.label}>
                                 <div className="flex-shrink-0 flex flex-col items-center">
@@ -1093,7 +1216,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                                     <motion.div
                                       initial={{ width: done ? '100%' : '0%' }}
                                       animate={{ width: done ? '100%' : '0%' }}
-                                      transition={{ duration: 0.8, ease: 'easeInOut' }}
+                                      transition={{ duration: 0.6, ease: 'easeInOut' }}
                                       className="h-full bg-tertiary"
                                     />
                                   </div>
