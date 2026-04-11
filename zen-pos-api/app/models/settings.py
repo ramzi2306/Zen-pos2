@@ -20,6 +20,7 @@ class BrandingDocument(Document):
     address: str = ""
     daily_special: str = ""
     public_menu_card_layout: str = "vertical"  # "vertical" | "horizontal"
+    tracking_image: str = ""  # custom order tracking page illustration URL
 
     class Settings:
         name = "settings"

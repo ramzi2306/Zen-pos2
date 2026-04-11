@@ -16,6 +16,7 @@ export interface BrandingData {
   address: string;
   dailySpecial: string;
   publicMenuCardLayout: 'vertical' | 'horizontal';
+  trackingImage: string;
 }
 
 export interface LocalizationData {
@@ -82,6 +83,7 @@ export const DEFAULT_BRANDING: BrandingData = {
   address: '',
   dailySpecial: '',
   publicMenuCardLayout: 'vertical',
+  trackingImage: '',
 };
 
 function mapBranding(raw: any): BrandingData {
@@ -101,6 +103,7 @@ function mapBranding(raw: any): BrandingData {
     address:        raw.address         ?? DEFAULT_BRANDING.address,
     dailySpecial:          raw.daily_special            ?? '',
     publicMenuCardLayout:  raw.public_menu_card_layout  ?? 'vertical',
+    trackingImage:         raw.tracking_image           ?? '',
   };
 }
 
@@ -180,6 +183,7 @@ export async function updateBranding(data: Partial<BrandingData>): Promise<Brand
     ['address',        'address'],
     ['dailySpecial',          'daily_special'],
     ['publicMenuCardLayout',  'public_menu_card_layout'],
+    ['trackingImage',         'tracking_image'],
   ];
   const payload: Record<string, any> = {};
   for (const [camel, snake] of keyMap) {

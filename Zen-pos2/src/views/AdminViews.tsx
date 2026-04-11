@@ -5460,6 +5460,80 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     )}
                   </div>
                   
+                  {/* Tracking Image */}
+                  <div className="flex-shrink-0">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Order Tracking Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      id="tracking-image-input"
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setBrandingSaving(true);
+                        try {
+                          const { url } = await api.settings.uploadFile(file);
+                          const updatedBranding = { ...branding, trackingImage: url };
+                          setBranding(updatedBranding);
+                          const saved = await api.settings.updateBranding(updatedBranding);
+                          onBrandingUpdate?.(saved);
+                          setBrandingSaved(true);
+                          setTimeout(() => setBrandingSaved(false), 2500);
+                        } catch (err: any) {
+                          console.error('Tracking image upload failed:', err);
+                          alert('Image upload failed');
+                        } finally {
+                          setBrandingSaving(false);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('tracking-image-input')?.click()}
+                      disabled={brandingSaving}
+                      className={`w-48 h-48 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/30 flex items-center justify-center relative group overflow-hidden transition-colors ${brandingSaving ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:border-primary/40'}`}
+                    >
+                      {brandingSaving ? (
+                        <span className="material-symbols-outlined text-4xl animate-spin text-primary">sync</span>
+                      ) : branding.trackingImage ? (
+                        <img src={branding.trackingImage} alt="Tracking" className="w-full h-full object-contain p-4" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-on-surface-variant/50">
+                          <span className="material-symbols-outlined text-4xl">local_shipping</span>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-center">Upload Image</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                        <span className="material-symbols-outlined text-white text-2xl">photo_camera</span>
+                        <span className="text-white text-[10px] font-bold uppercase tracking-wider">{branding.trackingImage ? 'Change' : 'Upload'}</span>
+                      </div>
+                    </button>
+                    {branding.trackingImage && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const updatedBranding = { ...branding, trackingImage: '' };
+                          setBranding(updatedBranding);
+                          setBrandingSaving(true);
+                          try {
+                            const saved = await api.settings.updateBranding(updatedBranding);
+                            onBrandingUpdate?.(saved);
+                          } catch (err: any) {
+                            console.error('Failed to remove tracking image:', err);
+                          } finally {
+                            setBrandingSaving(false);
+                          }
+                        }}
+                        className="mt-2 w-full text-[10px] font-bold uppercase tracking-widest text-error/60 hover:text-error transition-colors"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <p className="text-[9px] text-on-surface-variant mt-2 max-w-[12rem] leading-relaxed">Shown on the customer order tracking page. Defaults to the built-in bag illustration.</p>
+                  </div>
+
                   <div className="flex-1">
                     <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Restaurant Name</label>
                     <input
