@@ -818,9 +818,15 @@ function AppShell() {
                 </p>
               </div>
               {/* Verify button */}
-              <div className="px-3 pb-3">
                 <button
-                  onClick={() => setVerifyCardOrder(order)}
+                  onClick={() => {
+                    setVerifyCardOrder(order);
+                    setRecentlyUpdatedIds(prev => {
+                      const next = new Set(prev);
+                      next.delete(order.id);
+                      return next;
+                    });
+                  }}
                   className="w-full py-2 bg-primary text-on-primary rounded-xl text-[11px] font-bold uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/30"
                 >
                   <span className="material-symbols-outlined text-sm">call</span>

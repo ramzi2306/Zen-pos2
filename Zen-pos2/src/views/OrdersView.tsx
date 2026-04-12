@@ -565,6 +565,7 @@ export const OrdersView = ({
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   setCookMenuRect(e.currentTarget.getBoundingClientRect());
                   setSelectedOrder(order);
                 }}
@@ -579,6 +580,7 @@ export const OrdersView = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                    onClearRecentlyUpdated?.(order.id);
                     setAssistMenuRect(e.currentTarget.getBoundingClientRect());
                     setSelectedOrder(order);
                   }}
@@ -590,6 +592,7 @@ export const OrdersView = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                    onClearRecentlyUpdated?.(order.id);
                     handleOrderServed(order);
                   }}
                   className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
@@ -688,6 +691,7 @@ export const OrdersView = ({
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   setReviewModalOrder(order);
                 }}
                 className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
@@ -719,7 +723,11 @@ export const OrdersView = ({
             {/* Online order — Verification button */}
             {order.status === 'Verification' && (
               <button
-                onClick={(e) => { e.stopPropagation(); setCallCustomerOrder(order); }}
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  onClearRecentlyUpdated?.(order.id);
+                  setCallCustomerOrder(order); 
+                }}
                 className="w-full py-2.5 bg-amber-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-sm">verified_user</span>
