@@ -1293,6 +1293,15 @@ export const OrdersView = ({
                   <div>
                     <h3 className="font-headline text-xl font-bold text-on-surface">Verify Order</h3>
                     <p className="text-xs text-on-surface-variant mt-0.5">{callCustomerOrder.orderNumber} · Online Verification</p>
+                    {callCustomerOrder.createdAt && (
+                      <p className="text-xs text-on-surface-variant/60 mt-0.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">schedule</span>
+                        {new Date(callCustomerOrder.createdAt).toLocaleString('en-US', {
+                          month: 'short', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    )}
                   </div>
                 </div>
 
