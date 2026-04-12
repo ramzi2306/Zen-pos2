@@ -43,7 +43,13 @@ function AppShell() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [branding, setBranding] = useState<BrandingData>(DEFAULT_BRANDING);
+  const [branding, setBranding] = useState<BrandingData>(() => {
+    try {
+      const cached = localStorage.getItem('zenpos_branding');
+      if (cached) return { ...DEFAULT_BRANDING, ...JSON.parse(cached) };
+    } catch {}
+    return DEFAULT_BRANDING;
+  });
   const [locations, setLocations] = useState<import('./api/locations').Location[]>([]);
   // Admin/owner can switch active location filter; null = see all
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
@@ -341,12 +347,12 @@ function AppShell() {
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch orders when admin switches location filter — use ref so stale closure never captures old users array
+  // Re-fetch orders when admin switches location filter or logs in
   useEffect(() => {
-    if (!currentUser || !hasPermission('view_orders')) return;
+    if (!currentUser || !currentUser.permissions.includes('view_orders')) return;
     const today = new Date().toISOString().split('T')[0];
     api.orders.listOrders(usersRef.current, today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
-  }, [activeLocationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeLocationId, currentUser]);
 
   // Repeat new-order sound every 30 s while unverified online orders exist
   const pendingVerificationOrders = orders.filter(o => o.status === 'Verification');

@@ -83,10 +83,11 @@ export const OrdersView = ({
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // If it was 'today' or 'yesterday', we should use the CURRENT today/yesterday
         if (parsed.type === 'today') return { type: 'today', date: today };
         if (parsed.type === 'yesterday') return { type: 'yesterday', date: yesterday };
         if (parsed.type === 'week') return { type: 'week', start: lastWeek, end: today };
+        // Prevent empty date filters from showing all orders
+        if (parsed.type === 'custom' && !parsed.date) return { type: 'today', date: today };
         return parsed;
       } catch {
         return { type: 'today', date: today };
@@ -217,6 +218,7 @@ export const OrdersView = ({
   const handleOrderClick = (order: Order, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
     onClearRecentlyUpdated?.(order.id);
     if (order.status === 'Draft' && order.id === 'Current Cart') {
       if (onEditOrder) onEditOrder(order);
@@ -593,6 +595,7 @@ export const OrdersView = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   onClearRecentlyUpdated?.(order.id);
+                  onClearRecentlyUpdated?.(order.id);
                   setCookMenuRect(e.currentTarget.getBoundingClientRect());
                   setSelectedOrder(order);
                 }}
@@ -607,6 +610,7 @@ export const OrdersView = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                     onClearRecentlyUpdated?.(order.id);
                     setAssistMenuRect(e.currentTarget.getBoundingClientRect());
                     setSelectedOrder(order);
@@ -619,6 +623,7 @@ export const OrdersView = ({
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                     onClearRecentlyUpdated?.(order.id);
                     handleOrderServed(order);
                   }}
@@ -634,6 +639,7 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   onClearRecentlyUpdated?.(order.id);
                   // Load agents and show picker
                   try {
@@ -653,6 +659,7 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
@@ -670,6 +677,7 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
@@ -688,6 +696,7 @@ export const OrdersView = ({
                 onClick={async (e) => {
                   e.stopPropagation();
                   onClearRecentlyUpdated?.(order.id);
+                  onClearRecentlyUpdated?.(order.id);
                   try {
                     const agents = await api.delivery.listAgents();
                     setDeliveryAgents(agents);
@@ -705,6 +714,7 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
@@ -721,6 +731,7 @@ export const OrdersView = ({
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   onClearRecentlyUpdated?.(order.id);
                   setReviewModalOrder(order);
                 }}
@@ -754,7 +765,8 @@ export const OrdersView = ({
             {order.status === 'Verification' && (
               <button
                 onClick={(e) => { 
-                  e.stopPropagation(); 
+                  e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id); 
                   onClearRecentlyUpdated?.(order.id);
                   setCallCustomerOrder(order); 
                 }}
@@ -866,7 +878,10 @@ export const OrdersView = ({
                 type="date"
                 value={dateFilter.date || ''}
                 max={today}
-                onChange={e => setDateFilter({ type: 'custom', date: e.target.value })}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setDateFilter(newDate ? { type: 'custom', date: newDate } : { type: 'today', date: today });
+                }}
                 className="bg-transparent text-xs font-bold text-on-surface focus:outline-none"
               />
               {dateFilter.type !== 'today' && (
@@ -1689,11 +1704,11 @@ export const OrdersView = ({
                           const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
                           return (
                             <div key={i}>
-                              <div className="flex justify-between">
+                              <div className="flex justify-between font-bold text-[13px]">
                                 <span>{item.quantity}x {item.name}</span>
                                 <span className="ml-2 whitespace-nowrap">{formatCurrency(lineTotal)}</span>
                               </div>
-                              {noteStr && <div className="pl-4 text-[11px] font-bold text-black">{noteStr}</div>}
+                              {noteStr && <div className="pl-4 text-[13px] font-black uppercase text-black">{noteStr}</div>}
                             </div>
                           );
                         })}
@@ -1702,7 +1717,7 @@ export const OrdersView = ({
                       {receiptModal.notes && (
                         <>
                           <div className="px-4"><Sep /></div>
-                          <div className="px-4 text-[12px] font-bold text-black">Note: {receiptModal.notes}</div>
+                          <div className="px-4 text-[14px] font-black uppercase text-black">Note: {receiptModal.notes}</div>
                         </>
                       )}
 

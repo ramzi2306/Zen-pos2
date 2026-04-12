@@ -15,12 +15,12 @@ import { saveMockCustomer } from '../../api/customers';
 import type { Product, VariationOption, SupplementOption, PublicCartItem, PublicTrackingInfo, PublicOrder } from '../../data';
 import orderBagIcon from '../../assets/order-bag.webp';
 import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
-import { checkOpeningHours, DEFAULT_OPENING_HOURS } from '../../api/settings';
+import { checkOpeningHours, DEFAULT_OPENING_HOURS, DEFAULT_BRANDING } from '../../api/settings';
 import type { OpeningHours } from '../../api/settings';
 
 function getBranding() {
-  try { const b = localStorage.getItem('zenpos_branding'); if (b) return JSON.parse(b); } catch {}
-  return {};
+  try { const b = localStorage.getItem('zenpos_branding'); if (b) return { ...DEFAULT_BRANDING, ...JSON.parse(b) }; } catch {}
+  return DEFAULT_BRANDING;
 }
 
 const CUSTOMER_SESSION_KEY = 'zenpos_public_customer';
@@ -487,9 +487,10 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   useEffect(() => {
     if (tracking?.status === 'Done') {
       clearCart();
-      setUi({ view: 'cart' });
+      resetUi();
+      navigate('/');
     }
-  }, [tracking?.status, clearCart, setUi]);
+  }, [tracking?.status, clearCart, resetUi, navigate]);
 
   const reset = () => {
     resetUi();
@@ -1695,7 +1696,8 @@ function FloatingCartButton({ onOpen }: { onOpen: () => void }) {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 function PublicMenuPageInner() {
-  const { addItem, itemCount } = usePublicCart();
+  const navigate = useNavigate();
+  const { addItem, itemCount, setUi } = usePublicCart();
   const branding = getBranding();
   const restaurantName: string = branding.restaurantName || 'Our Restaurant';
   const restaurantLogo: string = branding.logo || '';
@@ -1815,6 +1817,8 @@ function PublicMenuPageInner() {
       selectedSupplements: publicSupplements,
     });
     setCartOpen(true);
+    setUi({ view: 'cart' });
+    navigate('/', { replace: true });
 
     // Track AddToCart
     import('../../utils/pixel').then(p => p.trackAddToCart({

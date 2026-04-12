@@ -126,8 +126,8 @@ export interface IntegrationData {
 }
 
 export const DEFAULT_BRANDING: BrandingData = {
-  restaurantName: 'Omakase POS',
-  metaTitle: '',
+  restaurantName: 'ZenPOS',
+  metaTitle: 'ZenPOS',
   logo: '',
   primaryColor: '#C0C7D4',
   secondaryColor: '#FFB4A5',
