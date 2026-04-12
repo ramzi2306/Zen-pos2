@@ -107,9 +107,11 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
   };
 }
 
-export async function listOrders(users: User[] = [], date?: string, locationId?: string): Promise<Order[]> {
+export async function listOrders(users: User[] = [], date?: string, locationId?: string, startDate?: string, endDate?: string): Promise<Order[]> {
   const params = new URLSearchParams();
   if (date) params.set('date', date);
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
   if (locationId) params.set('location_id', locationId);
   const qs = params.toString();
   const url = `/orders/${qs ? '?' + qs : ''}`;

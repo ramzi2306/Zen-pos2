@@ -324,23 +324,25 @@ function AppShell() {
     const canOrders = hasPermission('view_orders');
     const canStaff  = hasPermission('view_staff');
 
+    const today = new Date().toISOString().split('T')[0];
     if (canStaff) {
       api.users.listUsers().then(u => {
         setUsers(u);
         if (canOrders) {
-          api.orders.listOrders(u, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+          api.orders.listOrders(u, today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
         }
       }).catch(console.error);
     } else if (canOrders) {
       // No staff permission — fetch orders directly (users array stays empty)
-      api.orders.listOrders([], undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+      api.orders.listOrders([], today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch orders when admin switches location filter — use ref so stale closure never captures old users array
   useEffect(() => {
     if (!currentUser || !hasPermission('view_orders')) return;
-    api.orders.listOrders(usersRef.current, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+    const today = new Date().toISOString().split('T')[0];
+    api.orders.listOrders(usersRef.current, today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
   }, [activeLocationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Repeat new-order sound every 30 s while unverified online orders exist
@@ -560,8 +562,8 @@ function AppShell() {
     setOrders(prev => [newOrder, ...prev]);
   };
 
-  const refreshOrders = () => {
-    api.orders.listOrders(users, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+  const refreshOrders = (date?: string, startDate?: string, endDate?: string) => {
+    api.orders.listOrders(users, date, activeLocationId ?? undefined, startDate, endDate).then(setOrders).catch(console.error);
   };
 
   // ── Public ordering routes (no auth required) ─────────────────────────────────

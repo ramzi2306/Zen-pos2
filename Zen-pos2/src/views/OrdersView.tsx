@@ -63,14 +63,42 @@ export const OrdersView = ({
   cart: CartItem[],
   onEditOrder?: (order: Order) => void,
   users?: User[],
-  onRefresh?: () => void,
+  onRefresh?: (date?: string, start?: string, end?: string) => void,
   branding?: BrandingData,
   recentlyUpdatedIds?: Set<string>,
   onClearRecentlyUpdated?: (id: string) => void,
 }) => {
   const { formatCurrency, localization } = useLocalization();
   const today = new Date().toISOString().split('T')[0];
-  const [selectedDate, setSelectedDate] = useState(today);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const lastWeek = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+
+  const [dateFilter, setDateFilter] = useState<{
+    type: 'today' | 'yesterday' | 'week' | 'custom';
+    date?: string;
+    start?: string;
+    end?: string;
+  }>(() => {
+    const saved = localStorage.getItem('zenpos_orders_date_filter');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // If it was 'today' or 'yesterday', we should use the CURRENT today/yesterday
+        if (parsed.type === 'today') return { type: 'today', date: today };
+        if (parsed.type === 'yesterday') return { type: 'yesterday', date: yesterday };
+        if (parsed.type === 'week') return { type: 'week', start: lastWeek, end: today };
+        return parsed;
+      } catch {
+        return { type: 'today', date: today };
+      }
+    }
+    return { type: 'today', date: today };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('zenpos_orders_date_filter', JSON.stringify(dateFilter));
+  }, [dateFilter]);
+
   const [statusFilter, setStatusFilter] = useState<string>('active');
 
   const FILTER_TABS: { key: string; label: string; statuses: Order['status'][] }[] = [
@@ -97,8 +125,10 @@ export const OrdersView = ({
   const [callCustomerLoading, setCallCustomerLoading] = useState<'queue' | 'cancel' | null>(null);
 
   useEffect(() => {
-    api.orders.listOrders(users, selectedDate).then(setOrders).catch(console.error);
-  }, [selectedDate]);
+    api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end)
+      .then(setOrders)
+      .catch(console.error);
+  }, [dateFilter, users]);
 
   // Keep a ref so the interval callback always sees current orders without being recreated on every change
   const ordersRef = useRef(orders);
@@ -130,7 +160,7 @@ export const OrdersView = ({
 
   // Listen for new online orders arriving from the storefront (WebSocket + storage)
   useEffect(() => {
-    const refetch = () => api.orders.listOrders(users, selectedDate).then(setOrders).catch(() => {});
+    const refetch = () => api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end).then(setOrders).catch(() => {});
     const onStorage = (e: StorageEvent) => { if (e.key === 'zenpos_mock_online_orders') refetch(); };
 
     window.addEventListener('storage', onStorage);
@@ -140,7 +170,7 @@ export const OrdersView = ({
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('zenpos:new_order', refetch as EventListener);
     };
-  }, [selectedDate, users, setOrders]);
+  }, [dateFilter, users, setOrders]);
 
 
   const getValidTransitions = (order: Order): Order['status'][] => {
@@ -220,7 +250,7 @@ export const OrdersView = ({
       const merged = { ...updated, endTime: selectedOrder.status === 'Preparing' ? Date.now() : updated.endTime };
       setOrders(prev => prev.map(o => o.id === selectedOrder.id ? merged : o));
       setSelectedOrder(merged);
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) {
       console.error('Status update failed:', err.message);
     } finally {
@@ -236,7 +266,7 @@ export const OrdersView = ({
       setOrders(prev => prev.map(o => o.id === selectedOrder.id ? updated : o));
       setSelectedOrder(updated);
       setPendingScheduled(false);
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) {
       console.error('Schedule update failed:', err.message);
     } finally {
@@ -251,7 +281,7 @@ export const OrdersView = ({
       const updated = await api.orders.updateOrderPayment(selectedOrder.id, status);
       setOrders(prev => prev.map(o => o.id === selectedOrder.id ? updated : o));
       setSelectedOrder(updated);
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) {
       console.error('Payment update failed:', err.message);
     } finally {
@@ -317,7 +347,7 @@ export const OrdersView = ({
             ? { ...o, status: 'Cancelled' as Order['status'] }
             : o
         ));
-        onRefresh?.();
+        onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
       } catch (err: any) {
         console.error('Cancel order failed:', err.message);
       }
@@ -350,7 +380,7 @@ export const OrdersView = ({
       const updated = await api.orders.assignCook(orderId, cook.id, users);
       await api.orders.updateOrderStatus(orderId, 'Preparing');
       setOrders(prev => prev.map(o => o.id === orderId ? { ...updated, status: 'Preparing', startTime: Date.now(), cook } : o));
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) { console.error(err.message); }
     setCookMenuRect(null);
   };
@@ -359,7 +389,7 @@ export const OrdersView = ({
     try {
       const updated = await api.orders.assignAssistant(orderId, assistant.id, users);
       setOrders(prev => prev.map(o => o.id === orderId ? { ...updated, assistants: [...(o.assistants || []), assistant] } : o));
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) { console.error(err.message); }
     setAssistMenuRect(null);
   };
@@ -369,7 +399,7 @@ export const OrdersView = ({
     try {
       await api.orders.updateOrderStatus(order.id, nextStatus);
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: nextStatus, endTime: o.status === 'Preparing' ? Date.now() : o.endTime } : o));
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) { console.error(err.message); }
   };
 
@@ -392,7 +422,7 @@ export const OrdersView = ({
       const newStatus = action === 'queue' ? 'Queued' : 'Cancelled';
       const updated = await api.orders.updateOrderStatus(callCustomerOrder.id, newStatus);
       setOrders(prev => prev.map(o => o.id === callCustomerOrder!.id ? updated : o));
-      onRefresh?.();
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
       setCallCustomerOrder(null);
     } catch (err: any) { 
       console.error(`${action === 'queue' ? 'Queue' : 'Cancel'} failed:`, err.message);
@@ -577,7 +607,7 @@ export const OrdersView = ({
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Out for delivery');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
-                    onRefresh?.();
+                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
                   } catch (err: any) { console.error(err.message); }
                 }}
                 className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
@@ -594,7 +624,7 @@ export const OrdersView = ({
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
-                    onRefresh?.();
+                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
                   } catch (err: any) { console.error(err.message); }
                 }}
                 className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
@@ -611,7 +641,7 @@ export const OrdersView = ({
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
-                    onRefresh?.();
+                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
                   } catch (err: any) { console.error(err.message); }
                 }}
                 className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
@@ -628,7 +658,7 @@ export const OrdersView = ({
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Out for delivery');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
-                    onRefresh?.();
+                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
                   } catch (err: any) { console.error(err.message); }
                 }}
                 className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
@@ -645,7 +675,7 @@ export const OrdersView = ({
                   try {
                     await api.orders.updateOrderStatus(order.id, 'Done');
                     setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Done' as Order['status'] } : o));
-                    onRefresh?.();
+                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
                   } catch (err: any) { console.error(err.message); }
                 }}
                 className="flex-1 py-2 bg-[#8bc34a] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-[#7cb342] transition-colors flex items-center justify-center gap-1.5"
@@ -772,21 +802,41 @@ export const OrdersView = ({
             })}
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 p-1 bg-surface-container-highest/30 rounded-lg mr-2 border border-outline-variant/10">
+              {[
+                { label: 'Today', type: 'today', d: today },
+                { label: 'Yesterday', type: 'yesterday', d: yesterday },
+                { label: 'Past Week', type: 'week', s: lastWeek, e: today },
+              ].map(s => (
+                <button
+                  key={s.label}
+                  onClick={() => setDateFilter(s.type === 'week' ? { type: 'week', start: s.s, end: s.e } : { type: s.type as any, date: s.d })}
+                  className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${
+                    dateFilter.type === s.type
+                      ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20'
+                      : 'text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex items-center gap-2 bg-surface-container rounded-lg px-3 py-2 border border-outline-variant/20">
               <span className="material-symbols-outlined text-[18px] text-on-surface-variant">calendar_today</span>
               <input
                 type="date"
-                value={selectedDate}
+                value={dateFilter.date || ''}
                 max={today}
-                onChange={e => setSelectedDate(e.target.value)}
+                onChange={e => setDateFilter({ type: 'custom', date: e.target.value })}
                 className="bg-transparent text-xs font-bold text-on-surface focus:outline-none"
               />
-              {selectedDate !== today && (
+              {dateFilter.type !== 'today' && (
                 <button
-                  onClick={() => setSelectedDate(today)}
-                  className="text-primary text-[10px] font-bold hover:underline ml-1"
+                  onClick={() => setDateFilter({ type: 'today', date: today })}
+                  className="text-primary text-[10px] font-bold hover:underline ml-1 uppercase"
                 >
-                  Today
+                  Reset
                 </button>
               )}
             </div>

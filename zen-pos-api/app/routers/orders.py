@@ -19,10 +19,15 @@ router = APIRouter()
 async def list_orders(
     status: Optional[str] = None,
     date: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     location_id: Optional[str] = Query(None, description="Override location filter (admin only)"),
     current_user: UserDocument = Depends(require_permission("view_orders")),
 ):
-    from datetime import timezone
+    from datetime import timezone, datetime
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from app.models.settings import LocalizationDocument
+
     query = OrderDocument.find()
 
     # Scope by location: use user's location, or admin override via ?location_id=
@@ -33,20 +38,29 @@ async def list_orders(
 
     if status:
         query = query.find(OrderDocument.status == status)
+
+    # Timezone setup
+    localization = await LocalizationDocument.find_one({"key": "localization"})
+    tz_name = localization.timezone if localization and localization.timezone else "UTC"
+    try:
+        tz = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        tz = timezone.utc
+
     if date:
-        from datetime import datetime
-        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-        from app.models.settings import LocalizationDocument
-        localization = await LocalizationDocument.find_one({"key": "localization"})
-        tz_name = localization.timezone if localization and localization.timezone else "UTC"
-        try:
-            tz = ZoneInfo(tz_name)
-        except ZoneInfoNotFoundError:
-            tz = timezone.utc
         local_date = datetime.fromisoformat(date)
         day_start = local_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz).astimezone(timezone.utc)
         day_end   = local_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz).astimezone(timezone.utc)
         query = query.find(OrderDocument.created_at >= day_start, OrderDocument.created_at <= day_end)
+    elif start_date or end_date:
+        if start_date:
+            s_date = datetime.fromisoformat(start_date)
+            range_start = s_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz).astimezone(timezone.utc)
+            query = query.find(OrderDocument.created_at >= range_start)
+        if end_date:
+            e_date = datetime.fromisoformat(end_date)
+            range_end = e_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz).astimezone(timezone.utc)
+            query = query.find(OrderDocument.created_at <= range_end)
     orders = await query.sort("-created_at").to_list()
     return [_to_out(o) for o in orders]
 
