@@ -91,6 +91,17 @@
     to   { transform: translateX(0)     scale(1);    opacity: 1; }
   }
 
+  @keyframes orderGlowPulse {
+    0%   { box-shadow: 0 0 0 2px var(--color-primary), 0 0 16px 4px color-mix(in srgb, var(--color-primary) 40%, transparent); }
+    50%  { box-shadow: 0 0 0 2px var(--color-primary), 0 0 28px 8px color-mix(in srgb, var(--color-primary) 25%, transparent); }
+    100% { box-shadow: 0 0 0 2px var(--color-primary), 0 0 16px 4px color-mix(in srgb, var(--color-primary) 40%, transparent); }
+  }
+
+  .order-updated-glow {
+    animation: orderGlowPulse 2s ease-in-out infinite;
+    border-color: var(--color-primary) !important;
+  }
+
   @keyframes toastProgress {
     from { width: 100%; }
     to   { width: 0%; }

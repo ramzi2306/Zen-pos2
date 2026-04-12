@@ -117,6 +117,11 @@ export async function listOrders(users: User[] = [], date?: string, locationId?:
   return raw.map(o => mapOrder(o, users));
 }
 
+export async function getOrder(orderId: string, users: User[] = []): Promise<Order> {
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`);
+  return mapOrder(raw, users);
+}
+
 export async function createOrder(
   cart: CartItem[],
   orderType: 'dine_in' | 'takeaway' | 'delivery',

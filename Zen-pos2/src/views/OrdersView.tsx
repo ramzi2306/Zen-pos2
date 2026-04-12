@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { getCartItemPrice, getSubtotal } from '../utils/cartUtils';
 import { buildReceiptHtml, firePrint } from '../utils/printReceipt';
 import * as api from '../api';
-import { zenWs } from '../api/websocket';
 import { playSound } from '../utils/sounds';
 import type { BrandingData } from '../api/settings';
 import { DEFAULT_BRANDING } from '../api/settings';
@@ -56,6 +55,8 @@ export const OrdersView = ({
   users = [],
   onRefresh,
   branding,
+  recentlyUpdatedIds,
+  onClearRecentlyUpdated,
 }: {
   orders: Order[],
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>,
@@ -64,6 +65,8 @@ export const OrdersView = ({
   users?: User[],
   onRefresh?: () => void,
   branding?: BrandingData,
+  recentlyUpdatedIds?: Set<string>,
+  onClearRecentlyUpdated?: (id: string) => void,
 }) => {
   const { formatCurrency, localization } = useLocalization();
   const today = new Date().toISOString().split('T')[0];
@@ -129,22 +132,11 @@ export const OrdersView = ({
   useEffect(() => {
     const refetch = () => api.orders.listOrders(users, selectedDate).then(setOrders).catch(() => {});
     const onStorage = (e: StorageEvent) => { if (e.key === 'zenpos_mock_online_orders') refetch(); };
-    
-    // WS from backend
-    const unsub = zenWs.onEvent((e) => {
-      if (e.type === 'new_order') {
-        refetch();
-        playSound('new_order');
-      } else if (e.type === 'order_update') {
-        refetch();
-      }
-    });
 
     window.addEventListener('storage', onStorage);
     window.addEventListener('zenpos:new_order', refetch as EventListener);
-    
+
     return () => {
-      unsub();
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('zenpos:new_order', refetch as EventListener);
     };
@@ -189,6 +181,7 @@ export const OrdersView = ({
   const handleOrderClick = (order: Order, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    onClearRecentlyUpdated?.(order.id);
     if (order.status === 'Draft' && order.id === 'Current Cart') {
       if (onEditOrder) onEditOrder(order);
       return;
@@ -802,7 +795,7 @@ export const OrdersView = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayOrders.map(order => (
-            <div key={order.id} onClick={(e) => handleOrderClick(order, e)} className={`group relative rounded-xl p-6 transition-all duration-300 hover:bg-surface-container-high cursor-pointer overflow-hidden border ${order.isUrgent ? 'bg-surface-container border-primary/30 lg:col-span-2' : 'bg-surface-container border-outline-variant/25'} ${order.status === 'Draft' ? 'opacity-70 grayscale-[0.5]' : ''}`}>
+            <div key={order.id} onClick={(e) => handleOrderClick(order, e)} className={`group relative rounded-xl p-6 transition-all duration-300 hover:bg-surface-container-high cursor-pointer overflow-hidden border ${order.isUrgent ? 'bg-surface-container border-primary/30 lg:col-span-2' : 'bg-surface-container border-outline-variant/25'} ${order.status === 'Draft' ? 'opacity-70 grayscale-[0.5]' : ''} ${recentlyUpdatedIds?.has(order.id) ? 'order-updated-glow' : ''}`}>
               {renderOrderCard(order)}
             </div>
           ))}

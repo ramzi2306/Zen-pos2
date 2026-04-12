@@ -108,6 +108,7 @@ async def assign_assistant(order_id: str, body: AssignAssistantRequest):
              dependencies=[Depends(require_permission("view_orders"))])
 async def submit_review(order_id: str, body: ReviewSchema):
     order = await order_service.submit_review(order_id, body.stars, body.comment)
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id})
     return _to_out(order)
 
 

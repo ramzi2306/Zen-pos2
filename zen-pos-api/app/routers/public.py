@@ -421,6 +421,7 @@ async def post_review(order_id: str, review: PublicReviewInput, x_customer_sessi
         comment=review.comment
     )
     await order.save()
+    await manager.broadcast("order_update", {"action": "updated", "id": order_id})
     return {"message": "Review submitted"}
 
 @router.get("/customers/lookup")

@@ -66,8 +66,10 @@ function AppShell() {
   // Refs so WS event handler always sees current values without re-registering
   const usersRef = useRef(users);
   const activeLocationIdRef = useRef(activeLocationId);
-  // Debounce ref: rapid WS events collapse into a single listOrders fetch
+  // Debounce ref: used for storefront cross-tab refresh fallback
   const wsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set of order IDs that were updated asynchronously — cleared when the card is clicked
+  const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<string>>(new Set());
   useEffect(() => { usersRef.current = users; }, [users]);
   useEffect(() => { activeLocationIdRef.current = activeLocationId; }, [activeLocationId]);
 
@@ -191,17 +193,24 @@ function AppShell() {
       };
       if (!isSilent) setNotifications(prev => [notif, ...prev].slice(0, 50));
 
-      // Debounced order refresh — only for order-related events, collapses rapid events into one fetch
+      // Per-order async update — fetch and splice the updated order into the list
       const ORDER_EVENTS = new Set(['new_order', 'order_update', 'status_update', 'urgent', 'order_done']);
       if (ORDER_EVENTS.has(event.type) && currentUser?.permissions.includes('view_orders')) {
-        if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
-        wsRefreshTimerRef.current = setTimeout(() => {
-          api.orders.listOrders(
-            usersRef.current,
-            undefined,
-            activeLocationIdRef.current ?? undefined,
-          ).then(setOrders).catch(console.error);
-        }, 300);
+        const oid = event.order_id || event.id;
+        if (oid) {
+          api.orders.getOrder(oid, usersRef.current).then(updated => {
+            setOrders(prev => {
+              const idx = prev.findIndex(o => o.id === oid);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = updated;
+                return next;
+              }
+              return [updated, ...prev];
+            });
+            setRecentlyUpdatedIds(prev => new Set([...prev, oid]));
+          }).catch(console.error);
+        }
       }
 
       // Toast pop-up and sounds only for staff-facing events
@@ -259,9 +268,25 @@ function AppShell() {
 
     // Same-tab: storefront dispatches this event directly
     const onCustomEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { orderNumber?: string; customerName?: string } | undefined;
+      const detail = (e as CustomEvent).detail as { orderId?: string; orderNumber?: string; customerName?: string } | undefined;
       fireNotification(detail?.orderNumber ?? '', detail?.customerName ?? '');
-      refreshOrders();
+      const oid = detail?.orderId;
+      if (oid && currentUser?.permissions.includes('view_orders')) {
+        api.orders.getOrder(oid, usersRef.current).then(updated => {
+          setOrders(prev => {
+            const idx = prev.findIndex(o => o.id === oid);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = updated;
+              return next;
+            }
+            return [updated, ...prev];
+          });
+          setRecentlyUpdatedIds(prev => new Set([...prev, oid]));
+        }).catch(console.error);
+      } else {
+        refreshOrders();
+      }
     };
 
     // Cross-tab: storefront wrote to localStorage in another browser tab
@@ -441,6 +466,7 @@ function AppShell() {
     sessionStorage.removeItem('sessionOpenedAt');
     setCurrentUser(null);
     setOrders([]);
+    setRecentlyUpdatedIds(new Set());
     setUsers([]);
     setCart([]);
     setNotifications([]);
@@ -629,6 +655,8 @@ function AppShell() {
                         users={users}
                         onRefresh={refreshOrders}
                         branding={branding}
+                        recentlyUpdatedIds={recentlyUpdatedIds}
+                        onClearRecentlyUpdated={(id) => setRecentlyUpdatedIds(prev => { const next = new Set(prev); next.delete(id); return next; })}
                       />
                     : <AccessDenied />
                 } />
