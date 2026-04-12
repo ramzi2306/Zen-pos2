@@ -163,7 +163,7 @@ def _link_id(obj) -> Optional[str]:
 
 
 def _to_out(o: OrderDocument) -> OrderOut:
-    from app.schemas.order import OrderItemSchema, CustomerInfoSchema, SelectedVariationSchema, ReviewSchema
+    from app.schemas.order import OrderItemSchema, CustomerInfoSchema, SelectedVariationSchema, ReviewSchema, DeliveryAgentInfoSchema
     items = [
         OrderItemSchema(
             product_id=i.product_id,
@@ -203,4 +203,5 @@ def _to_out(o: OrderDocument) -> OrderOut:
         tracking_token=o.tracking_token,
         created_at=getattr(o, "created_at", None),
         location_id=o.location_id,
+        delivery_agent=DeliveryAgentInfoSchema(**o.delivery_agent.model_dump()) if o.delivery_agent else None,
     )

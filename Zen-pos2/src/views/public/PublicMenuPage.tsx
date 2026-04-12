@@ -294,6 +294,9 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [checkoutOrderType, setCheckoutOrderType] = useState<'pickup' | 'delivery'>('delivery');
   const [pickupMode, setPickupMode] = useState<'now' | 'later'>('later');
   const [pickupTime, setPickupTime] = useState('');
+  const [deliveryPlaces, setDeliveryPlaces] = useState<{ id: string; name: string; wilaya: string; delivery_fee: number }[]>([]);
+  const [deliveryPlaceSearch, setDeliveryPlaceSearch] = useState('');
+  const [showDeliveryPlaceDropdown, setShowDeliveryPlaceDropdown] = useState(false);
 
   const setPlaced = (p: publicApi.CreateOrderResponse | null, items?: PublicCartItem[]) => {
     setPlacedState(p);
@@ -352,6 +355,11 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     const t = setTimeout(() => setCooldown(c => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+
+  // Load delivery places (public, no auth needed)
+  useEffect(() => {
+    publicApi.getActiveDeliveryPlaces().then(setDeliveryPlaces).catch(() => {});
+  }, []);
 
   // Auto-fetch history if session exists
   useEffect(() => {
@@ -967,15 +975,61 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                         className="overflow-hidden space-y-3"
                       >
                         {/* Address */}
-                        <label className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all ${errors.address ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 focus-within:border-primary/60 focus-within:bg-surface-container-high'}`}>
-                          <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors.address ? 'text-error' : 'text-outline-variant'}`}>location_on</span>
-                          <input
-                            placeholder="Delivery address" value={address}
-                            onChange={e => { setAddress(e.target.value); setErrors(p => ({ ...p, address: '' })); }}
-                            className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none"
-                          />
-                          {errors.address && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.address}</span>}
-                        </label>
+                        {deliveryPlaces.length > 0 ? (
+                          <div className="relative">
+                            <div
+                              onClick={() => setShowDeliveryPlaceDropdown(!showDeliveryPlaceDropdown)}
+                              className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all cursor-pointer ${errors.address ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 hover:border-primary/60'}`}
+                            >
+                              <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors.address ? 'text-error' : 'text-outline-variant'}`}>location_on</span>
+                              <span className={`flex-1 text-sm ${address ? 'text-on-surface' : 'text-outline-variant'}`}>{address || 'Select delivery zone…'}</span>
+                              <span className="material-symbols-outlined text-[16px] text-outline-variant">{showDeliveryPlaceDropdown ? 'expand_less' : 'expand_more'}</span>
+                              {errors.address && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.address}</span>}
+                            </div>
+                            {showDeliveryPlaceDropdown && (
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-xl z-50 max-h-52 overflow-hidden flex flex-col">
+                                <div className="p-2 border-b border-outline-variant/10">
+                                  <input
+                                    type="text" placeholder="Search zones…" autoFocus
+                                    value={deliveryPlaceSearch} onChange={e => setDeliveryPlaceSearch(e.target.value)}
+                                    className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                                  />
+                                </div>
+                                <div className="overflow-y-auto max-h-40">
+                                  {deliveryPlaces.filter(p => p.name.toLowerCase().includes(deliveryPlaceSearch.toLowerCase()) || p.wilaya.toLowerCase().includes(deliveryPlaceSearch.toLowerCase())).map(place => (
+                                    <button
+                                      key={place.id}
+                                      onClick={() => {
+                                        setAddress(place.name);
+                                        setErrors(p => ({ ...p, address: '' }));
+                                        setShowDeliveryPlaceDropdown(false);
+                                        setDeliveryPlaceSearch('');
+                                      }}
+                                      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-surface-container transition-colors flex items-center justify-between ${
+                                        address === place.name ? 'bg-primary/10 text-primary font-bold' : 'text-on-surface'
+                                      }`}
+                                    >
+                                      <span>{place.name}{place.wilaya ? ` · ${place.wilaya}` : ''}</span>
+                                    </button>
+                                  ))}
+                                  {deliveryPlaces.filter(p => p.name.toLowerCase().includes(deliveryPlaceSearch.toLowerCase())).length === 0 && (
+                                    <div className="px-4 py-3 text-xs text-on-surface-variant text-center">No zones found</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <label className={`flex items-center gap-3 bg-surface-container border rounded-2xl px-4 py-3.5 transition-all ${errors.address ? 'border-error/60 bg-error/5' : 'border-outline-variant/20 focus-within:border-primary/60 focus-within:bg-surface-container-high'}`}>
+                            <span className={`material-symbols-outlined text-[18px] flex-shrink-0 ${errors.address ? 'text-error' : 'text-outline-variant'}`}>location_on</span>
+                            <input
+                              placeholder="Delivery address" value={address}
+                              onChange={e => { setAddress(e.target.value); setErrors(p => ({ ...p, address: '' })); }}
+                              className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-outline-variant focus:outline-none"
+                            />
+                            {errors.address && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.address}</span>}
+                          </label>
+                        )}
 
                         {/* Note */}
                         <label className="flex items-start gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 focus-within:bg-surface-container-high transition-all">
@@ -1330,18 +1384,17 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                       {/* Courier row */}
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {tracking?.courier?.avatar
-                            ? <img src={tracking.courier.avatar} alt={tracking.courier.name} className="w-full h-full object-cover" />
-                            : <span className="material-symbols-outlined text-primary text-xl">person</span>
-                          }
+                          <span className="material-symbols-outlined text-primary text-xl">person_pin</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-bold text-on-surface text-sm truncate">{tracking?.courier?.name ?? 'Delivery Agent'}</p>
-                          <p className="text-xs text-on-surface-variant">Courier</p>
+                          <p className="font-bold text-on-surface text-sm truncate">{tracking?.delivery_agent?.name ?? tracking?.courier?.name ?? 'Delivery Agent'}</p>
+                          <p className="text-xs text-on-surface-variant">{tracking?.delivery_agent?.phone ? tracking.delivery_agent.phone : 'Courier'}</p>
                         </div>
-                        <button className="w-9 h-9 rounded-full bg-tertiary/15 border border-tertiary/20 flex items-center justify-center text-tertiary hover:bg-tertiary/25 transition-colors active:scale-95 flex-shrink-0">
-                          <span className="material-symbols-outlined text-lg">call</span>
-                        </button>
+                        {(tracking?.delivery_agent?.phone || tracking?.courier?.phone) && (
+                          <a href={`tel:${tracking?.delivery_agent?.phone || tracking?.courier?.phone}`} className="w-9 h-9 rounded-full bg-tertiary/15 border border-tertiary/20 flex items-center justify-center text-tertiary hover:bg-tertiary/25 transition-colors active:scale-95 flex-shrink-0">
+                            <span className="material-symbols-outlined text-lg">call</span>
+                          </a>
+                        )}
                       </div>
                       <p className="text-[11px] text-on-surface-variant text-center leading-relaxed">
                         If the order takes more time you can call the delivery agent.

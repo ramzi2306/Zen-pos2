@@ -104,6 +104,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     assistants: assistants.length > 0 ? assistants : undefined,
     review: raw.review,
     trackingToken: raw.tracking_token,
+    deliveryAgent: (raw as any).delivery_agent || undefined,
   };
 }
 

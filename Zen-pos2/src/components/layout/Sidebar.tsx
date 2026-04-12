@@ -34,6 +34,7 @@ export const Sidebar = ({
     { id: 'localization', icon: 'language',             label: 'Localization',    category: 'pos_settings', permission: 'view_settings' },
     { id: 'roles',        icon: 'admin_panel_settings', label: 'Role Management', category: 'pos_settings', permission: 'manage_roles'  },
     { id: 'integration',   icon: 'hub',                  label: 'Integration',     category: 'pos_settings', permission: 'view_settings' },
+    { id: 'delivery',      icon: 'local_shipping',       label: 'Delivery',        category: 'pos_settings', permission: 'view_settings' },
     { id: 'notifications', icon: 'notifications_active', label: 'Notifications',   category: 'pos_settings', permission: 'view_settings' },
     { id: 'profile',       icon: 'manage_accounts',      label: 'My Profile',      category: 'pos_settings', permission: 'view_settings' },
 

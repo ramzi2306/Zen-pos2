@@ -21,6 +21,10 @@ export async function getPublicMenuImages(): Promise<{ id: string; image: string
   return publicRequest<{ id: string; image: string }[]>('/public/images');
 }
 
+export async function getActiveDeliveryPlaces(): Promise<{ id: string; name: string; wilaya: string; delivery_fee: number }[]> {
+  return publicRequest<{ id: string; name: string; wilaya: string; delivery_fee: number }[]>('/delivery/places/active');
+}
+
 // ─── Online order creation ─────────────────────────────────────────────────────
 
 export interface CreateOrderResponse {

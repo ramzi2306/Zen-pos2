@@ -10,4 +10,5 @@ export * as settings from './settings';
 export * as locations from './locations';
 export * as payroll from './payroll';
 export * as register from './register';
+export * as delivery from './delivery';
 export { getAccessToken, clearTokens } from './client';

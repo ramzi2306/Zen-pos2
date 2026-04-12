@@ -123,6 +123,12 @@ export const OrdersView = ({
   const [cancelReason, setCancelReason] = useState('');
   const [callCustomerOrder, setCallCustomerOrder] = useState<Order | null>(null);
   const [callCustomerLoading, setCallCustomerLoading] = useState<'queue' | 'cancel' | null>(null);
+  // Delivery agent picker
+  const [agentPickerOrder, setAgentPickerOrder] = useState<Order | null>(null);
+  const [deliveryAgents, setDeliveryAgents] = useState<{ id: string; name: string; phone: string; vehicle_type: string; is_active: boolean }[]>([]);
+  const [agentSearch, setAgentSearch] = useState('');
+  const [newAgentForm, setNewAgentForm] = useState({ name: '', phone: '' });
+  const [showNewAgentForm, setShowNewAgentForm] = useState(false);
 
   useEffect(() => {
     api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end)
@@ -243,6 +249,16 @@ export const OrdersView = ({
   const handleStatusSelect = async (status: Order['status']) => {
     if (!selectedOrder || status === selectedOrder.status || isSaving) return;
     if (status === 'Scheduled') { setPendingScheduled(true); return; }
+    // Intercept "Out for delivery" to show agent picker
+    if (status === 'Out for delivery') {
+      try {
+        const agents = await api.delivery.listAgents();
+        setDeliveryAgents(agents);
+      } catch { setDeliveryAgents([]); }
+      setAgentPickerOrder(selectedOrder);
+      setSelectedOrder(null);
+      return;
+    }
     setPendingScheduled(false);
     setIsSaving(true);
     try {
@@ -483,6 +499,17 @@ export const OrdersView = ({
               </div>
             </div>
           )}
+          {/* Delivery Agent */}
+          {order.deliveryAgent && order.status === 'Out for delivery' && (
+            <div className="flex items-center gap-1.5 mt-2 bg-tertiary/8 border border-tertiary/20 rounded-lg px-3 py-2">
+              <span className="material-symbols-outlined text-sm text-tertiary flex-shrink-0">person_pin</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold text-on-surface truncate">{order.deliveryAgent.name}</p>
+                <p className="text-[10px] text-outline font-medium">{order.deliveryAgent.phone}</p>
+              </div>
+              <span className="text-[8px] font-bold uppercase tracking-widest text-tertiary bg-tertiary/10 px-1.5 py-0.5 rounded">Driver</span>
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2">
           <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${getStatusColor(order.status)}`}>
@@ -607,11 +634,13 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
+                  // Load agents and show picker
                   try {
-                    await api.orders.updateOrderStatus(order.id, 'Out for delivery');
-                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
-                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
-                  } catch (err: any) { console.error(err.message); }
+                    const agents = await api.delivery.listAgents();
+                    setDeliveryAgents(agents);
+                  } catch { setDeliveryAgents([]); }
+                  setAgentPickerOrder(order);
                 }}
                 className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
               >
@@ -658,11 +687,12 @@ export const OrdersView = ({
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  onClearRecentlyUpdated?.(order.id);
                   try {
-                    await api.orders.updateOrderStatus(order.id, 'Out for delivery');
-                    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
-                    onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
-                  } catch (err: any) { console.error(err.message); }
+                    const agents = await api.delivery.listAgents();
+                    setDeliveryAgents(agents);
+                  } catch { setDeliveryAgents([]); }
+                  setAgentPickerOrder(order);
                 }}
                 className="w-full py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
               >
@@ -1312,6 +1342,133 @@ export const OrdersView = ({
                 >
                   Yes, Cancel
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delivery Agent Picker Modal */}
+      <AnimatePresence>
+        {agentPickerOrder && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => { setAgentPickerOrder(null); setShowNewAgentForm(false); setAgentSearch(''); setNewAgentForm({ name: '', phone: '' }); }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[70vh]"
+            >
+              <div className="p-5 border-b border-outline-variant/10 flex justify-between items-center bg-surface-container-lowest">
+                <div>
+                  <h3 className="font-headline text-lg font-bold text-on-surface">Select Delivery Agent</h3>
+                  <p className="text-xs text-on-surface-variant mt-0.5">Order #{agentPickerOrder.orderNumber}</p>
+                </div>
+                <button onClick={() => { setAgentPickerOrder(null); setShowNewAgentForm(false); setAgentSearch(''); setNewAgentForm({ name: '', phone: '' }); }} className="text-on-surface-variant hover:text-on-surface transition-colors">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="px-4 pt-3">
+                <div className="flex items-center gap-2 bg-surface-container rounded-lg px-3 py-2 border border-outline-variant/20">
+                  <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+                  <input type="text" placeholder="Search agents…" value={agentSearch} onChange={e => setAgentSearch(e.target.value)} className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface" />
+                </div>
+              </div>
+
+              {/* Agent list */}
+              <div className="overflow-y-auto flex-1 p-4 space-y-2">
+                {deliveryAgents.filter(a => a.is_active && (a.name.toLowerCase().includes(agentSearch.toLowerCase()) || a.phone.includes(agentSearch))).map(agent => (
+                  <button
+                    key={agent.id}
+                    onClick={async () => {
+                      try {
+                        await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
+                        await api.delivery.assignAgentToOrder(agentPickerOrder.id, agent.id);
+                        setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: agent.id, name: agent.name, phone: agent.phone } } : o));
+                        onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
+                        setAgentPickerOrder(null);
+                        setAgentSearch('');
+                      } catch (err: any) { console.error(err.message); }
+                    }}
+                    className="w-full bg-surface-container rounded-xl border border-outline-variant/10 p-3.5 flex items-center gap-3 hover:border-primary/30 hover:bg-surface-container-high transition-all text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-tertiary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-tertiary">person_pin</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-on-surface">{agent.name}</p>
+                      <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">phone</span>{agent.phone}
+                      </p>
+                    </div>
+                    {agent.vehicle_type && (
+                      <span className="text-[10px] font-bold text-tertiary bg-tertiary/10 px-2 py-1 rounded-lg">{agent.vehicle_type}</span>
+                    )}
+                  </button>
+                ))}
+                {deliveryAgents.filter(a => a.is_active).length === 0 && !showNewAgentForm && (
+                  <div className="text-center py-6 text-on-surface-variant text-sm opacity-50">
+                    <span className="material-symbols-outlined text-3xl mb-2 block">person_off</span>
+                    No delivery agents configured. Add one below.
+                  </div>
+                )}
+              </div>
+
+              {/* Add new agent inline */}
+              <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low">
+                {showNewAgentForm ? (
+                  <div className="space-y-2">
+                    <input type="text" placeholder="Agent name *" value={newAgentForm.name} onChange={e => setNewAgentForm({ ...newAgentForm, name: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary outline-none" />
+                    <input type="tel" placeholder="Phone *" value={newAgentForm.phone} onChange={e => setNewAgentForm({ ...newAgentForm, phone: e.target.value })} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary outline-none" />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!newAgentForm.name.trim() || !newAgentForm.phone.trim()) return;
+                          try {
+                            const newAgent = await api.delivery.createAgent({ name: newAgentForm.name, phone: newAgentForm.phone, vehicle_type: '', is_active: true });
+                            setDeliveryAgents(prev => [...prev, newAgent]);
+                            setNewAgentForm({ name: '', phone: '' });
+                            setShowNewAgentForm(false);
+                            // Auto-select the new agent
+                            await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
+                            await api.delivery.assignAgentToOrder(agentPickerOrder.id, newAgent.id);
+                            setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: newAgent.id, name: newAgent.name, phone: newAgent.phone } } : o));
+                            onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
+                            setAgentPickerOrder(null);
+                          } catch (err: any) { console.error(err.message); }
+                        }}
+                        disabled={!newAgentForm.name.trim() || !newAgentForm.phone.trim()}
+                        className="flex-1 py-2 bg-primary text-on-primary rounded-lg text-xs font-bold disabled:opacity-40 transition-all"
+                      >Add & Assign</button>
+                      <button onClick={() => { setShowNewAgentForm(false); setNewAgentForm({ name: '', phone: '' }); }} className="px-3 py-2 bg-surface-container text-on-surface-variant rounded-lg text-xs font-bold">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowNewAgentForm(true)} className="flex-1 py-2.5 bg-surface-container border border-outline-variant/20 text-on-surface-variant rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-surface-container-high transition-colors flex items-center justify-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">person_add</span>
+                      Add New Agent
+                    </button>
+                    <button
+                      onClick={async () => {
+                        // Skip agent assignment - just set status
+                        try {
+                          await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
+                          setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
+                          onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
+                          setAgentPickerOrder(null);
+                        } catch (err: any) { console.error(err.message); }
+                      }}
+                      className="py-2.5 px-4 bg-tertiary/10 text-tertiary rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-tertiary/20 transition-colors"
+                    >Skip</button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

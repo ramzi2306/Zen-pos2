@@ -5184,6 +5184,334 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
   );
 };
 
+
+// ── Delivery Management View ────────────────────────────────────────────────
+const DeliveryManagementView = () => {
+  const { formatCurrency } = useLocalization();
+  const [tab, setTab] = useState<'places' | 'agents'>('places');
+  // Places
+  const [places, setPlaces] = useState<{ id: string; name: string; wilaya: string; delivery_fee: number; is_active: boolean }[]>([]);
+  const [placeForm, setPlaceForm] = useState({ name: '', wilaya: '', delivery_fee: '' });
+  const [editingPlaceId, setEditingPlaceId] = useState<string | null>(null);
+  const [placeSearch, setPlaceSearch] = useState('');
+  // Agents
+  const [agents, setAgents] = useState<{ id: string; name: string; phone: string; vehicle_type: string; is_active: boolean }[]>([]);
+  const [agentForm, setAgentForm] = useState({ name: '', phone: '', vehicle_type: '' });
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [agentSearch, setAgentSearch] = useState('');
+  // Shared
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'place' | 'agent'; id: string; name: string } | null>(null);
+
+  useEffect(() => {
+    api.delivery.listPlaces().then(setPlaces).catch(console.error);
+    api.delivery.listAgents().then(setAgents).catch(console.error);
+  }, []);
+
+  // ── Place handlers ──
+  const handleSavePlace = async () => {
+    if (!placeForm.name.trim()) return;
+    const fee = parseFloat(placeForm.delivery_fee) || 0;
+    if (editingPlaceId) {
+      const updated = await api.delivery.updatePlace(editingPlaceId, { name: placeForm.name, wilaya: placeForm.wilaya, delivery_fee: fee });
+      setPlaces(prev => prev.map(p => p.id === editingPlaceId ? updated : p));
+      setEditingPlaceId(null);
+    } else {
+      const created = await api.delivery.createPlace({ name: placeForm.name, wilaya: placeForm.wilaya, delivery_fee: fee, is_active: true });
+      setPlaces(prev => [...prev, created]);
+    }
+    setPlaceForm({ name: '', wilaya: '', delivery_fee: '' });
+  };
+
+  const handleTogglePlace = async (id: string, active: boolean) => {
+    const updated = await api.delivery.updatePlace(id, { is_active: active });
+    setPlaces(prev => prev.map(p => p.id === id ? updated : p));
+  };
+
+  const handleDeletePlace = async (id: string) => {
+    await api.delivery.deletePlace(id);
+    setPlaces(prev => prev.filter(p => p.id !== id));
+  };
+
+  // ── Agent handlers ──
+  const handleSaveAgent = async () => {
+    if (!agentForm.name.trim() || !agentForm.phone.trim()) return;
+    if (editingAgentId) {
+      const updated = await api.delivery.updateAgent(editingAgentId, { name: agentForm.name, phone: agentForm.phone, vehicle_type: agentForm.vehicle_type });
+      setAgents(prev => prev.map(a => a.id === editingAgentId ? updated : a));
+      setEditingAgentId(null);
+    } else {
+      const created = await api.delivery.createAgent({ name: agentForm.name, phone: agentForm.phone, vehicle_type: agentForm.vehicle_type, is_active: true });
+      setAgents(prev => [...prev, created]);
+    }
+    setAgentForm({ name: '', phone: '', vehicle_type: '' });
+  };
+
+  const handleToggleAgent = async (id: string, active: boolean) => {
+    const updated = await api.delivery.updateAgent(id, { is_active: active });
+    setAgents(prev => prev.map(a => a.id === id ? updated : a));
+  };
+
+  const handleDeleteAgent = async (id: string) => {
+    await api.delivery.deleteAgent(id);
+    setAgents(prev => prev.filter(a => a.id !== id));
+  };
+
+  const filteredPlaces = places.filter(p => p.name.toLowerCase().includes(placeSearch.toLowerCase()) || p.wilaya.toLowerCase().includes(placeSearch.toLowerCase()));
+  const filteredAgents = agents.filter(a => a.name.toLowerCase().includes(agentSearch.toLowerCase()) || a.phone.includes(agentSearch));
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-10">
+        <div>
+          <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface mb-2">Delivery Management</h1>
+          <p className="text-on-surface-variant text-sm">Manage delivery zones and delivery agents for your restaurant.</p>
+        </div>
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-2 mb-8">
+        {(['places', 'agents'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+              tab === t ? 'bg-primary text-on-primary shadow-md' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline-variant/20'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm mr-2 align-middle">{t === 'places' ? 'location_on' : 'person_pin'}</span>
+            {t === 'places' ? 'Delivery Places' : 'Delivery Agents'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── PLACES TAB ─────────────────────────────────────────────── */}
+      {tab === 'places' && (
+        <div className="space-y-6">
+          {/* Add/edit form */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">{editingPlaceId ? 'Edit Place' : 'Add Delivery Place'}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <input
+                type="text" placeholder="Municipality / Zone name *"
+                value={placeForm.name} onChange={e => setPlaceForm({ ...placeForm, name: e.target.value })}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              />
+              <input
+                type="text" placeholder="Wilaya / Region (optional)"
+                value={placeForm.wilaya} onChange={e => setPlaceForm({ ...placeForm, wilaya: e.target.value })}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="number" placeholder="Delivery fee"
+                  value={placeForm.delivery_fee} onChange={e => setPlaceForm({ ...placeForm, delivery_fee: e.target.value })}
+                  className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                />
+                <button
+                  onClick={handleSavePlace}
+                  disabled={!placeForm.name.trim()}
+                  className="px-5 py-3 bg-primary text-on-primary rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-40 transition-all flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">{editingPlaceId ? 'save' : 'add'}</span>
+                  {editingPlaceId ? 'Save' : 'Add'}
+                </button>
+                {editingPlaceId && (
+                  <button onClick={() => { setEditingPlaceId(null); setPlaceForm({ name: '', wilaya: '', delivery_fee: '' }); }} className="px-3 py-3 bg-surface-container-highest text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-variant transition-all">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="flex items-center gap-2 bg-surface-container rounded-xl px-4 py-2.5 border border-outline-variant/20 max-w-md">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+            <input type="text" placeholder="Search places…" value={placeSearch} onChange={e => setPlaceSearch(e.target.value)} className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface" />
+          </div>
+
+          {/* List */}
+          <div className="grid gap-3">
+            {filteredPlaces.length === 0 ? (
+              <div className="text-center py-12 text-on-surface-variant opacity-50">
+                <span className="material-symbols-outlined text-4xl mb-2 block">location_off</span>
+                <p className="text-sm">No delivery places yet. Add one above to get started.</p>
+              </div>
+            ) : filteredPlaces.map(place => (
+              <div key={place.id} className={`bg-surface-container rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between gap-4 transition-all hover:border-primary/30 ${!place.is_active ? 'opacity-50' : ''}`}>
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-primary">location_on</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-on-surface text-sm truncate">{place.name}</p>
+                    {place.wilaya && <p className="text-xs text-on-surface-variant">{place.wilaya}</p>}
+                  </div>
+                  {place.delivery_fee > 0 && (
+                    <span className="text-xs font-bold text-secondary bg-secondary/10 px-2 py-1 rounded-lg flex-shrink-0">{formatCurrency(place.delivery_fee)}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleTogglePlace(place.id, !place.is_active)}
+                    className={`w-10 h-6 rounded-full relative transition-colors ${place.is_active ? 'bg-primary' : 'bg-outline-variant/30'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${place.is_active ? 'left-[18px]' : 'left-0.5'}`} />
+                  </button>
+                  <button
+                    onClick={() => { setEditingPlaceId(place.id); setPlaceForm({ name: place.name, wilaya: place.wilaya, delivery_fee: String(place.delivery_fee) }); }}
+                    className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm({ type: 'place', id: place.id, name: place.name })}
+                    className="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats bar */}
+          <div className="flex gap-4 text-xs text-on-surface-variant">
+            <span>{places.length} total</span>
+            <span className="text-primary">{places.filter(p => p.is_active).length} active</span>
+           <span className="text-outline-variant">{places.filter(p => !p.is_active).length} inactive</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── AGENTS TAB ─────────────────────────────────────────────── */}
+      {tab === 'agents' && (
+        <div className="space-y-6">
+          {/* Add/edit form */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/20 p-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">{editingAgentId ? 'Edit Agent' : 'Add Delivery Agent'}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <input
+                type="text" placeholder="Agent name *"
+                value={agentForm.name} onChange={e => setAgentForm({ ...agentForm, name: e.target.value })}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              />
+              <input
+                type="tel" placeholder="Phone number *"
+                value={agentForm.phone} onChange={e => setAgentForm({ ...agentForm, phone: e.target.value })}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              />
+              <select
+                value={agentForm.vehicle_type} onChange={e => setAgentForm({ ...agentForm, vehicle_type: e.target.value })}
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+              >
+                <option value="">Vehicle type</option>
+                <option value="Motorcycle">Motorcycle</option>
+                <option value="Car">Car</option>
+                <option value="Bicycle">Bicycle</option>
+                <option value="Van">Van</option>
+                <option value="On foot">On foot</option>
+              </select>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveAgent}
+                  disabled={!agentForm.name.trim() || !agentForm.phone.trim()}
+                  className="flex-1 px-5 py-3 bg-primary text-on-primary rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">{editingAgentId ? 'save' : 'add'}</span>
+                  {editingAgentId ? 'Save' : 'Add'}
+                </button>
+                {editingAgentId && (
+                  <button onClick={() => { setEditingAgentId(null); setAgentForm({ name: '', phone: '', vehicle_type: '' }); }} className="px-3 py-3 bg-surface-container-highest text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-variant transition-all">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="flex items-center gap-2 bg-surface-container rounded-xl px-4 py-2.5 border border-outline-variant/20 max-w-md">
+            <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+            <input type="text" placeholder="Search agents…" value={agentSearch} onChange={e => setAgentSearch(e.target.value)} className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface" />
+          </div>
+
+          {/* List */}
+          <div className="grid gap-3">
+            {filteredAgents.length === 0 ? (
+              <div className="text-center py-12 text-on-surface-variant opacity-50">
+                <span className="material-symbols-outlined text-4xl mb-2 block">person_off</span>
+                <p className="text-sm">No delivery agents yet. Add one above to get started.</p>
+              </div>
+            ) : filteredAgents.map(agent => (
+              <div key={agent.id} className={`bg-surface-container rounded-xl border border-outline-variant/20 p-4 flex items-center justify-between gap-4 transition-all hover:border-primary/30 ${!agent.is_active ? 'opacity-50' : ''}`}>
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-tertiary/10 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-tertiary">person_pin</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-on-surface text-sm truncate">{agent.name}</p>
+                    <p className="text-xs text-on-surface-variant flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">phone</span>{agent.phone}
+                    </p>
+                  </div>
+                  {agent.vehicle_type && (
+                    <span className="text-xs font-bold text-tertiary bg-tertiary/10 px-2 py-1 rounded-lg flex-shrink-0 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">two_wheeler</span>
+                      {agent.vehicle_type}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleToggleAgent(agent.id, !agent.is_active)}
+                    className={`w-10 h-6 rounded-full relative transition-colors ${agent.is_active ? 'bg-primary' : 'bg-outline-variant/30'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${agent.is_active ? 'left-[18px]' : 'left-0.5'}`} />
+                  </button>
+                  <button
+                    onClick={() => { setEditingAgentId(agent.id); setAgentForm({ name: agent.name, phone: agent.phone, vehicle_type: agent.vehicle_type }); }}
+                    className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm({ type: 'agent', id: agent.id, name: agent.name })}
+                    className="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats bar */}
+          <div className="flex gap-4 text-xs text-on-surface-variant">
+            <span>{agents.length} total</span>
+            <span className="text-primary">{agents.filter(a => a.is_active).length} active</span>
+            <span className="text-outline-variant">{agents.filter(a => !a.is_active).length} inactive</span>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {deleteConfirm && (
+        <ConfirmModal
+          title={`Delete ${deleteConfirm.type === 'place' ? 'Place' : 'Agent'}`}
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This action cannot be undone.`}
+          onConfirm={() => {
+            if (deleteConfirm.type === 'place') handleDeletePlace(deleteConfirm.id);
+            else handleDeleteAgent(deleteConfirm.id);
+          }}
+          onClose={() => setDeleteConfirm(null)}
+        />
+      )}
+    </>
+  );
+};
+
+
 export const SettingsView = ({ currentSetting, hasPermission, branding: appBranding, onBrandingUpdate, currentUser, onUserUpdate }: {
   currentSetting: string;
   hasPermission: (p: Permission) => boolean;
@@ -5343,6 +5671,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         {currentSetting === 'inventory' && <InventoryView />}
         {currentSetting === 'localization' && <LocalizationView />}
         {currentSetting === 'integration' && <IntegrationView />}
+        {currentSetting === 'delivery' && <DeliveryManagementView />}
         {currentSetting === 'notifications' && <NotificationsSettingsView />}
         {currentSetting === 'profile' && currentUser && <ProfileSettingsView currentUser={currentUser} onUserUpdate={onUserUpdate ?? (() => {})} />}
         {currentSetting === 'branding' && (

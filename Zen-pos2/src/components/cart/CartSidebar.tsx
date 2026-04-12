@@ -88,6 +88,9 @@ export const CartSidebar = ({
   const [createdTrackingToken, setCreatedTrackingToken] = useState<string | null>(null);
   const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number; trackingToken?: string } | null>(null);
   const [printReady, setPrintReady] = useState(false);
+  const [deliveryPlaces, setDeliveryPlaces] = useState<{ id: string; name: string; wilaya: string; delivery_fee: number }[]>([]);
+  const [deliveryPlaceSearch, setDeliveryPlaceSearch] = useState('');
+  const [showDeliveryPlaceDropdown, setShowDeliveryPlaceDropdown] = useState(false);
 
   const change = parseFloat(amountPaid) > total ? parseFloat(amountPaid) - total : 0;
 
@@ -112,6 +115,13 @@ export const CartSidebar = ({
       }).catch(() => {});
     }
   }, [isOpen]);
+
+  // Load active delivery places when switching to delivery order type
+  useEffect(() => {
+    if (orderType === 'delivery') {
+      api.delivery.listActivePlaces().then(places => setDeliveryPlaces(places)).catch(console.error);
+    }
+  }, [orderType]);
 
   const filteredClients = useMemo(
     () => apiClients.filter(
@@ -409,14 +419,60 @@ export const CartSidebar = ({
                   })}
                 </div>
                 {orderType === 'delivery' && (
-                  <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <input
-                      type="text"
-                      placeholder="Adresse de livraison"
-                      className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                      value={deliveryDetails.address || ''}
-                      onChange={(e) => setDeliveryDetails({ ...deliveryDetails, address: e.target.value })}
-                    />
+                  <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200 relative">
+                    {deliveryPlaces.length > 0 ? (
+                      <>
+                        <div
+                          onClick={() => setShowDeliveryPlaceDropdown(!showDeliveryPlaceDropdown)}
+                          className={`w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-sm cursor-pointer flex items-center justify-between ${
+                            deliveryDetails.address ? 'text-on-surface' : 'text-on-surface-variant'
+                          }`}
+                        >
+                          <span>{deliveryDetails.address || 'Select delivery zone…'}</span>
+                          <span className="material-symbols-outlined text-[16px] text-on-surface-variant">{showDeliveryPlaceDropdown ? 'expand_less' : 'expand_more'}</span>
+                        </div>
+                        {showDeliveryPlaceDropdown && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-surface-container-lowest border border-outline-variant/20 rounded-lg shadow-xl z-[70] max-h-52 overflow-hidden flex flex-col">
+                            <div className="p-2 border-b border-outline-variant/10">
+                              <input
+                                type="text" placeholder="Search zones…" autoFocus
+                                value={deliveryPlaceSearch} onChange={e => setDeliveryPlaceSearch(e.target.value)}
+                                className="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-primary"
+                              />
+                            </div>
+                            <div className="overflow-y-auto max-h-40">
+                              {deliveryPlaces.filter(p => p.name.toLowerCase().includes(deliveryPlaceSearch.toLowerCase()) || p.wilaya.toLowerCase().includes(deliveryPlaceSearch.toLowerCase())).map(place => (
+                                <button
+                                  key={place.id}
+                                  onClick={() => {
+                                    setDeliveryDetails({ ...deliveryDetails, address: place.name, zone: place.name });
+                                    setShowDeliveryPlaceDropdown(false);
+                                    setDeliveryPlaceSearch('');
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-container transition-colors flex items-center justify-between ${
+                                    deliveryDetails.address === place.name ? 'bg-primary/10 text-primary font-bold' : 'text-on-surface'
+                                  }`}
+                                >
+                                  <span>{place.name}{place.wilaya ? ` · ${place.wilaya}` : ''}</span>
+                                  {place.delivery_fee > 0 && <span className="text-[10px] text-secondary font-bold">{formatCurrency(place.delivery_fee)}</span>}
+                                </button>
+                              ))}
+                              {deliveryPlaces.filter(p => p.name.toLowerCase().includes(deliveryPlaceSearch.toLowerCase())).length === 0 && (
+                                <div className="px-3 py-3 text-xs text-on-surface-variant text-center">No zones found</div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="Adresse de livraison"
+                        className="w-full bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                        value={deliveryDetails.address || ''}
+                        onChange={(e) => setDeliveryDetails({ ...deliveryDetails, address: e.target.value })}
+                      />
+                    )}
                   </div>
                 )}
               </div>

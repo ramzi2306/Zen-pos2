@@ -33,6 +33,12 @@ class ReviewSchema(BaseModel):
     comment: str = ""
 
 
+class DeliveryAgentInfoSchema(BaseModel):
+    agent_id: str
+    name: str
+    phone: str
+
+
 class OrderCreate(BaseModel):
     table: str = ""
     order_type: str = "dine_in"
@@ -88,3 +94,4 @@ class OrderOut(BaseModel):
     tracking_token: Optional[str] = None
     created_at: Optional[datetime] = None
     location_id: Optional[str] = None
+    delivery_agent: Optional[DeliveryAgentInfoSchema] = None

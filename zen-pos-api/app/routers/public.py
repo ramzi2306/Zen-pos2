@@ -272,6 +272,7 @@ async def track_public_order(token: str):
         "order_type": order.order_type,
         "estimated_delivery": order.estimated_delivery,
         "review": order.review.model_dump() if order.review else None,
+        "delivery_agent": order.delivery_agent.model_dump() if order.delivery_agent else None,
     }
 
 @router.post("/orders/confirm-delivery/{token}")

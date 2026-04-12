@@ -18,6 +18,7 @@ from app.models.settings import BrandingDocument, LocalizationDocument, Integrat
 from app.models.location import LocationDocument
 from app.models.otp import OTPDocument
 from app.models.register import RegisterReportDocument
+from app.models.delivery import DeliveryPlaceDocument, DeliveryAgentDocument
 
 _client: Optional[AsyncIOMotorClient] = None
 _initialized: bool = False
@@ -52,6 +53,8 @@ async def connect_db() -> None:
             LocationDocument,
             OTPDocument,
             RegisterReportDocument,
+            DeliveryPlaceDocument,
+            DeliveryAgentDocument,
         ],
     )
 

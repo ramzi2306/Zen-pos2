@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from pymongo import IndexModel, ASCENDING, DESCENDING
 
 from app.models.user import UserDocument
+from app.models.delivery import DeliveryAgentInfo
 
 
 class SelectedVariation(BaseModel):
@@ -70,6 +71,7 @@ class OrderDocument(Document):
     location_id: Optional[str] = None        # auto-set from the creating user's location
     tracking_token: Optional[str] = None      # for public order tracking; always set on new orders
     estimated_delivery: Optional[datetime] = None
+    delivery_agent: Optional[DeliveryAgentInfo] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:

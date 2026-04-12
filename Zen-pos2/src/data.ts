@@ -248,6 +248,7 @@ export interface Order {
   assistants?: User[];
   review?: Review;
   locationId?: string;
+  deliveryAgent?: { agent_id: string; name: string; phone: string };
 }
 
 // ─── Public ordering types ─────────────────────────────────────────────────────
@@ -285,6 +286,7 @@ export interface PublicTrackingInfo {
   trackingToken: string;
   estimatedDelivery?: string;
   courier?: { name: string; phone?: string; avatar?: string };
+  delivery_agent?: { agent_id: string; name: string; phone: string };
   review?: Review;
 }
 

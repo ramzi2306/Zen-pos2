@@ -20,6 +20,7 @@ from app.routers import settings as settings_router
 from app.routers import ws as ws_router
 from app.routers import public as public_router
 from app.routers import register as register_router
+from app.routers import delivery as delivery_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
@@ -69,6 +70,7 @@ app.include_router(locations.router,       prefix="/locations",   tags=["Locatio
 app.include_router(public_router.router,   prefix="/public",      tags=["Storefront"])
 app.include_router(ws_router.router,                              tags=["WebSocket"])
 app.include_router(register_router.router, prefix="/register",     tags=["Register"])
+app.include_router(delivery_router.router, prefix="/delivery",     tags=["Delivery"])
 
 
 @app.get("/health", tags=["Health"])
