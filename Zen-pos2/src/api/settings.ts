@@ -1,5 +1,62 @@
 import { apiRequest, API_BASE, getAccessToken } from './client';
 
+export interface DaySchedule {
+  enabled: boolean;
+  open: string;   // "HH:MM" 24-hour
+  close: string;  // "HH:MM" 24-hour
+}
+
+export interface OpeningHours {
+  enabled: boolean;
+  monday:    DaySchedule;
+  tuesday:   DaySchedule;
+  wednesday: DaySchedule;
+  thursday:  DaySchedule;
+  friday:    DaySchedule;
+  saturday:  DaySchedule;
+  sunday:    DaySchedule;
+}
+
+export const DEFAULT_OPENING_HOURS: OpeningHours = {
+  enabled: false,
+  monday:    { enabled: true,  open: '09:00', close: '22:00' },
+  tuesday:   { enabled: true,  open: '09:00', close: '22:00' },
+  wednesday: { enabled: true,  open: '09:00', close: '22:00' },
+  thursday:  { enabled: true,  open: '09:00', close: '22:00' },
+  friday:    { enabled: true,  open: '09:00', close: '23:00' },
+  saturday:  { enabled: true,  open: '10:00', close: '23:00' },
+  sunday:    { enabled: false, open: '10:00', close: '21:00' },
+};
+
+/** Returns true if the restaurant is currently open based on the schedule.
+ *  Also returns the next opening slot as a human-readable string. */
+export function checkOpeningHours(hours: OpeningHours): { isOpen: boolean; nextOpen?: string } {
+  if (!hours.enabled) return { isOpen: true };
+
+  const now = new Date();
+  const dayKeys = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'] as const;
+  const dayLabels = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const todayIdx = now.getDay();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const today = hours[dayKeys[todayIdx]];
+  if (today.enabled && currentTime >= today.open && currentTime < today.close) {
+    return { isOpen: true };
+  }
+
+  // Find next open slot (search up to 7 days ahead)
+  for (let i = 1; i <= 7; i++) {
+    const idx = (todayIdx + i) % 7;
+    const day = hours[dayKeys[idx]];
+    if (day.enabled) {
+      const label = i === 1 ? 'Tomorrow' : dayLabels[idx];
+      return { isOpen: false, nextOpen: `${label} at ${day.open}` };
+    }
+  }
+  return { isOpen: false };
+}
+
 export interface BrandingData {
   restaurantName: string;
   metaTitle: string;
@@ -17,6 +74,7 @@ export interface BrandingData {
   dailySpecial: string;
   publicMenuCardLayout: 'vertical' | 'horizontal';
   trackingImage: string;
+  openingHours: OpeningHours;
 }
 
 export interface LocalizationData {
@@ -84,6 +142,7 @@ export const DEFAULT_BRANDING: BrandingData = {
   dailySpecial: '',
   publicMenuCardLayout: 'vertical',
   trackingImage: '',
+  openingHours: DEFAULT_OPENING_HOURS,
 };
 
 function mapBranding(raw: any): BrandingData {
@@ -104,6 +163,7 @@ function mapBranding(raw: any): BrandingData {
     dailySpecial:          raw.daily_special            ?? '',
     publicMenuCardLayout:  raw.public_menu_card_layout  ?? 'vertical',
     trackingImage:         raw.tracking_image           ?? '',
+    openingHours:          raw.opening_hours            ?? DEFAULT_OPENING_HOURS,
   };
 }
 
@@ -184,6 +244,7 @@ export async function updateBranding(data: Partial<BrandingData>): Promise<Brand
     ['dailySpecial',          'daily_special'],
     ['publicMenuCardLayout',  'public_menu_card_layout'],
     ['trackingImage',         'tracking_image'],
+    ['openingHours',          'opening_hours'],
   ];
   const payload: Record<string, any> = {};
   for (const [camel, snake] of keyMap) {

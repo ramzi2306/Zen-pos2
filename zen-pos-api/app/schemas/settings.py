@@ -19,6 +19,7 @@ class BrandingUpdate(BaseModel):
     daily_special: Optional[str] = None
     public_menu_card_layout: Optional[str] = None  # "vertical" | "horizontal"
     tracking_image: Optional[str] = None
+    opening_hours: Optional[dict] = None
 
 
 class BrandingOut(BaseModel):
@@ -38,6 +39,7 @@ class BrandingOut(BaseModel):
     daily_special: str = ""
     public_menu_card_layout: str = "vertical"
     tracking_image: str = ""
+    opening_hours: dict = {}
 
 
 class LocalizationUpdate(BaseModel):

@@ -5744,6 +5744,94 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 </div>
               </div>
             </div>
+
+            {/* Opening Hours */}
+            {(() => {
+              const DAYS = [
+                { key: 'monday',    label: 'Mon' },
+                { key: 'tuesday',   label: 'Tue' },
+                { key: 'wednesday', label: 'Wed' },
+                { key: 'thursday',  label: 'Thu' },
+                { key: 'friday',    label: 'Fri' },
+                { key: 'saturday',  label: 'Sat' },
+                { key: 'sunday',    label: 'Sun' },
+              ] as const;
+              type DayKey = typeof DAYS[number]['key'];
+              const oh = branding.openingHours;
+              const setDay = (day: DayKey, patch: Partial<import('../api/settings').DaySchedule>) =>
+                setBranding({ ...branding, openingHours: { ...oh, [day]: { ...oh[day], ...patch } } });
+
+              return (
+                <div className="bg-surface-container rounded-2xl p-8 shadow-sm border border-outline-variant/10 mt-8">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-bold font-headline flex items-center gap-3">
+                      <span className="material-symbols-outlined text-secondary">schedule</span> Opening Hours
+                    </h3>
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">
+                        {oh.enabled ? 'Schedule active' : 'Disabled'}
+                      </span>
+                      <Switch
+                        enabled={oh.enabled}
+                        onChange={val => setBranding({ ...branding, openingHours: { ...oh, enabled: val } })}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-on-surface-variant mb-8">
+                    When active, the public menu is locked outside of these hours. Customers will see a "We're closed" message and cannot place orders.
+                  </p>
+
+                  <div className={`space-y-2 transition-opacity ${oh.enabled ? '' : 'opacity-40 pointer-events-none'}`}>
+                    {DAYS.map(({ key, label }) => {
+                      const day = oh[key];
+                      return (
+                        <div key={key} className="flex items-center gap-4 px-4 py-3 rounded-xl bg-surface-container-lowest border border-outline-variant/10">
+                          {/* Day label */}
+                          <span className="w-8 text-xs font-bold font-headline text-on-surface-variant uppercase tracking-widest flex-shrink-0">{label}</span>
+
+                          {/* Open / closed toggle */}
+                          <button
+                            type="button"
+                            onClick={() => setDay(key, { enabled: !day.enabled })}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors flex-shrink-0 ${
+                              day.enabled
+                                ? 'bg-tertiary/15 text-tertiary'
+                                : 'bg-surface-container text-on-surface-variant/50 border border-outline-variant/20'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${day.enabled ? 'bg-tertiary' : 'bg-on-surface-variant/30'}`} />
+                            {day.enabled ? 'Open' : 'Closed'}
+                          </button>
+
+                          {/* Time inputs */}
+                          <div className={`flex-1 flex items-center gap-3 transition-opacity ${day.enabled ? '' : 'opacity-30 pointer-events-none'}`}>
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest flex-shrink-0">From</span>
+                              <input
+                                type="time"
+                                value={day.open}
+                                onChange={e => setDay(key, { open: e.target.value })}
+                                className="flex-1 min-w-0 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-1.5 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                              />
+                            </div>
+                            <span className="material-symbols-outlined text-on-surface-variant/40 text-sm flex-shrink-0">arrow_forward</span>
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest flex-shrink-0">To</span>
+                              <input
+                                type="time"
+                                value={day.close}
+                                onChange={e => setDay(key, { close: e.target.value })}
+                                className="flex-1 min-w-0 bg-surface-container border border-outline-variant/20 rounded-lg px-3 py-1.5 text-sm font-mono text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </>
         )}
 

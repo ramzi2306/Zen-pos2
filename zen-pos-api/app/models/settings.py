@@ -21,6 +21,7 @@ class BrandingDocument(Document):
     daily_special: str = ""
     public_menu_card_layout: str = "vertical"  # "vertical" | "horizontal"
     tracking_image: str = ""  # custom order tracking page illustration URL
+    opening_hours: dict = {}  # schedule-based menu locking
 
     class Settings:
         name = "settings"

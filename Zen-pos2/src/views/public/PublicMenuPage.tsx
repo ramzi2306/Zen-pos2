@@ -15,6 +15,8 @@ import { saveMockCustomer } from '../../api/customers';
 import type { Product, VariationOption, SupplementOption, PublicCartItem, PublicTrackingInfo, PublicOrder } from '../../data';
 import orderBagIcon from '../../assets/order-bag.webp';
 import { getCartItemPrice, getSubtotal } from '../../utils/cartUtils';
+import { checkOpeningHours, DEFAULT_OPENING_HOURS } from '../../api/settings';
+import type { OpeningHours } from '../../api/settings';
 
 function getBranding() {
   try { const b = localStorage.getItem('zenpos_branding'); if (b) return JSON.parse(b); } catch {}
@@ -1638,6 +1640,22 @@ function PublicMenuPageInner() {
   const restaurantLogo: string = branding.logo || '';
   const cardLayout: 'vertical' | 'horizontal' = branding.publicMenuCardLayout === 'horizontal' ? 'horizontal' : 'vertical';
 
+  // ── Opening-hours closed state ──────────────────────────────────────────────
+  const [venueStatus, setVenueStatus] = useState<{ isOpen: boolean; nextOpen?: string }>(() => {
+    const oh: OpeningHours = branding.openingHours ?? DEFAULT_OPENING_HOURS;
+    return checkOpeningHours(oh);
+  });
+  // Re-evaluate every minute so the lock lifts automatically at opening time
+  useEffect(() => {
+    const tick = () => {
+      const oh: OpeningHours = getBranding().openingHours ?? DEFAULT_OPENING_HOURS;
+      setVenueStatus(checkOpeningHours(oh));
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const isClosed = !venueStatus.isOpen;
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -1787,7 +1805,30 @@ function PublicMenuPageInner() {
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
         {/* Product grid */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-grid-pattern">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-grid-pattern relative">
+
+          {/* ── Closed overlay ────────────────────────────────────────── */}
+          {isClosed && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 bg-background/80 backdrop-blur-sm px-8">
+              <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+                <div className="w-20 h-20 rounded-full bg-surface-container flex items-center justify-center border border-outline-variant/20 shadow-lg">
+                  <span className="material-symbols-outlined text-4xl text-on-surface-variant">storefront</span>
+                </div>
+                <div>
+                  <h2 className="font-headline font-extrabold text-2xl text-on-surface mb-1">We're Closed</h2>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">
+                    {restaurantName} is not taking orders right now.
+                  </p>
+                  {venueStatus.nextOpen && (
+                    <p className="mt-3 text-xs font-bold text-primary uppercase tracking-widest">
+                      Opens {venueStatus.nextOpen}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
               <span className="material-symbols-outlined text-5xl text-error">wifi_off</span>
@@ -1808,7 +1849,12 @@ function PublicMenuPageInner() {
                     </div>
                   ))
                 : filtered.map(product => (
-                    <ProductCard key={product.id} product={product} layout={cardLayout} onClick={e => handleProductClick(product, e)} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      layout={cardLayout}
+                      onClick={isClosed ? () => {} : e => handleProductClick(product, e)}
+                    />
                   ))
               }
             </div>
@@ -1837,14 +1883,14 @@ function PublicMenuPageInner() {
         <PublicCartPanel open={cartOpen} setOpen={setCartOpen} />
       </div>
 
-      {/* Mobile floating button */}
+      {/* Mobile floating button — hidden when closed */}
       <AnimatePresence>
-        {!cartOpen && <FloatingCartButton onOpen={() => setCartOpen(true)} />}
+        {!cartOpen && !isClosed && <FloatingCartButton onOpen={() => setCartOpen(true)} />}
       </AnimatePresence>
 
-      {/* Variation modal */}
+      {/* Variation modal — suppressed when closed */}
       <AnimatePresence>
-        {selectedProduct && productRect && (
+        {!isClosed && selectedProduct && productRect && (
           <VariationModal
             product={selectedProduct}
             productRect={productRect}
