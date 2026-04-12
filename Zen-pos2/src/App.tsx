@@ -177,7 +177,7 @@ function AppShell() {
     const token = api.getAccessToken();
     if (token) zenWs.connect(token);
 
-    const SILENT_EVENTS = new Set(['product_update', 'user_update', 'order_update', 'ingredient_update', 'customer_update']);
+    const SILENT_EVENTS = new Set(['product_update', 'user_update', 'ingredient_update', 'customer_update']);
 
     const unsub = zenWs.onEvent((event: WsEvent) => {
       const isSilent = SILENT_EVENTS.has(event.type);
@@ -219,7 +219,9 @@ function AppShell() {
         setToast(notif);
         toastTimerRef.current = setTimeout(() => setToast(null), 4000);
 
-        if (event.type === 'new_order') playSound('new_order');
+        if (event.type === 'new_order' || (event.type === 'order_update' && (event as any).action === 'created')) {
+          playSound('new_order');
+        }
         else if (event.type === 'urgent') playSound('urgent');
         else if (event.type === 'status_update' && event.status === 'Done') playSound('status_done');
         else if (event.type === 'status_update' && event.status === 'Served') playSound('ready');
@@ -256,10 +258,11 @@ function AppShell() {
     const refreshOrders = () => {
       if (currentUser.permissions.includes('view_orders')) {
         if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
+        const today = new Date().toISOString().split('T')[0];
         wsRefreshTimerRef.current = setTimeout(() => {
           api.orders.listOrders(
             usersRef.current,
-            undefined,
+            today,
             activeLocationIdRef.current ?? undefined,
           ).then(setOrders).catch(console.error);
         }, 300);
@@ -350,7 +353,9 @@ function AppShell() {
   const hasPendingVerification = pendingVerificationOrders.length > 0;
   useEffect(() => {
     if (!hasPendingVerification || !currentUser) return;
-    const id = setInterval(() => playSound('new_order'), 30_000);
+    // Ring every 3 seconds for unverified orders
+    playSound('new_order'); // start immediately
+    const id = setInterval(() => playSound('new_order'), 3_000);
     return () => clearInterval(id);
   }, [hasPendingVerification, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -924,10 +929,15 @@ function AppShell() {
 
 function _notifTitle(event: WsEvent): string {
   switch (event.type) {
-    case 'new_order':    return `New Order ${event.order_number || ''}`;
+    case 'new_order':    return `New Online Order ${event.order_number || ''}`;
+    case 'order_update': 
+      return (event as any).action === 'created' 
+        ? `New Order ${event.order_number || ''}` 
+        : `Order ${event.order_number || ''} Updated`;
     case 'urgent':       return `Urgent: ${event.order_number || ''}`;
     case 'status_update':return `Order ${event.order_number || ''} — ${event.status || ''}`;
     case 'order_done':   return `Order ${event.order_number || ''} Completed`;
+    case 'attendance_update': return 'Attendance Update';
     default:             return 'Notification';
   }
 }

@@ -96,6 +96,8 @@ export function PublicCartProvider({ children }: { children: React.ReactNode }) 
         ? prev.map((i, n) => (n === idx ? { ...i, quantity: i.quantity + qty } : i))
         : [...prev, { ...item, quantity: qty }];
     });
+    // Force view to cart when adding item
+    setUiState(prev => ({ ...prev, view: 'cart' }));
   }, []);
 
   const removeItem = useCallback((productId: string, variationKey?: string) => {

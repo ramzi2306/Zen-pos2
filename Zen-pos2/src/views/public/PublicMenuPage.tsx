@@ -474,6 +474,14 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       setCheckoutStep('phone');
     }
   }, [view]);
+  
+  // Handle order delivery/completion: clear cart and reset to empty cart view
+  useEffect(() => {
+    if (tracking?.status === 'Done') {
+      clearCart();
+      setUi({ view: 'cart' });
+    }
+  }, [tracking?.status, clearCart, setUi]);
 
   const reset = () => {
     resetUi();
@@ -1753,6 +1761,7 @@ function PublicMenuPageInner() {
       selectedVariations: publicVariations,
       selectedSupplements: publicSupplements,
     });
+    setCartOpen(true);
 
     // Track AddToCart
     import('../../utils/pixel').then(p => p.trackAddToCart({
