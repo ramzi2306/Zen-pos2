@@ -16,6 +16,8 @@ import { LocalizationProvider } from './context/LocalizationContext';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
 import { zenWs, WsEvent } from './api/websocket';
 import { playSound, unlockAudio } from './utils/sounds';
+import { useLocalization } from './context/LocalizationContext';
+import { getCartItemPrice } from './utils/cartUtils';
 import * as api from './api';
 
 export interface AppNotification {
@@ -45,7 +47,17 @@ function AppShell() {
   const [locations, setLocations] = useState<import('./api/locations').Location[]>([]);
   // Admin/owner can switch active location filter; null = see all
   const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const { formatCurrency } = useLocalization();
+
+  const NOTIF_STORAGE_KEY = 'zenpos_notifications';
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    try { const s = localStorage.getItem(NOTIF_STORAGE_KEY); return s ? JSON.parse(s) : []; } catch { return []; }
+  });
+  // Persist every change
+  useEffect(() => {
+    try { localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifications)); } catch {}
+  }, [notifications]);
+
   const [toast, setToast] = useState<AppNotification | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Register gate: false = attendance screen is locked (must check in before using POS)
@@ -306,6 +318,34 @@ function AppShell() {
     api.orders.listOrders(usersRef.current, undefined, activeLocationId ?? undefined).then(setOrders).catch(console.error);
   }, [activeLocationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Repeat new-order sound every 30 s while unverified online orders exist
+  const pendingVerificationOrders = orders.filter(o => o.status === 'Verification');
+  const hasPendingVerification = pendingVerificationOrders.length > 0;
+  useEffect(() => {
+    if (!hasPendingVerification || !currentUser) return;
+    const id = setInterval(() => playSound('new_order'), 30_000);
+    return () => clearInterval(id);
+  }, [hasPendingVerification, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Verify-card popup (for bottom-left persistent cards)
+  const [verifyCardOrder, setVerifyCardOrder] = useState<Order | null>(null);
+  const [verifyCardLoading, setVerifyCardLoading] = useState<'queue' | 'cancel' | null>(null);
+
+  const handleVerifyCardAction = async (action: 'queue' | 'cancel') => {
+    if (!verifyCardOrder) return;
+    setVerifyCardLoading(action);
+    try {
+      const newStatus = action === 'queue' ? 'Queued' : 'Cancelled';
+      const updated = await api.orders.updateOrderStatus(verifyCardOrder.id, newStatus);
+      setOrders(prev => prev.map(o => o.id === verifyCardOrder!.id ? updated : o));
+      setVerifyCardOrder(null);
+    } catch (err: any) {
+      console.error('Verify from card failed:', err.message);
+    } finally {
+      setVerifyCardLoading(null);
+    }
+  };
+
   const hasPermission = (permission: Permission): boolean => {
     if (!currentUser) return false;
     if (currentUser.permissions.includes(permission)) return true;
@@ -403,6 +443,8 @@ function AppShell() {
     setOrders([]);
     setUsers([]);
     setCart([]);
+    setNotifications([]);
+    try { localStorage.removeItem(NOTIF_STORAGE_KEY); } catch {}
     setIsRegisterOpen(false);
     navigate('/admin');
   };
@@ -432,6 +474,8 @@ function AppShell() {
     }
 
     sessionStorage.removeItem('sessionOpenedAt');
+    setNotifications([]);
+    try { localStorage.removeItem(NOTIF_STORAGE_KEY); } catch {}
 
     if (currentUser && !currentUser.excludeFromAttendance) {
       try { await api.attendance.forceCheckOut(currentUser.id); } catch { /* already checked out is fine */ }
@@ -707,6 +751,140 @@ function AppShell() {
               }`}
               style={{ animation: 'toastProgress 4s linear forwards' }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── Persistent verification cards — bottom-left ──────────────────── */}
+      {currentUser && hasPendingVerification && (
+        <div className="fixed bottom-6 left-4 z-[190] flex flex-col-reverse gap-2 max-w-[17rem] pointer-events-auto">
+          {pendingVerificationOrders.slice(0, 4).map(order => (
+            <div
+              key={order.id}
+              className="bg-surface-container-lowest rounded-2xl shadow-2xl border border-amber-400/40 overflow-hidden"
+              style={{ animation: 'slideInLeft 0.25s ease-out' }}
+            >
+              {/* Card header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-outline-variant/10 bg-amber-400/5">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                  <span className="font-headline font-bold text-sm text-on-surface">{order.orderNumber ?? `#${order.id.slice(-4)}`}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">Online</span>
+                </div>
+                <span className="text-[10px] text-on-surface-variant tabular-nums">
+                  {order.createdAt ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (order.time || '')}
+                </span>
+              </div>
+              {/* Customer + summary */}
+              <div className="px-4 py-2.5">
+                <p className="text-sm font-semibold text-on-surface leading-tight">{order.customer?.name || '—'}</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {order.items.length} item{order.items.length !== 1 ? 's' : ''} · {formatCurrency(order.total)}
+                </p>
+              </div>
+              {/* Verify button */}
+              <div className="px-3 pb-3">
+                <button
+                  onClick={() => setVerifyCardOrder(order)}
+                  className="w-full py-2 bg-primary text-on-primary rounded-xl text-[11px] font-bold uppercase tracking-widest hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/30"
+                >
+                  <span className="material-symbols-outlined text-sm">call</span>
+                  Verify Order
+                </button>
+              </div>
+            </div>
+          ))}
+          {pendingVerificationOrders.length > 4 && (
+            <p className="text-[10px] text-center text-on-surface-variant py-1">
+              +{pendingVerificationOrders.length - 4} more pending
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Verify-card popup ────────────────────────────────────────────── */}
+      {verifyCardOrder && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 pointer-events-auto">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !verifyCardLoading && setVerifyCardOrder(null)} />
+          <div className="relative bg-surface-container-lowest border border-outline-variant/20 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-5">
+                <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-2xl">call</span>
+                </div>
+                <div>
+                  <h3 className="font-headline text-xl font-bold text-on-surface">Verify Order</h3>
+                  <p className="text-xs text-on-surface-variant mt-0.5">{verifyCardOrder.orderNumber} · Online</p>
+                  {verifyCardOrder.createdAt && (
+                    <p className="text-xs text-on-surface-variant/60 mt-0.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">schedule</span>
+                      {new Date(verifyCardOrder.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {/* Customer */}
+              <div className="bg-surface-container rounded-xl p-4 mb-4 space-y-2">
+                <p className="text-sm font-semibold text-on-surface">{verifyCardOrder.customer?.name ?? '—'}</p>
+                <a
+                  href={`tel:${verifyCardOrder.customer?.phone}`}
+                  className="flex items-center gap-2 text-primary font-bold text-lg tracking-wide hover:opacity-80 transition-opacity"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <span className="material-symbols-outlined text-xl">call</span>
+                  {verifyCardOrder.customer?.phone ?? '—'}
+                </a>
+                {verifyCardOrder.customer?.address && (
+                  <p className="text-xs text-on-surface-variant flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm">location_on</span>
+                    {verifyCardOrder.customer.address}
+                  </p>
+                )}
+              </div>
+              {/* Items */}
+              <div className="space-y-1 mb-2">
+                {verifyCardOrder.items.map((item, i) => {
+                  const varNames = Object.values(item.selectedVariations || {}).map((v: any) => v.name).join(' · ');
+                  const suppNames = Object.values(item.selectedSupplements || {}).map((s: any) => `+${s.name}`).join(' · ');
+                  const mods = [varNames, suppNames].filter(Boolean).join(' | ');
+                  return (
+                    <div key={i} className="flex flex-col gap-0.5">
+                      <div className="flex justify-between text-xs text-on-surface-variant">
+                        <span>{item.quantity}× {item.name}</span>
+                        <span>{formatCurrency(getCartItemPrice(item) * item.quantity)}</span>
+                      </div>
+                      {mods && <p className="text-[10px] text-on-surface-variant/70 italic ml-4">{mods}</p>}
+                    </div>
+                  );
+                })}
+                <div className="flex justify-between text-sm font-bold text-on-surface border-t border-outline-variant/20 pt-2 mt-2">
+                  <span>Total</span>
+                  <span>{formatCurrency(verifyCardOrder.total)}</span>
+                </div>
+              </div>
+            </div>
+            {/* Actions */}
+            <div className="flex flex-col gap-2 p-4 pt-0">
+              <button
+                onClick={() => handleVerifyCardAction('queue')}
+                disabled={verifyCardLoading !== null}
+                className="w-full py-3 bg-primary text-on-primary rounded-xl font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {verifyCardLoading === 'queue'
+                  ? <span className="material-symbols-outlined animate-spin">sync</span>
+                  : <><span className="material-symbols-outlined text-sm">queue_play_next</span>Add to Queue</>}
+              </button>
+              <button
+                onClick={() => handleVerifyCardAction('cancel')}
+                disabled={verifyCardLoading !== null}
+                className="w-full py-3 bg-error/10 text-error rounded-xl font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-error/20 transition-colors disabled:opacity-50"
+              >
+                {verifyCardLoading === 'cancel'
+                  ? <span className="material-symbols-outlined animate-spin">sync</span>
+                  : <><span className="material-symbols-outlined text-sm">cancel</span>Cancel Order</>}
+              </button>
+            </div>
           </div>
         </div>
       )}
