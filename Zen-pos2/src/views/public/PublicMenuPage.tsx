@@ -249,6 +249,10 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const navigate = useNavigate();
   const { token } = useParams();
 
+  // Keep a ref so the URL sync can read current view without it being a dependency
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
   // Sync internal view with URL
   useEffect(() => {
     if (location.pathname === '/checkout') {
@@ -261,7 +265,9 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       const hasSession = !!localStorage.getItem('customer_session');
       setUi({ view: hasSession ? 'history_list' : 'history_phone' });
       setOpen(true);
-    } else if (location.pathname === '/') {
+    } else if (location.pathname === '/' && viewRef.current === 'checkout') {
+      // Only reset to cart when navigating away from /checkout —
+      // tracking, placed, and history views are valid at '/' and must be preserved.
       setUi({ view: 'cart' });
     }
   }, [location.pathname, setOpen, setUi]);
@@ -659,6 +665,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                   setView('cart');
                   navigate('/');
                 } else {
+                  setView('cart');
                   navigate('/');
                 }
               }}
