@@ -71,7 +71,7 @@ export function buildReceiptHtml(d: ReceiptData): string {
 
   const itemRows = d.items.map(item => {
     const noteStr = [item.modifiers, item.notes].filter(Boolean).join(' | ');
-    return `<div style="margin-bottom:6px;"><div style="display:flex;justify-content:space-between;font-weight:700;"><span>${item.quantity}x ${item.name}</span><span style="white-space:nowrap;margin-left:8px;">${formatCurrency(item.lineTotal)}</span></div>${noteStr ? `<div style="padding-left:16px;font-size:11px;font-weight:600;color:#333;">${noteStr}</div>` : ''}</div>`;
+    return `<div style="margin-bottom:6px;"><div style="display:flex;justify-content:space-between;font-weight:700;"><span>${item.quantity}x ${item.name}</span><span style="white-space:nowrap;margin-left:8px;">${formatCurrency(item.lineTotal)}</span></div>${noteStr ? `<div style="padding-left:16px;font-size:13px;font-weight:700;color:#000;text-transform:uppercase;">${noteStr}</div>` : ''}</div>`;
   }).join('');
 
   const hasCustomer = d.customer && (d.customer.name || d.customer.phone || d.customer.address);
@@ -95,7 +95,7 @@ export function buildReceiptHtml(d: ReceiptData): string {
     : '';
 
   const notesSection = d.notes
-    ? `${SEP}<div style="font-size:12px;font-weight:700;color:#000;">Note: ${d.notes}</div>`
+    ? `${SEP}<div style="font-size:14px;font-weight:bold;color:#000;">NOTE: ${d.notes}</div>`
     : '';
 
   const orderTypeDisplay = (d.orderType || 'dine_in').replace(/_/g, ' ');
