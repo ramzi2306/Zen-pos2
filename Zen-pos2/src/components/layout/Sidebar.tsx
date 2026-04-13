@@ -33,16 +33,16 @@ export const Sidebar = ({
     { id: 'team',         icon: 'group',                label: 'Staff',           category: 'pos_settings', permission: 'view_staff'    },
     { id: 'localization', icon: 'language',             label: 'Localization',    category: 'pos_settings', permission: 'view_settings' },
     { id: 'roles',        icon: 'admin_panel_settings', label: 'Role Management', category: 'pos_settings', permission: 'manage_roles'  },
-    { id: 'integration',   icon: 'hub',                  label: 'Integration',     category: 'pos_settings', permission: 'view_settings' },
-    { id: 'delivery',      icon: 'local_shipping',       label: 'Delivery',        category: 'pos_settings', permission: 'view_settings' },
-    { id: 'notifications', icon: 'notifications_active', label: 'Notifications',   category: 'pos_settings', permission: 'view_settings' },
-    { id: 'profile',       icon: 'manage_accounts',      label: 'My Profile',      category: 'pos_settings', permission: 'view_settings' },
+    { id: 'integration',  icon: 'hub',                  label: 'Integration',     category: 'pos_settings', permission: 'view_settings' },
+    { id: 'notifications', icon: 'notifications_active', label: 'Notifications',  category: 'pos_settings', permission: 'view_settings' },
+    { id: 'profile',      icon: 'manage_accounts',      label: 'My Profile',      category: 'pos_settings', permission: 'view_settings' },
 
     // Administration
     { id: 'sales',      icon: 'bar_chart',       label: 'Sales',           category: 'admin_panel', permission: 'view_orders'     },
     { id: 'customers',  icon: 'groups',          label: 'Customers',       category: 'admin_panel', permission: 'view_orders'     },
     { id: 'products',   icon: 'restaurant_menu', label: 'Products',        category: 'admin_panel', permission: 'view_menu'       },
     { id: 'inventory',  icon: 'inventory_2',     label: 'Inventory',       category: 'admin_panel', permission: 'view_inventory'  },
+    { id: 'delivery',   icon: 'local_shipping',  label: 'Delivery',        category: 'admin_panel', permission: 'view_settings'   },
     { id: 'attendance', icon: 'fingerprint',     label: 'Attendance',      category: 'admin_panel', permission: 'view_attendance' },
     { id: 'hr',         icon: 'badge',           label: 'Human Resources', category: 'admin_panel', permission: 'view_hr'         },
   ];
