@@ -824,6 +824,7 @@ function AppShell() {
                 </p>
               </div>
               {/* Verify button */}
+              <div className="px-4 pb-2.5">
                 <button
                   onClick={() => {
                     setVerifyCardOrder(order);
