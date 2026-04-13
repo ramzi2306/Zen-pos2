@@ -22,7 +22,10 @@ let refreshPromise: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   const refresh = localStorage.getItem('refresh_token');
-  if (!refresh) return null;
+  if (!refresh) {
+    window.location.href = '/login';
+    return null;
+  }
   refreshPromise = (async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
@@ -30,13 +33,14 @@ async function refreshAccessToken(): Promise<string | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refresh }),
       });
-      if (!res.ok) { clearTokens(); return null; }
+      if (!res.ok) { clearTokens(); window.location.href = '/login'; return null; }
       const data = await res.json();
       localStorage.setItem('access_token', data.access_token);
       if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
       return data.access_token as string;
     } catch {
       clearTokens();
+      window.location.href = '/login';
       return null;
     } finally {
       refreshPromise = null;
@@ -50,10 +54,12 @@ export async function publicRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+  const headers: Record<string, string> = {};
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  Object.assign(headers, options.headers || {});
+  
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
@@ -72,10 +78,12 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAccessToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+  const headers: Record<string, string> = {};
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  Object.assign(headers, options.headers || {});
+
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res = await fetch(`${API_BASE}${path}`, { ...options, headers });

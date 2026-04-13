@@ -336,15 +336,8 @@ export async function updateIntegration(data: IntegrationData): Promise<Integrat
 export async function uploadFile(file: File): Promise<{ url: string }> {
   const formData = new FormData();
   formData.append('file', file);
-  const token = getAccessToken();
-  const res = await fetch(`${API_BASE}/settings/upload`, {
+  return apiRequest<{ url: string }>('/settings/upload', {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Upload failed');
-  }
-  return res.json();
 }
