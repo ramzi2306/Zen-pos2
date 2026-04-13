@@ -43,6 +43,7 @@ export const CartSidebar = ({
   onClearCart,
   onOrderCreated,
   branding,
+  editingOrderId,
 }: {
   cart: CartItem[];
   updateQuantity: (cartItemId: string, delta: number) => void;
@@ -52,6 +53,7 @@ export const CartSidebar = ({
   onClearCart?: () => void;
   onOrderCreated?: (order: Order) => void;
   branding?: BrandingData;
+  editingOrderId?: string | null;
 }) => {
   const { localization, formatCurrency } = useLocalization();
 
@@ -206,7 +208,24 @@ export const CartSidebar = ({
         ? { name: deliveryDetails.name, phone: deliveryDetails.phone || '', address: deliveryDetails.address || undefined }
         : { name: '', phone: '' };
       const method = paymentStatus === 'Paid' ? paymentMethod : 'Cash';
-      const newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus, method);
+      
+      let newOrder: Order;
+      if (editingOrderId) {
+        newOrder = await api.orders.updateOrder(
+          editingOrderId,
+          cart,
+          orderType,
+          '',
+          customer,
+          orderNote,
+          paymentStatus,
+          orderStatus,
+          method
+        );
+      } else {
+        newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus, method);
+      }
+
       setCreatedOrderNumber(newOrder.orderNumber ?? null);
       setCreatedTrackingToken(newOrder.trackingToken ?? null);
       if (onOrderCreated) onOrderCreated(newOrder);
@@ -215,7 +234,10 @@ export const CartSidebar = ({
         setPrintReady(false);
         setTimeout(() => setPrintReady(true), 3000);
       } else {
-        const label = orderStatus === 'Draft' ? 'Draft saved!' : `${newOrder.orderNumber ?? 'Order'} sent to kitchen!`;
+        let label = orderStatus === 'Draft' ? 'Draft saved!' : `${newOrder.orderNumber ?? 'Order'} sent to kitchen!`;
+        if (editingOrderId && orderStatus !== 'Draft') {
+          label = `Order ${newOrder.orderNumber ?? ''} updated!`;
+        }
         setToast({ message: label, type: 'success' });
         
         // Auto-print for kitchen orders (if not a draft)

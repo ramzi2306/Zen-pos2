@@ -188,6 +188,63 @@ export async function createOrder(
   return mapOrder(raw);
 }
 
+export async function updateOrder(
+  orderId: string,
+  cart?: CartItem[],
+  orderType?: 'dine_in' | 'takeaway' | 'delivery',
+  table?: string,
+  customer?: { name: string; phone: string; address?: string },
+  notes?: string,
+  paymentStatus?: 'Unpaid' | 'Paid',
+  status?: string,
+  paymentMethod?: 'Cash' | 'Credit Card' | 'Other',
+): Promise<Order> {
+  const payload: any = {};
+  if (table !== undefined) payload.table = table;
+  if (orderType !== undefined) payload.order_type = orderType;
+  if (customer !== undefined) payload.customer = customer;
+  if (notes !== undefined) payload.notes = notes;
+  if (paymentStatus !== undefined) payload.payment_status = paymentStatus;
+  if (paymentMethod !== undefined) payload.payment_method = paymentMethod;
+  if (status !== undefined) payload.status = status;
+  
+  if (cart !== undefined) {
+    payload.items = cart.map(item => ({
+      product_id: item.id,
+      product_name: item.name,
+      category: item.category || '',
+      unit_price: item.price,
+      quantity: item.quantity,
+      notes: item.notes || '',
+      discount: item.discount || 0,
+      selected_variations: [
+        ...Object.entries(item.selectedVariations || {}).map(([groupId, opt]) => ({
+          group_id: groupId,
+          group_name: groupId,
+          option_id: opt.id,
+          option_name: opt.name,
+          price_adjustment: (opt as any).price ?? (opt as any).priceAdjustment ?? 0,
+          is_supplement: false,
+        })),
+        ...Object.entries(item.selectedSupplements || {}).map(([groupId, opt]) => ({
+          group_id: groupId,
+          group_name: groupId,
+          option_id: opt.id,
+          option_name: opt.name,
+          price_adjustment: (opt as any).priceAdjustment ?? (opt as any).price ?? 0,
+          is_supplement: true,
+        })),
+      ],
+    }));
+  }
+
+  const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return mapOrder(raw);
+}
+
 export async function updateOrderStatus(orderId: string, status: string, scheduledTime?: string): Promise<Order> {
   const body: Record<string, string> = { status };
   if (scheduledTime) body.scheduled_time = scheduledTime;

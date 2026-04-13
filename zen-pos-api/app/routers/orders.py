@@ -88,14 +88,41 @@ async def create_order(
 @router.patch("/{order_id}", response_model=OrderOut,
               dependencies=[Depends(require_permission("view_orders"))])
 async def update_order(order_id: str, body: OrderUpdate):
+    from app.models.order import OrderItem, CustomerInfo, SelectedVariation
+    from app.services.order_service import recalculate_order_totals
+
     order = await OrderDocument.get(order_id)
     if not order:
         raise NotFoundError("Order not found")
+    
     if body.status:
         order = await order_service.transition_status(order_id, body.status, body.scheduled_time)
-    update_data = body.model_dump(exclude_unset=True, exclude={"status", "scheduled_time"})
+    
+    if body.items is not None:
+        order.items = [
+            OrderItem(
+                product_id=i.product_id,
+                product_name=i.product_name,
+                category=i.category,
+                unit_price=i.unit_price,
+                quantity=i.quantity,
+                notes=i.notes,
+                discount=i.discount,
+                selected_variations=[
+                    SelectedVariation(**v.model_dump()) for v in i.selected_variations
+                ],
+            )
+            for i in body.items
+        ]
+        await recalculate_order_totals(order)
+
+    if body.customer:
+        order.customer = CustomerInfo(**body.customer.model_dump())
+
+    update_data = body.model_dump(exclude_unset=True, exclude={"status", "scheduled_time", "items", "customer"})
     for key, value in update_data.items():
         setattr(order, key, value)
+    
     await order.save()
     out = _to_out(order)
     await manager.broadcast("order_update", {"action": "updated", "id": order_id, "status": out.status})

@@ -61,6 +61,9 @@ class OrderUpdate(BaseModel):
     notes: Optional[str] = None
     is_urgent: Optional[bool] = None
     scheduled_time: Optional[str] = None  # set together with status="Scheduled"
+    order_type: Optional[str] = None
+    items: Optional[list[OrderItemSchema]] = None
+    customer: Optional[CustomerInfoSchema] = None
 
 
 class AssignCookRequest(BaseModel):

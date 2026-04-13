@@ -25,6 +25,24 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
 }
 
 
+async def recalculate_order_totals(order: OrderDocument) -> None:
+    """Recalculate subtotal, tax, and total for an order based on its items and current settings."""
+    subtotal = round(sum(item.line_total for item in order.items), 2)
+
+    from app.models.settings import LocalizationDocument
+    localization = await LocalizationDocument.find_one({"key": "localization"})
+    tax_rate = (localization.tax_rate / 100) if localization and localization.tax_enabled else 0.0
+    gratuity_rate = (localization.gratuity_rate / 100) if localization and localization.gratuity_enabled else 0.0
+    
+    tax = round(subtotal * tax_rate, 2)
+    gratuity = round(subtotal * gratuity_rate, 2)
+    total = round(subtotal + tax + gratuity, 2)
+
+    order.subtotal = subtotal
+    order.tax = tax
+    order.total = total
+
+
 async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> OrderDocument:
     from app.models.product import ProductDocument
 
@@ -49,17 +67,26 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
         for i in data.items
     ]
 
-    subtotal = round(sum(item.line_total for item in items), 2)
-
-    from app.models.settings import LocalizationDocument
-    localization = await LocalizationDocument.find_one({"key": "localization"})
-    tax_rate = (localization.tax_rate / 100) if localization and localization.tax_enabled else 0.0
-    gratuity_rate = (localization.gratuity_rate / 100) if localization and localization.gratuity_enabled else 0.0
-    tax = round(subtotal * tax_rate, 2)
-    gratuity = round(subtotal * gratuity_rate, 2)
-    total = round(subtotal + tax + gratuity, 2)
-
     customer_info = CustomerInfo(**data.customer.model_dump())
+
+    order_number = await _generate_order_number()
+    order = OrderDocument(
+        order_number=order_number,
+        table=data.table,
+        status=data.status,
+        payment_status=data.payment_status,
+        payment_method=data.payment_method,
+        order_type=data.order_type,
+        items=items,
+        # totals set below via recalculate
+        customer=customer_info,
+        scheduled_time=data.scheduled_time,
+        notes=data.notes,
+        is_urgent=data.is_urgent,
+        location_id=location_id,
+        tracking_token=str(uuid.uuid4()),
+    )
+    await recalculate_order_totals(order)
 
     # Duplicate detection: same customer phone + same products within 60 seconds
     if customer_info.phone and data.status != "Draft":
@@ -78,25 +105,6 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
                         "Duplicate order detected. Please wait before placing the same order again."
                     )
 
-    order_number = await _generate_order_number()
-    order = OrderDocument(
-        order_number=order_number,
-        table=data.table,
-        status=data.status,
-        payment_status=data.payment_status,
-        payment_method=data.payment_method,
-        order_type=data.order_type,
-        items=items,
-        subtotal=subtotal,
-        tax=tax,
-        total=total,
-        customer=customer_info,
-        scheduled_time=data.scheduled_time,
-        notes=data.notes,
-        is_urgent=data.is_urgent,
-        location_id=location_id,
-        tracking_token=str(uuid.uuid4()),
-    )
     await order.insert()
 
     # Auto-upsert customer record when phone is provided

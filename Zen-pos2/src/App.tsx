@@ -42,6 +42,7 @@ function AppShell() {
   const [users, setUsers] = useState<User[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [branding, setBranding] = useState<BrandingData>(() => {
     try {
@@ -544,6 +545,13 @@ function AppShell() {
     });
   };
 
+  const setEditingOrder = (order: Order) => {
+    setCart(order.items);
+    setEditingOrderId(order.id);
+    navigate('/menu');
+    setIsCartOpen(true);
+  };
+
   const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.cartItemId === cartItemId) {
@@ -559,18 +567,25 @@ function AppShell() {
   };
 
   const handleEditOrder = (order: Order) => {
-    setCart(order.items);
-    if (order.status === 'Draft') {
-      setOrders(prev => prev.filter(o => o.id !== order.id));
-    }
-    navigate('/menu');
-    setIsCartOpen(true);
+    setEditingOrder(order);
   };
 
-  const clearCart = () => setCart([]);
+  const clearCart = () => {
+    setCart([]);
+    setEditingOrderId(null);
+  };
 
   const handleOrderCreated = (newOrder: Order) => {
-    setOrders(prev => [newOrder, ...prev]);
+    setOrders(prev => {
+      const idx = prev.findIndex(o => o.id === newOrder.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = newOrder;
+        return next;
+      }
+      return [newOrder, ...prev];
+    });
+    setEditingOrderId(null);
   };
 
   const refreshOrders = (date?: string, startDate?: string, endDate?: string) => {
@@ -718,6 +733,7 @@ function AppShell() {
                 onClearCart={clearCart}
                 onOrderCreated={handleOrderCreated}
                 branding={branding}
+                editingOrderId={editingOrderId}
               />
             </>
           )}
