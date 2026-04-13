@@ -18,5 +18,5 @@ export function formatCartItemModifiers(item: CartItem): string {
 }
 
 export function getSubtotal(cart: CartItem[]): number {
-  return cart.reduce((sum, item) => sum + (getCartItemPrice(item) - (item.discount || 0)) * item.quantity, 0);
+  return cart.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100), 0);
 }

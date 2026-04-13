@@ -37,6 +37,8 @@ class LocalizationDocument(Document):
     timezone: str = "Africa/Algiers"
     decimal_separator: str = "dot"
     currency_decimals: int = 2
+    gratuity_enabled: bool = False
+    gratuity_rate: float = 0.0
 
     class Settings:
         name = "localization"

@@ -180,8 +180,10 @@ async def create_public_order(req: OnlineOrderRequest, background_tasks: Backgro
         
     localization = await LocalizationDocument.find_one({"key": "localization"})
     tax_rate = (localization.tax_rate / 100) if localization and localization.tax_enabled else 0.0
+    gratuity_rate = (getattr(localization, 'gratuity_rate', 0) / 100) if localization and getattr(localization, 'gratuity_enabled', False) else 0.0
     tax = round(subtotal * tax_rate, 2)
-    total = subtotal + tax
+    gratuity = round(subtotal * gratuity_rate, 2)
+    total = subtotal + tax + gratuity
     tracking_token = str(uuid.uuid4())
     
     # 3. Create document

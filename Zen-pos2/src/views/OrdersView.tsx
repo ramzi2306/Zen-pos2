@@ -799,12 +799,12 @@ export const OrdersView = ({
       status: 'Draft',
       paymentStatus: 'Unpaid',
       items: cart,
-      total: subtotal * 1.08,
+      total: subtotal * (1 + (localization.taxEnabled ? localization.taxRate / 100 : 0) + (localization.gratuityEnabled ? localization.gratuityRate / 100 : 0)),
       time: 'Just now',
       orderType: 'dine_in',
     };
     return [activeDraft, ...orders];
-  }, [cart, orders]);
+  }, [cart, orders, localization]);
 
   const displayOrders = useMemo(() => {
     if (statusFilter === 'online') {

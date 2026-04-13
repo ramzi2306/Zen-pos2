@@ -11,8 +11,6 @@ from app.models.order import OrderDocument, OrderItem, CustomerInfo, SelectedVar
 from app.models.user import UserDocument
 from app.schemas.order import OrderCreate, OrderUpdate
 
-TAX_RATE = 0.08875  # 8.875% combined tax
-
 VALID_TRANSITIONS: dict[str, list[str]] = {
     "Draft":            ["Queued", "Cancelled"],
     "Queued":           ["Preparing", "Scheduled", "Cancelled"],
@@ -52,8 +50,14 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
     ]
 
     subtotal = round(sum(item.line_total for item in items), 2)
-    tax = round(subtotal * TAX_RATE, 2)
-    total = round(subtotal + tax, 2)
+
+    from app.models.settings import LocalizationDocument
+    localization = await LocalizationDocument.find_one({"key": "localization"})
+    tax_rate = (localization.tax_rate / 100) if localization and localization.tax_enabled else 0.0
+    gratuity_rate = (localization.gratuity_rate / 100) if localization and localization.gratuity_enabled else 0.0
+    tax = round(subtotal * tax_rate, 2)
+    gratuity = round(subtotal * gratuity_rate, 2)
+    total = round(subtotal + tax + gratuity, 2)
 
     customer_info = CustomerInfo(**data.customer.model_dump())
 

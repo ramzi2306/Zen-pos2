@@ -52,6 +52,8 @@ class LocalizationUpdate(BaseModel):
     timezone: Optional[str] = None
     decimal_separator: Optional[str] = None
     currency_decimals: Optional[int] = None
+    gratuity_enabled: Optional[bool] = None
+    gratuity_rate: Optional[float] = None
 
 
 class LocalizationOut(BaseModel):
@@ -64,6 +66,8 @@ class LocalizationOut(BaseModel):
     timezone: str
     decimal_separator: str
     currency_decimals: int
+    gratuity_enabled: bool = False
+    gratuity_rate: float = 0.0
 
 
 class IntegrationUpdate(BaseModel):
