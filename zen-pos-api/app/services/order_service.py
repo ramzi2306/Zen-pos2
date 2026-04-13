@@ -64,9 +64,10 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
     # Duplicate detection: same customer phone + same products within 60 seconds
     if customer_info.phone and data.status != "Draft":
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+        from beanie.operators import NotIn
         recent = await OrderDocument.find(
             OrderDocument.created_at >= cutoff,
-            OrderDocument.status.nin(["Cancelled", "Draft"]),
+            NotIn(OrderDocument.status, ["Cancelled", "Draft"]),
         ).to_list()
         new_pids = sorted(i.product_id for i in items)
         for ro in recent:

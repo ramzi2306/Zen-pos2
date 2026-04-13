@@ -1,11 +1,14 @@
 import asyncio
-from app.database import connect_db
-from app.models.settings import BrandingDocument
+from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import Document, init_beanie
 
-async def run():
-    await connect_db()
-    
-    doc = await BrandingDocument.find_one(BrandingDocument.key == "branding")
-    print("Found doc:", doc)
+class TestOrder(Document):
+    status: str
 
-asyncio.run(run())
+async def main():
+    try:
+        print(TestOrder.status.nin(["A", "B"]))
+    except Exception as e:
+        print("ERROR:", e)
+
+asyncio.run(main())
