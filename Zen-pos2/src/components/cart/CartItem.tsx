@@ -265,9 +265,10 @@ export const SwipeableCartItem = ({
                         <span className="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Price</span>
                         <input
                           type="number"
+                          step="0.01"
                           className="w-full bg-transparent border-none focus:outline-none text-sm font-bold text-on-surface"
-                          value={item.price}
-                          onChange={(e) => updateCartItem(item.cartItemId, { price: parseFloat(e.target.value) || 0 })}
+                          value={item.manualPrice ?? getCartItemPrice(item)}
+                          onChange={(e) => updateCartItem(item.cartItemId, { manualPrice: parseFloat(e.target.value) || 0 })}
                         />
                       </div>
                     </div>

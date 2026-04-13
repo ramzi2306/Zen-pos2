@@ -20,6 +20,7 @@ class OrderItemSchema(BaseModel):
     quantity: int = Field(default=1, ge=1, description="Must be at least 1")
     notes: Optional[str] = None
     discount: float = 0
+    manual_price: Optional[float] = None
     selected_variations: list[SelectedVariationSchema] = []
 
 

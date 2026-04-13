@@ -57,6 +57,7 @@ export interface CartItem extends Product {
   quantity: number;
   notes?: string;
   discount?: number;
+  manualPrice?: number;
   selectedVariations?: Record<string, VariationOption>;
   selectedSupplements?: Record<string, SupplementOption>;
 }

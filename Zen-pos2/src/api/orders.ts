@@ -15,7 +15,9 @@ interface ApiOrderItem {
     option_id: string;
     option_name: string;
     price_adjustment: number;
+    is_supplement?: boolean;
   }[];
+  manual_price?: number;
 }
 
 interface ApiOrder {
@@ -83,6 +85,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
         quantity: item.quantity,
         notes: item.notes,
         discount: item.discount,
+        manualPrice: item.manual_price,
         category: item.category as any,
         image: '',
         inStock: true,
@@ -158,6 +161,7 @@ export async function createOrder(
       product_name: item.name,
       category: item.category || '',
       unit_price: item.price,
+      manual_price: item.manualPrice,
       quantity: item.quantity,
       notes: item.notes || '',
       discount: item.discount || 0,
@@ -214,6 +218,7 @@ export async function updateOrder(
       product_name: item.name,
       category: item.category || '',
       unit_price: item.price,
+      manual_price: item.manualPrice,
       quantity: item.quantity,
       notes: item.notes || '',
       discount: item.discount || 0,

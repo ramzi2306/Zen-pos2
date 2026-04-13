@@ -1,6 +1,9 @@
 import { CartItem } from '../data';
 
 export function getCartItemPrice(item: CartItem): number {
+  if (item.manualPrice !== undefined && item.manualPrice !== null) {
+    return item.manualPrice;
+  }
   const selectedVars = Object.values(item.selectedVariations || {});
   const varPrice = selectedVars.reduce((sum, v) => sum + (v.price || 0), 0);
   const suppPrice = Object.values(item.selectedSupplements || {}).reduce((sum, s) => sum + (s.priceAdjustment || 0), 0);

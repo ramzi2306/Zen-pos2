@@ -60,6 +60,7 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
             quantity=i.quantity,
             notes=i.notes,
             discount=i.discount,
+            manual_price=i.manual_price,
             selected_variations=[
                 SelectedVariation(**v.model_dump()) for v in i.selected_variations
             ],

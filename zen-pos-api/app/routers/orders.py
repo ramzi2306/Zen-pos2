@@ -108,6 +108,7 @@ async def update_order(order_id: str, body: OrderUpdate):
                 quantity=i.quantity,
                 notes=i.notes,
                 discount=i.discount,
+                manual_price=i.manual_price,
                 selected_variations=[
                     SelectedVariation(**v.model_dump()) for v in i.selected_variations
                 ],
@@ -200,6 +201,7 @@ def _to_out(o: OrderDocument) -> OrderOut:
             quantity=i.quantity,
             notes=i.notes,
             discount=i.discount,
+            manual_price=i.manual_price,
             selected_variations=[SelectedVariationSchema(**v.model_dump()) for v in i.selected_variations],
         )
         for i in o.items

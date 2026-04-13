@@ -26,10 +26,14 @@ class OrderItem(BaseModel):
     quantity: int = 1
     notes: Optional[str] = None
     discount: float = 0                      # percentage, e.g. 10 = 10%
+    manual_price: Optional[float] = None
     selected_variations: list[SelectedVariation] = Field(default_factory=list)
 
     @property
     def line_total(self) -> float:
+        if self.manual_price is not None:
+            return round(self.manual_price * self.quantity * (1 - self.discount / 100), 2)
+
         # Replicate frontend logic: variation price replaces unit_price; supplements are added.
         variations = [v for v in self.selected_variations if not v.is_supplement]
         supplements = [v for v in self.selected_variations if v.is_supplement]
@@ -38,8 +42,6 @@ class OrderItem(BaseModel):
         supp_total = sum(v.price_adjustment for v in supplements)
         
         # If any non-supplement variation has a price (even 0), it overrides the unit_price.
-        # We check for > 0 or if we assume the presence of a variation means override.
-        # In this system, variations are usually required if they exist.
         has_variation_override = len(variations) > 0
         
         base_unit = var_total if has_variation_override else self.unit_price
