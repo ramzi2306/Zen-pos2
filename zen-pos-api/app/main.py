@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from app.config import settings
 from app.core.middleware import LoggingMiddleware
 from app.database import connect_db, disconnect_db
-from app.seeders import seed_system_roles
+from app.seeders import seed_system_roles, seed_settings
 
 # ── Routers ───────────────────────────────────────────────
 from app.routers import auth, products, orders, attendance, payroll, users, roles, inventory
@@ -32,6 +32,7 @@ STATIC_DIR = Path(os.getenv("STATIC_DIR", Path(__file__).resolve().parent.parent
 async def lifespan(app: FastAPI):
     await connect_db()
     await seed_system_roles()
+    await seed_settings()
     yield
     await disconnect_db()
 
