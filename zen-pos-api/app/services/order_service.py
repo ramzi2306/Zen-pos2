@@ -50,12 +50,14 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
     product_ids = [i.product_id for i in data.items]
     products = await ProductDocument.find({"_id": {"$in": [__import__('bson').ObjectId(pid) for pid in product_ids if len(pid) == 24]}}).to_list()
     category_map = {str(p.id): p.category for p in products}
+    image_map = {str(p.id): getattr(p, "image", "") for p in products}
 
     items = [
         OrderItem(
             product_id=i.product_id,
             product_name=i.product_name,
             category=category_map.get(i.product_id, ""),
+            image=image_map.get(i.product_id, ""),
             unit_price=i.unit_price,
             quantity=i.quantity,
             notes=i.notes,

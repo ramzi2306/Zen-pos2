@@ -16,6 +16,7 @@ class OrderItemSchema(BaseModel):
     product_id: str
     product_name: str
     category: str = ""
+    image: Optional[str] = ""
     unit_price: float
     quantity: int = Field(default=1, ge=1, description="Must be at least 1")
     notes: Optional[str] = None

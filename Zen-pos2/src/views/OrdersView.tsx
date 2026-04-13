@@ -1403,13 +1403,14 @@ export const OrdersView = ({
                   <button
                     key={agent.id}
                     onClick={async () => {
+                      const orderId = agentPickerOrder!.id;
+                      setAgentPickerOrder(null);
+                      setAgentSearch('');
                       try {
-                        await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
-                        await api.delivery.assignAgentToOrder(agentPickerOrder.id, agent.id);
-                        setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: agent.id, name: agent.name, phone: agent.phone } } : o));
+                        await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                        await api.delivery.assignAgentToOrder(orderId, agent.id);
+                        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: agent.id, name: agent.name, phone: agent.phone } } : o));
                         onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
-                        setAgentPickerOrder(null);
-                        setAgentSearch('');
                       } catch (err: any) { console.error(err.message); }
                     }}
                     className="w-full bg-surface-container rounded-xl border border-outline-variant/10 p-3.5 flex items-center gap-3 hover:border-primary/30 hover:bg-surface-container-high transition-all text-left"
@@ -1446,17 +1447,19 @@ export const OrdersView = ({
                       <button
                         onClick={async () => {
                           if (!newAgentForm.name.trim() || !newAgentForm.phone.trim()) return;
+                          const orderId = agentPickerOrder!.id;
+                          setAgentPickerOrder(null);
+                          setShowNewAgentForm(false);
                           try {
                             const newAgent = await api.delivery.createAgent({ name: newAgentForm.name, phone: newAgentForm.phone, vehicle_type: '', is_active: true });
                             setDeliveryAgents(prev => [...prev, newAgent]);
                             setNewAgentForm({ name: '', phone: '' });
-                            setShowNewAgentForm(false);
+                            
                             // Auto-select the new agent
-                            await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
-                            await api.delivery.assignAgentToOrder(agentPickerOrder.id, newAgent.id);
-                            setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: newAgent.id, name: newAgent.name, phone: newAgent.phone } } : o));
+                            await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                            await api.delivery.assignAgentToOrder(orderId, newAgent.id);
+                            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: newAgent.id, name: newAgent.name, phone: newAgent.phone } } : o));
                             onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
-                            setAgentPickerOrder(null);
                           } catch (err: any) { console.error(err.message); }
                         }}
                         disabled={!newAgentForm.name.trim() || !newAgentForm.phone.trim()}
@@ -1473,12 +1476,13 @@ export const OrdersView = ({
                     </button>
                     <button
                       onClick={async () => {
+                        const orderId = agentPickerOrder!.id;
+                        setAgentPickerOrder(null);
                         // Skip agent assignment - just set status
                         try {
-                          await api.orders.updateOrderStatus(agentPickerOrder.id, 'Out for delivery');
-                          setOrders(prev => prev.map(o => o.id === agentPickerOrder.id ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
+                          await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                          setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'Out for delivery' as Order['status'] } : o));
                           onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
-                          setAgentPickerOrder(null);
                         } catch (err: any) { console.error(err.message); }
                       }}
                       className="py-2.5 px-4 bg-tertiary/10 text-tertiary rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-tertiary/20 transition-colors"

@@ -5,6 +5,7 @@ interface ApiOrderItem {
   product_id: string;
   product_name: string;
   category: string;
+  image?: string;
   unit_price: number;
   quantity: number;
   notes?: string;
@@ -87,7 +88,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
         discount: item.discount,
         manualPrice: item.manual_price,
         category: item.category as any,
-        image: '',
+        image: item.image || '',
         inStock: true,
         selectedVariations: variations.reduce((acc, v) => ({
           ...acc,
@@ -160,6 +161,7 @@ export async function createOrder(
       product_id: item.id,
       product_name: item.name,
       category: item.category || '',
+      image: item.image,
       unit_price: item.price,
       manual_price: item.manualPrice,
       quantity: item.quantity,
@@ -217,6 +219,7 @@ export async function updateOrder(
       product_id: item.id,
       product_name: item.name,
       category: item.category || '',
+      image: item.image,
       unit_price: item.price,
       manual_price: item.manualPrice,
       quantity: item.quantity,

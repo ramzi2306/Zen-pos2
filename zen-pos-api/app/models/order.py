@@ -22,6 +22,7 @@ class OrderItem(BaseModel):
     product_id: str
     product_name: str
     category: str = ""
+    image: Optional[str] = ""
     unit_price: float
     quantity: int = 1
     notes: Optional[str] = None
