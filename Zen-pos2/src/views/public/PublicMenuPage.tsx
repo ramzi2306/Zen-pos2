@@ -1778,9 +1778,12 @@ function PublicMenuPageInner() {
 
     // Always open the modal — pre-select first variation option if available
     const initialVariations: Record<string, VariationOption> = {};
-    product.variations?.forEach(v => {
-      if (v.options.length > 0) initialVariations[v.id] = v.options[0];
-    });
+    if (product.variations && product.variations.length > 0) {
+      const firstGroup = product.variations[0];
+      if (firstGroup.options.length > 0) {
+        initialVariations[firstGroup.id] = firstGroup.options[0];
+      }
+    }
 
     setProductRect(e.currentTarget.getBoundingClientRect());
     setSelectedProduct(product);
@@ -1963,7 +1966,10 @@ function PublicMenuPageInner() {
             selectedVariations={selectedVariations}
             selectedSupplements={selectedSupplements}
             onSelectVariation={(groupId, option) =>
-              setSelectedVariations(prev => ({ ...prev, [groupId]: option }))
+              setSelectedVariations(prev => {
+                if (prev[groupId]?.id === option.id) return {}; // Toggle off
+                return { [groupId]: option }; // One variation across all groups
+              })
             }
             onSelectSupplement={(groupId, option) =>
               setSelectedSupplements(prev => {

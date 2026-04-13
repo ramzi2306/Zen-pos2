@@ -60,9 +60,12 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
       const initialVariations: Record<string, VariationOption> = {};
       const initialSupplements: Record<string, SupplementOption> = {};
       
-      product.variations?.forEach(v => {
-        if (v.options.length > 0) initialVariations[v.id] = v.options[0];
-      });
+      if (product.variations && product.variations.length > 0) {
+        const firstGroup = product.variations[0];
+        if (firstGroup.options.length > 0) {
+          initialVariations[firstGroup.id] = firstGroup.options[0];
+        }
+      }
       
       setProductRect(rect);
       setSelectedProduct(product);
@@ -167,7 +170,10 @@ export const MenuView = ({ addToCart }: { addToCart: (p: Product, variations?: R
             selectedVariations={selectedVariations}
             selectedSupplements={selectedSupplements}
             onSelectVariation={(groupId, option) =>
-              setSelectedVariations(prev => ({ ...prev, [groupId]: option }))
+              setSelectedVariations(prev => {
+                if (prev[groupId]?.id === option.id) return {}; // Toggle off
+                return { [groupId]: option }; // One variation across all groups
+              })
             }
             onSelectSupplement={(groupId, option) =>
               setSelectedSupplements(prev => {
