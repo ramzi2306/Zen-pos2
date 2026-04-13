@@ -54,11 +54,22 @@ export async function publicRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+  };
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  Object.assign(headers, options.headers || {});
+  
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else {
+      Object.assign(headers, options.headers);
+    }
+  }
   
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
@@ -78,11 +89,22 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAccessToken();
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+  };
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  Object.assign(headers, options.headers || {});
+  
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else {
+      Object.assign(headers, options.headers);
+    }
+  }
 
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
