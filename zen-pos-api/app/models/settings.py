@@ -1,6 +1,5 @@
 from typing import Any
 from beanie import Document
-from pymongo import IndexModel, ASCENDING
 
 
 class BrandingDocument(Document):
@@ -24,10 +23,7 @@ class BrandingDocument(Document):
     opening_hours: dict = {}  # schedule-based menu locking
 
     class Settings:
-        name = "settings"
-        indexes = [
-            IndexModel([("key", ASCENDING)], unique=True),
-        ]
+        name = "branding"
 
 
 class LocalizationDocument(Document):
@@ -43,10 +39,7 @@ class LocalizationDocument(Document):
     currency_decimals: int = 2
 
     class Settings:
-        name = "settings"
-        indexes = [
-            IndexModel([("key", ASCENDING)], unique=True),
-        ]
+        name = "localization"
 
 
 class IntegrationDocument(Document):
@@ -84,7 +77,4 @@ class IntegrationDocument(Document):
     meta_capi_test_event_code: str = ""
 
     class Settings:
-        name = "settings"
-        indexes = [
-            IndexModel([("key", ASCENDING)], unique=True),
-        ]
+        name = "integration"

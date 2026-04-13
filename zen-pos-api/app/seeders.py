@@ -43,9 +43,12 @@ async def seed_settings() -> None:
     """
     Idempotent: ensure branding, localization, and integration documents exist.
 
-    This runs at every startup so the documents are always present before the
-    first API request arrives.  If a document already exists it is NEVER
-    modified — saved settings survive redeployment.
+    Each settings type now lives in its own collection (branding / localization /
+    integration) to avoid Beanie v1.27+ _class_id discriminator interference.
+
+    On first startup after the migration, existing rows are copied from the old
+    shared 'settings' collection into their new dedicated collections so that
+    saved settings are never lost.
     """
     import logging
     from pymongo.errors import DuplicateKeyError
@@ -53,11 +56,49 @@ async def seed_settings() -> None:
 
     log = logging.getLogger(__name__)
 
-    for DocClass, key in [
+    PAIRS = [
         (BrandingDocument,     "branding"),
         (LocalizationDocument, "localization"),
         (IntegrationDocument,  "integration"),
-    ]:
+    ]
+
+    # ── One-time migration from the old shared 'settings' collection ──────────
+    # Previous versions stored all three document types in one MongoDB collection
+    # called 'settings'.  Beanie 1.27+ adds a _class_id discriminator to every
+    # query when multiple models share a collection, so legacy documents (without
+    # that field) would never be found — causing an apparent reset on every
+    # deploy.  We now give each type its own collection; this block migrates any
+    # surviving rows across on the first startup after the change.
+    try:
+        db = BrandingDocument.get_motor_collection().database
+        old_col = db["settings"]
+
+        for DocClass, key in PAIRS:
+            # Skip if the dedicated collection already has this document
+            if await DocClass.find_one(DocClass.key == key) is not None:  # type: ignore[attr-defined]
+                continue
+
+            # Look in the old shared collection (raw motor — no _class_id filter)
+            raw = await old_col.find_one({"key": key})
+            if raw is None:
+                continue  # Nothing to migrate; defaults are created below
+
+            raw.pop("_id", None)
+            raw.pop("_class_id", None)
+
+            try:
+                doc = DocClass.model_validate(raw)
+                await doc.insert()
+                log.info("Migrated '%s' settings from shared collection → '%s'",
+                         key, DocClass.Settings.name)
+            except Exception as exc:
+                log.warning("Could not migrate '%s' settings: %s", key, exc)
+
+    except Exception as exc:
+        log.warning("Settings migration check failed: %s", exc)
+
+    # ── Ensure each dedicated-collection document exists ──────────────────────
+    for DocClass, key in PAIRS:
         try:
             existing = await DocClass.find_one(DocClass.key == key)  # type: ignore[attr-defined]
             if existing is None:
@@ -67,8 +108,6 @@ async def seed_settings() -> None:
             else:
                 log.info("Found existing %s document (id=%s)", key, existing.id)
         except DuplicateKeyError:
-            # Another worker beat us to the insert — that's fine.
             pass
         except Exception as exc:
-            # Log but don't crash startup; settings will be created on first request.
             log.warning("Could not seed %s document: %s", key, exc)
