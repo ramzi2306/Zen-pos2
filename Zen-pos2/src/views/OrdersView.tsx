@@ -334,9 +334,10 @@ export const OrdersView = ({
       taxAmount: receiptModal.tax ?? 0,
       taxRate: localization.taxEnabled ? localization.taxRate : undefined,
       total: receiptModal.total,
+      paymentStatus: receiptModal.paymentStatus,
       trackingUrl,
       formatCurrency,
-    });
+    } as any);
     firePrint(html);
   };
 

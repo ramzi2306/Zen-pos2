@@ -15,6 +15,7 @@ class SelectedVariation(BaseModel):
     option_id: str
     option_name: str
     price_adjustment: float = 0
+    is_supplement: bool = False
 
 
 class OrderItem(BaseModel):
@@ -29,9 +30,22 @@ class OrderItem(BaseModel):
 
     @property
     def line_total(self) -> float:
-        variation_adj = sum(v.price_adjustment for v in self.selected_variations)
-        base = (self.unit_price + variation_adj) * self.quantity
-        return round(base * (1 - self.discount / 100), 2)
+        # Replicate frontend logic: variation price replaces unit_price; supplements are added.
+        variations = [v for v in self.selected_variations if not v.is_supplement]
+        supplements = [v for v in self.selected_variations if v.is_supplement]
+        
+        var_total = sum(v.price_adjustment for v in variations)
+        supp_total = sum(v.price_adjustment for v in supplements)
+        
+        # If any non-supplement variation has a price (even 0), it overrides the unit_price.
+        # We check for > 0 or if we assume the presence of a variation means override.
+        # In this system, variations are usually required if they exist.
+        has_variation_override = len(variations) > 0
+        
+        base_unit = var_total if has_variation_override else self.unit_price
+        total_unit = base_unit + supp_total
+        
+        return round(total_unit * self.quantity * (1 - self.discount / 100), 2)
 
 
 class CustomerInfo(BaseModel):

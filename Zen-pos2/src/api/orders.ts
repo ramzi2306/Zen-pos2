@@ -67,25 +67,35 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     status: raw.status as Order['status'],
     paymentStatus: raw.payment_status as Order['paymentStatus'],
     paymentMethod: (raw.payment_method as Order['paymentMethod']) || 'Cash',
-    items: raw.items.map(item => ({
-      cartItemId: item.selected_variations.length > 0
-        ? `${item.product_id}|${item.selected_variations.map(v => `${v.group_id}:${v.option_id}`).sort().join('|')}`
-        : item.product_id,
-      id: item.product_id,
-      name: item.product_name,
-      description: '',
-      price: item.unit_price,
-      quantity: item.quantity,
-      notes: item.notes,
-      discount: item.discount,
-      category: item.category as any,
-      image: '',
-      inStock: true,
-      selectedVariations: item.selected_variations.reduce((acc, v) => ({
-        ...acc,
-        [v.group_id]: { id: v.option_id, name: v.option_name, priceAdjustment: v.price_adjustment },
-      }), {} as Record<string, any>),
-    })),
+    items: raw.items.map(item => {
+      const allVars = item.selected_variations || [];
+      const variations = allVars.filter(v => !v.is_supplement);
+      const supplements = allVars.filter(v => !!v.is_supplement);
+
+      return {
+        cartItemId: allVars.length > 0
+          ? `${item.product_id}|${allVars.map(v => `${v.group_id}:${v.option_id}`).sort().join('|')}`
+          : item.product_id,
+        id: item.product_id,
+        name: item.product_name,
+        description: '',
+        price: item.unit_price,
+        quantity: item.quantity,
+        notes: item.notes,
+        discount: item.discount,
+        category: item.category as any,
+        image: '',
+        inStock: true,
+        selectedVariations: variations.reduce((acc, v) => ({
+          ...acc,
+          [v.group_id]: { id: v.option_id, name: v.option_name, price: v.price_adjustment },
+        }), {} as Record<string, any>),
+        selectedSupplements: supplements.reduce((acc, v) => ({
+          ...acc,
+          [v.group_id]: { id: v.option_id, name: v.option_name, priceAdjustment: v.price_adjustment },
+        }), {} as Record<string, any>),
+      };
+    }),
     subtotal: raw.subtotal,
     tax: raw.tax,
     total: raw.total,
@@ -151,13 +161,24 @@ export async function createOrder(
       quantity: item.quantity,
       notes: item.notes || '',
       discount: item.discount || 0,
-      selected_variations: Object.entries(item.selectedVariations || {}).map(([groupId, opt]) => ({
-        group_id: groupId,
-        group_name: groupId,
-        option_id: opt.id,
-        option_name: opt.name,
-        price_adjustment: (opt as any).price || (opt as any).priceAdjustment || 0,
-      })),
+      selected_variations: [
+        ...Object.entries(item.selectedVariations || {}).map(([groupId, opt]) => ({
+          group_id: groupId,
+          group_name: groupId,
+          option_id: opt.id,
+          option_name: opt.name,
+          price_adjustment: (opt as any).price ?? (opt as any).priceAdjustment ?? 0,
+          is_supplement: false,
+        })),
+        ...Object.entries(item.selectedSupplements || {}).map(([groupId, opt]) => ({
+          group_id: groupId,
+          group_name: groupId,
+          option_id: opt.id,
+          option_name: opt.name,
+          price_adjustment: (opt as any).priceAdjustment ?? (opt as any).price ?? 0,
+          is_supplement: true,
+        })),
+      ],
     })),
   };
   const raw = await apiRequest<ApiOrder>('/orders/', {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getSubtotal } from '../../utils/cartUtils';
+import { getSubtotal, getCartItemPrice } from '../../utils/cartUtils';
 import { buildReceiptHtml, firePrint, ReceiptItem } from '../../utils/printReceipt';
 import { CartItem, Order, Customer, CustomerDetail, VariationOption, SupplementOption } from '../../data';
 import * as api from '../../api';
@@ -133,13 +133,11 @@ export const CartSidebar = ({
   // ── Handlers ────────────────────────────────────────────────────────────────
   const _buildCartReceiptItems = (): ReceiptItem[] =>
     cart.map(item => {
-      const variations = Object.values(item.selectedVariations || {}) as VariationOption[];
-      const varAdj = variations.reduce((s: number, o: VariationOption) => s + (o.price || 0), 0);
-      const supps = Object.values(item.selectedSupplements || {}) as SupplementOption[];
-      const suppAdj = supps.reduce((s: number, o: SupplementOption) => s + (o.priceAdjustment || 0), 0);
-      const basePrice = variations.length > 0 ? varAdj : item.price;
-      const lineTotal = (basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
-      const modifiers = [...variations.map((o: VariationOption) => o.name), ...supps.map((o: SupplementOption) => o.name)].filter(Boolean).join(', ');
+      const itemPrice = getCartItemPrice(item);
+      const lineTotal = itemPrice * item.quantity * (1 - (item.discount || 0) / 100);
+      const variations = Object.values(item.selectedVariations || {}).map(v => v.name);
+      const supplements = Object.values(item.selectedSupplements || {}).map(s => s.name);
+      const modifiers = [...variations, ...supplements].filter(Boolean).join(', ');
       return { name: item.name, quantity: item.quantity, lineTotal, modifiers, notes: item.notes };
     });
 
@@ -185,11 +183,12 @@ export const CartSidebar = ({
       gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
       total,
       paidAmount: receiptModal.paidAmount,
+      paymentStatus: 'Paid',
       trackingUrl: receiptModal.trackingToken
         ? `${window.location.origin}/track/${receiptModal.trackingToken}`
         : undefined,
       formatCurrency,
-    });
+    } as any);
     firePrint(html);
   };
 
@@ -218,6 +217,33 @@ export const CartSidebar = ({
       } else {
         const label = orderStatus === 'Draft' ? 'Draft saved!' : `${newOrder.orderNumber ?? 'Order'} sent to kitchen!`;
         setToast({ message: label, type: 'success' });
+        
+        // Auto-print for kitchen orders (if not a draft)
+        if (orderStatus !== 'Draft') {
+          const html = buildReceiptHtml({
+            branding: branding ?? {},
+            orderNumber: newOrder.orderNumber ?? undefined,
+            orderType,
+            items: _buildCartReceiptItems(),
+            customer: (deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address)
+              ? { name: deliveryDetails.name, phone: deliveryDetails.phone, address: deliveryDetails.address }
+              : undefined,
+            notes: orderNote || undefined,
+            subtotal,
+            taxAmount,
+            taxRate: localization.taxEnabled ? localization.taxRate : undefined,
+            gratuityAmount,
+            gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
+            total,
+            paymentStatus: 'Unpaid',
+            trackingUrl: newOrder.trackingToken
+              ? `${window.location.origin}/track/${newOrder.trackingToken}`
+              : undefined,
+            formatCurrency,
+          } as any);
+          firePrint(html);
+        }
+
         setTimeout(() => fullReset(), 2000);
       }
     } catch (err: any) {
@@ -496,12 +522,11 @@ export const CartSidebar = ({
                 <button onClick={() => setViewMode('cart')} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors">
                   <span className="material-symbols-outlined">arrow_back</span>
                 </button>
-                <h2 className="font-headline font-bold text-sm uppercase tracking-widest text-white">Receipt Preview</h2>
+                <div className="flex items-center gap-3 text-[#8bc34a]">
+                  <span className="material-symbols-outlined">receipt_long</span>
+                  <span className="font-headline font-extrabold tracking-widest text-sm uppercase">Receipt Preview</span>
+                </div>
               </div>
-              <button onClick={handlePrint} className="flex items-center gap-2 text-[#8bc34a] hover:text-[#7cb342] font-bold text-xs tracking-wider transition-colors">
-                <span className="material-symbols-outlined text-[16px]">print</span>
-                PRINT
-              </button>
             </div>
 
             {/* Paper receipt */}
@@ -543,13 +568,11 @@ export const CartSidebar = ({
                     <div className="px-4"><Sep /></div>
                     <div className="px-4 py-1 space-y-2">
                       {cart.map(item => {
-                        const variations = Object.values(item.selectedVariations || {}) as VariationOption[];
-                        const varAdj = variations.reduce((s: number, o: VariationOption) => s + (o.price || 0), 0);
-                        const supps = Object.values(item.selectedSupplements || {}) as SupplementOption[];
-                        const suppAdj = supps.reduce((s: number, o: SupplementOption) => s + (o.priceAdjustment || 0), 0);
-                        const basePrice = variations.length > 0 ? varAdj : item.price;
-                        const lineTotal = (basePrice + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
-                        const modifiers = [...variations.map((o: VariationOption) => o.name), ...supps.map((o: SupplementOption) => o.name)].filter(Boolean).join(', ');
+                        const itemPrice = getCartItemPrice(item);
+                        const lineTotal = itemPrice * item.quantity * (1 - (item.discount || 0) / 100);
+                        const variations = Object.values(item.selectedVariations || {}).map(v => v.name);
+                        const supplements = Object.values(item.selectedSupplements || {}).map(s => s.name);
+                        const modifiers = [...variations, ...supplements].filter(Boolean).join(', ');
                         const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
                         return (
                           <div key={item.cartItemId}>

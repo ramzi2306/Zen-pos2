@@ -9,6 +9,7 @@ class SelectedVariationSchema(BaseModel):
     option_id: str
     option_name: str
     price_adjustment: float = 0
+    is_supplement: bool = False
 
 
 class OrderItemSchema(BaseModel):
