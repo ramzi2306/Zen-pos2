@@ -5,16 +5,14 @@ from bson.json_util import dumps
 client = MongoClient("mongodb://localhost:27017")
 db = client["zenpos"]
 users = list(db["users"].find({"is_active": True}))
-roles = {str(r["_id"]): r for r in db["roles"].find()}
 
-result = []
 for u in users:
-    role_id = u.get("role", {}).get("$id")
-    role = roles.get(str(role_id), {}) if role_id else {}
-    result.append({
-        "name": u.get("name"),
-        "role": role.get("name"),
-        "exclude": role.get("exclude_from_attendance")
-    })
-
-print(dumps(result, indent=2))
+    role_ref = u.get("role")
+    role_id = role_ref.id if hasattr(role_ref, 'id') else None
+    role_name = "Unknown"
+    if role_id:
+        role = db["roles"].find_one({"_id": role_id})
+        role_name = role.get("name") if role else "Unknown"
+    
+    # Check if this user is a super admin or cashier
+    print(f"User: {u.get('name')} | Role: {role_name}")

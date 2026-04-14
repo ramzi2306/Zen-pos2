@@ -73,7 +73,7 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, isKioskF
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const role = roles.find(r => r.id === user.roleId);
-      return !role?.excludeFromAttendance;
+      return !role?.excludeFromAttendance && user.role !== 'Super Admin';
     });
   }, [users, roles]);
 

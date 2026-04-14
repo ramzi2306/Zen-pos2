@@ -1152,7 +1152,7 @@ export const OrdersView = ({
                 <h3 className="text-on-surface font-bold text-xs uppercase tracking-wider">Assign Cook</h3>
               </div>
               <div className="p-2 max-h-80 overflow-y-auto">
-                {users.filter(u => u.inOrderPrep).map(user => (
+                {users.filter(u => u.inOrderPrep && !['Super Admin', 'Cashier'].includes(u.role)).map(user => (
                   <button
                     key={user.id}
                     onClick={() => handlePrepareOrder(selectedOrder.id, user)}

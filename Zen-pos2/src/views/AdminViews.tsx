@@ -3,7 +3,7 @@ import { AttendanceView } from './AttendanceView';
 import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
-import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
 import type { IngredientItem, PurchaseLog } from '../api/inventory';
@@ -3846,7 +3846,47 @@ const SalesView = () => {
     return matchStatus && matchSearch;
   });
 
-  if (loading) return <div className="flex-1 flex items-center justify-center"><span className="material-symbols-outlined text-3xl text-primary animate-spin">sync</span></div>;
+  const dailyStats = useMemo(() => {
+    const stats: Record<string, { date: string; fullDate: string; income: number; orderCount: number; totalPrepTime: number; prepCount: number }> = {};
+    
+    const sortedOrders = [...orders].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return ta - tb;
+    });
+
+    sortedOrders.forEach(o => {
+      if (o.status === 'Cancelled' || o.paymentStatus !== 'Paid') return;
+      const date = new Date(o.createdAt || 0);
+      const key = date.toISOString().split('T')[0];
+      
+      if (!stats[key]) {
+        stats[key] = { 
+          date: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+          fullDate: date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          income: 0, 
+          orderCount: 0, 
+          totalPrepTime: 0, 
+          prepCount: 0 
+        };
+      }
+      
+      stats[key].income += o.total;
+      stats[key].orderCount += 1;
+      
+      if (o.startTime && o.endTime) {
+        stats[key].totalPrepTime += (o.endTime - o.startTime);
+        stats[key].prepCount += 1;
+      }
+    });
+    
+    return Object.values(stats).map(s => ({
+      ...s,
+      avgPrepTimeMinutes: s.prepCount > 0 ? Math.round(s.totalPrepTime / s.prepCount / 60000) : 0
+    }));
+  }, [orders]);
+
+  if (loading) return <div className="flex-1 flex items-center justify-center font-headline text-on-surface/50 animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence...</div>;
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
@@ -3872,6 +3912,71 @@ const SalesView = () => {
             ))}
           </div>
         )}
+
+        {/* Daily Performance Chart */}
+        <div className="bg-surface-container rounded-[2rem] p-8 mb-8 border border-outline-variant/10 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight">Revenue Trajectory</h3>
+              <p className="text-xs text-on-surface-variant font-medium tracking-wide">Daily aggregation of synchronized paid transactional data.</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyStats} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--md-sys-color-primary)" stopOpacity={1} />
+                    <stop offset="100%" stopColor="var(--md-sys-color-primary)" stopOpacity={0.6} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--md-sys-color-outline-variant)" opacity={0.1} />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: 'var(--md-sys-color-on-surface-variant)', fontSize: 10, fontWeight: 600 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: 'var(--md-sys-color-on-surface-variant)', fontSize: 10, fontWeight: 600 }}
+                  tickFormatter={(val) => formatCurrency(val).split('.')[0]}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'var(--md-sys-color-surface-container-highest)', opacity: 0.4 }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-surface-container-lowest/90 backdrop-blur-2xl border border-outline-variant/20 rounded-[1.5rem] p-6 shadow-2xl overflow-hidden min-w-[200px]">
+                          <div className="text-[10px] font-bold text-secondary uppercase tracking-[0.2em] mb-4 border-b border-outline-variant/10 pb-2">{data.fullDate}</div>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center bg-surface-container-low p-2 rounded-xl">
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase">Revenue</span>
+                              <span className="text-sm font-headline font-extrabold text-primary">{formatCurrency(data.income)}</span>
+                            </div>
+                            <div className="flex justify-between items-center px-2">
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase">Volume</span>
+                              <span className="text-sm font-bold text-on-surface">{data.orderCount} Orders</span>
+                            </div>
+                            <div className="flex justify-between items-center px-2">
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase">Efficiency</span>
+                              <span className="text-sm font-bold text-on-surface">{data.avgPrepTimeMinutes}m avg prep</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="income" radius={[8, 8, 0, 0]} fill="url(#barGradient)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Orders table */}
