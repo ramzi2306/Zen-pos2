@@ -8,7 +8,7 @@ from app.models.location import LocationDocument
 from app.schemas.user import (
     UserCreate, UserUpdate, UserPublic, UserDetail,
     ChangeRoleRequest, AttendanceDayOut, WithdrawalLogOut, PersonalDocumentOut,
-    UpdatePinRequest,
+    UpdatePinRequest, AdminResetPasswordRequest,
 )
 from app.core.exceptions import NotFoundError, ConflictError
 from app.core.security import hash_password
@@ -122,6 +122,20 @@ async def set_pin(user_id: str, body: UpdatePinRequest):
     if not user:
         raise NotFoundError("User not found")
     user.hashed_pin = hash_password(body.pin)
+    await user.save()
+
+
+@router.put("/{user_id}/password", status_code=204,
+            dependencies=[Depends(require_permission("view_staff"))])
+async def admin_reset_password(user_id: str, body: AdminResetPasswordRequest):
+    """Admin resets a staff member's password without requiring the current one."""
+    user = await UserDocument.get(user_id)
+    if not user:
+        raise NotFoundError("User not found")
+    if len(body.new_password) < 6:
+        from app.core.exceptions import BadRequestError
+        raise BadRequestError("Password must be at least 6 characters")
+    user.hashed_password = hash_password(body.new_password)
     await user.save()
 
 

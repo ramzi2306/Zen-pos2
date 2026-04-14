@@ -498,6 +498,10 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
   const [newPin, setNewPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
   const [pinMessage, setPinMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const totalSalary = user.baseSalary + user.rewards - user.sanctions;
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
@@ -549,6 +553,21 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
     } finally {
       setPinSaving(false);
       setTimeout(() => setPinMessage(null), 3000);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (newPassword.length < 6) return;
+    setPasswordSaving(true);
+    try {
+      await api.users.resetPassword(user.id, newPassword);
+      setNewPassword('');
+      setPasswordMessage({ type: 'success', text: 'Password updated successfully.' });
+    } catch {
+      setPasswordMessage({ type: 'error', text: 'Failed to update password.' });
+    } finally {
+      setPasswordSaving(false);
+      setTimeout(() => setPasswordMessage(null), 3000);
     }
   };
 
@@ -842,6 +861,41 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
               {pinMessage && (
                 <p className={`text-[10px] font-bold uppercase tracking-widest ${pinMessage.type === 'success' ? 'text-tertiary' : 'text-error'}`}>
                   {pinMessage.text}
+                </p>
+              )}
+            </div>
+
+            {/* Password Reset Section */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Reset Password</label>
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="New password (min. 6 characters)"
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 pr-11 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                  </button>
+                </div>
+                <button
+                  onClick={handleResetPassword}
+                  disabled={newPassword.length < 6 || passwordSaving}
+                  className="px-5 py-3 bg-primary text-on-primary rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all whitespace-nowrap"
+                >
+                  {passwordSaving ? 'Saving…' : 'Set Password'}
+                </button>
+              </div>
+              {passwordMessage && (
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${passwordMessage.type === 'success' ? 'text-tertiary' : 'text-error'}`}>
+                  {passwordMessage.text}
                 </p>
               )}
             </div>

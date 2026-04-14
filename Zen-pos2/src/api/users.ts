@@ -142,6 +142,13 @@ export async function updatePin(userId: string, pin: string): Promise<void> {
   });
 }
 
+export async function resetPassword(userId: string, newPassword: string): Promise<void> {
+  await apiRequest<void>(`/users/${userId}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ new_password: newPassword }),
+  });
+}
+
 export async function getUser(id: string): Promise<User> {
   const raw = await apiRequest<ApiUserDetail>(`/users/${id}`);
   return mapUserDetail(raw);
