@@ -4,6 +4,7 @@
  * Usage:
  *   zenWs.connect(token);
  *   const unsubscribe = zenWs.onEvent((e) => console.log(e));
+ *   const unsubReconnect = zenWs.onReconnect(() => refetch());
  *   zenWs.disconnect(); // on logout
  */
 import { getAccessToken } from './client';
@@ -41,6 +42,7 @@ export interface WsEvent {
 }
 
 type EventHandler = (event: WsEvent) => void;
+type ReconnectHandler = () => void;
 
 // Derive WS base from the Vite API URL env var (http → ws, https → wss)
 function wsBase(): string {
@@ -52,11 +54,14 @@ function wsBase(): string {
 class ZenWebSocket {
   private ws: WebSocket | null = null;
   private handlers: Set<EventHandler> = new Set();
+  private reconnectHandlers: Set<ReconnectHandler> = new Set();
   private reconnectDelay = 1_000; // ms
-  private readonly maxDelay = 30_000;
+  private readonly maxDelay = 15_000; // reduced from 30s for faster recovery
   private shouldReconnect = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private activeToken = '';
+  private everConnected = false; // tracks if we've had at least one successful connection
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -64,16 +69,21 @@ class ZenWebSocket {
     this.activeToken = token;
     this.shouldReconnect = true;
     this.reconnectDelay = 1_000;
+    this.everConnected = false;
     this._connect(token);
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   disconnect(): void {
     this.shouldReconnect = false;
     this.activeToken = '';
+    this.everConnected = false;
+    document.removeEventListener('visibilitychange', this._onVisibilityChange);
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this._stopHeartbeat();
     if (this.ws) {
       this.ws.onclose = null; // prevent auto-reconnect
       this.ws.close(1000, 'logout');
@@ -88,17 +98,40 @@ class ZenWebSocket {
     return () => this.handlers.delete(handler);
   }
 
+  /**
+   * Subscribe to reconnect events (fires when WS re-establishes after a drop).
+   * Use this to trigger a full data re-fetch and catch up on missed events.
+   */
+  onReconnect(handler: ReconnectHandler): () => void {
+    this.reconnectHandlers.add(handler);
+    return () => this.reconnectHandlers.delete(handler);
+  }
+
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────
 
+  private _onVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible' && this.shouldReconnect && !this.isConnected) {
+      // Tab came back into focus — reconnect immediately instead of waiting for backoff
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      const token = this.activeToken || getAccessToken();
+      if (token) this._connect(token);
+    }
+  };
+
   private _connect(token: string): void {
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close();
+      this.ws = null;
     }
+    this._stopHeartbeat();
 
     try {
       this.ws = new WebSocket(`${wsBase()}/ws/notifications?token=${token}`);
@@ -110,18 +143,28 @@ class ZenWebSocket {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1_000; // reset backoff on success
+      this._startHeartbeat();
+      // If this is a re-connection (not the initial connect), notify subscribers
+      // so they can re-fetch to catch up on any events missed during the gap.
+      if (this.everConnected) {
+        this.reconnectHandlers.forEach(h => h());
+      }
+      this.everConnected = true;
     };
 
     this.ws.onmessage = (e: MessageEvent) => {
       try {
         const event: WsEvent = JSON.parse(e.data as string);
+        // Ignore server-sent keepalive pings
+        if ((event as any).type === 'ping') return;
         this.handlers.forEach(h => h(event));
       } catch {
-        // malformed message — ignore
+        // malformed message or plain-text pong — ignore
       }
     };
 
     this.ws.onclose = () => {
+      this._stopHeartbeat();
       if (!this.shouldReconnect) return;
       this._scheduleReconnect();
     };
@@ -129,6 +172,23 @@ class ZenWebSocket {
     this.ws.onerror = () => {
       // onclose fires after onerror — reconnect logic handled there
     };
+  }
+
+  private _startHeartbeat(): void {
+    this._stopHeartbeat();
+    // Send a ping every 25s to prevent proxy idle-connection timeouts (typically 60s)
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send('ping');
+      }
+    }, 25_000);
+  }
+
+  private _stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private _scheduleReconnect(): void {

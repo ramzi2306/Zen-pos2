@@ -235,7 +235,17 @@ function AppShell() {
       }
     });
 
-    return unsub;
+    // Re-fetch all orders whenever the WS reconnects after a drop, so we catch
+    // up on any events that arrived during the disconnected gap.
+    const unsubReconnect = zenWs.onReconnect(() => {
+      if (!currentUser?.permissions.includes('view_orders')) return;
+      const today = new Date().toISOString().split('T')[0];
+      api.orders.listOrders(usersRef.current, today, activeLocationIdRef.current ?? undefined)
+        .then(setOrders)
+        .catch(console.error);
+    });
+
+    return () => { unsub(); unsubReconnect(); };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fallback notification path for storefront orders when the backend WS is unavailable.
