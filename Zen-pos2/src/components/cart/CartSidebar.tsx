@@ -88,7 +88,7 @@ export const CartSidebar = ({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [createdOrderNumber, setCreatedOrderNumber] = useState<string | null>(null);
   const [createdTrackingToken, setCreatedTrackingToken] = useState<string | null>(null);
-  const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number; trackingToken?: string } | null>(null);
+  const [receiptModal, setReceiptModal] = useState<{ orderNumber: string; paidAmount: number; trackingToken?: string; status?: 'Paid' | 'Unpaid' } | null>(null);
   const [printReady, setPrintReady] = useState(false);
   const [deliveryPlaces, setDeliveryPlaces] = useState<{ id: string; name: string; wilaya: string; delivery_fee: number }[]>([]);
   const [deliveryPlaceSearch, setDeliveryPlaceSearch] = useState('');
@@ -185,7 +185,7 @@ export const CartSidebar = ({
       gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
       total,
       paidAmount: receiptModal.paidAmount,
-      paymentStatus: 'Paid',
+      paymentStatus: receiptModal.status || 'Paid',
       trackingUrl: receiptModal.trackingToken
         ? `${window.location.origin}/track/${receiptModal.trackingToken}`
         : undefined,
@@ -194,12 +194,7 @@ export const CartSidebar = ({
     firePrint(html);
   };
 
-  useEffect(() => {
-    if (viewMode === 'receipt' && printReady && receiptModal) {
-      handlePrintReceipt();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [printReady, receiptModal]);
+
 
   const handleCreateOrder = async (paymentStatus: 'Unpaid' | 'Paid', orderStatus: 'Queued' | 'Draft' = 'Queued') => {
     if (cart.length === 0) return;
@@ -230,7 +225,7 @@ export const CartSidebar = ({
       setCreatedTrackingToken(newOrder.trackingToken ?? null);
       if (onOrderCreated) onOrderCreated(newOrder);
       if (paymentStatus === 'Paid') {
-        setReceiptModal({ orderNumber: newOrder.orderNumber ?? '—', paidAmount: parseFloat(amountPaid) || 0, trackingToken: newOrder.trackingToken });
+        setReceiptModal({ orderNumber: newOrder.orderNumber ?? '—', paidAmount: parseFloat(amountPaid) || 0, trackingToken: newOrder.trackingToken, status: 'Paid' });
         setPrintReady(false);
         setTimeout(() => setPrintReady(true), 3000);
       } else {
@@ -240,33 +235,19 @@ export const CartSidebar = ({
         }
         setToast({ message: label, type: 'success' });
         
-        // Auto-print for kitchen orders (if not a draft)
+        // Open receipt modal for kitchen orders (if not a draft)
         if (orderStatus !== 'Draft') {
-          const html = buildReceiptHtml({
-            branding: branding ?? {},
-            orderNumber: newOrder.orderNumber ?? undefined,
-            orderType,
-            items: _buildCartReceiptItems(),
-            customer: (deliveryDetails.name || deliveryDetails.phone || deliveryDetails.address)
-              ? { name: deliveryDetails.name, phone: deliveryDetails.phone, address: deliveryDetails.address }
-              : undefined,
-            notes: orderNote || undefined,
-            subtotal,
-            taxAmount,
-            taxRate: localization.taxEnabled ? localization.taxRate : undefined,
-            gratuityAmount,
-            gratuityRate: localization.gratuityEnabled ? localization.gratuityRate : undefined,
-            total,
-            paymentStatus: 'Unpaid',
-            trackingUrl: newOrder.trackingToken
-              ? `${window.location.origin}/track/${newOrder.trackingToken}`
-              : undefined,
-            formatCurrency,
-          } as any);
-          firePrint(html);
+          setReceiptModal({ 
+            orderNumber: newOrder.orderNumber ?? '—', 
+            paidAmount: 0, 
+            trackingToken: newOrder.trackingToken,
+            status: 'Unpaid'
+          });
+          setPrintReady(false);
+          setTimeout(() => setPrintReady(true), 3000);
+        } else {
+          setTimeout(() => fullReset(), 2000);
         }
-
-        setTimeout(() => fullReset(), 2000);
       }
     } catch (err: any) {
       setToast({ message: err.message || 'Failed to create order.', type: 'error' });
@@ -1039,7 +1020,9 @@ export const CartSidebar = ({
                     <span className="material-symbols-outlined text-[#8bc34a] text-[18px]">check_circle</span>
                   </div>
                   <div>
-                    <h3 className="text-white font-bold text-sm">Payment Confirmed</h3>
+                    <h3 className="text-white font-bold text-sm">
+                      {receiptModal.status === 'Unpaid' ? 'Order Sent to Kitchen' : 'Payment Confirmed'}
+                    </h3>
                     <p className="text-gray-400 text-[10px] uppercase tracking-wider">{receiptModal.orderNumber}</p>
                   </div>
                 </div>
