@@ -313,8 +313,10 @@ export const OrdersView = ({
       ? `${window.location.origin}/track/${receiptModal.trackingToken}`
       : `${window.location.origin}/track/${receiptModal.orderNumber}`;
     const items = receiptModal.items.map(item => {
-      const itemPrice = getCartItemPrice(item);
-      const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
+      // item.price is unit_price from the backend — already the final per-unit price
+      // including any variation override. Do NOT use getCartItemPrice here; that helper
+      // is for live cart items where item.price is the base and variations are deltas.
+      const lineTotal = item.price * item.quantity * (1 - (item.discount || 0) / 100);
       const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
       const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
       const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');
@@ -1705,8 +1707,7 @@ export const OrdersView = ({
                       {/* Items */}
                       <div className="px-4 py-1 space-y-2">
                         {receiptModal.items.map((item, i) => {
-                          const itemPrice = getCartItemPrice(item);
-                          const lineTotal = (itemPrice - (item.discount || 0)) * item.quantity;
+                          const lineTotal = item.price * item.quantity * (1 - (item.discount || 0) / 100);
                           const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
                           const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
                           const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');

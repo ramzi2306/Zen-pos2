@@ -92,7 +92,11 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
         inStock: true,
         selectedVariations: variations.reduce((acc, v) => ({
           ...acc,
-          [v.group_id]: { id: v.option_id, name: v.option_name, price: v.price_adjustment },
+          // Only set price when there is a real override; price_adjustment=0 means
+          // the variation has no price change (or the price is already baked into
+          // unit_price for online orders). Leaving it undefined makes getCartItemPrice
+          // fall back to item.price correctly.
+          [v.group_id]: { id: v.option_id, name: v.option_name, ...(v.price_adjustment ? { price: v.price_adjustment } : {}) },
         }), {} as Record<string, any>),
         selectedSupplements: supplements.reduce((acc, v) => ({
           ...acc,
