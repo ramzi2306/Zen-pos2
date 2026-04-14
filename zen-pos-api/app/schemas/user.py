@@ -24,6 +24,8 @@ class UserPublic(BaseModel):
     has_pin: bool
     is_active: bool
     exclude_from_attendance: bool = False
+    is_system: bool = False
+    in_order_prep: bool = True
     location_id: Optional[str] = None
     location_name: Optional[str] = None
     shifts: dict[str, str] = {}

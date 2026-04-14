@@ -16,6 +16,8 @@ interface ApiUserPublic {
   has_pin: boolean;
   is_active: boolean;
   exclude_from_attendance?: boolean;
+  is_system?: boolean;
+  in_order_prep?: boolean;
   location_id?: string;
   location_name?: string;
   shifts?: Record<string, string>;
@@ -62,6 +64,8 @@ function mapUserPublic(raw: ApiUserPublic): User {
     attendanceGroup: raw.attendance_group || '',
     hasPin: raw.has_pin || false,
     excludeFromAttendance: raw.exclude_from_attendance || false,
+    isSystem: raw.is_system || false,
+    inOrderPrep: raw.in_order_prep !== false,
     payrollDue: '',
     shifts: raw.shifts || {},
     monthlyAttendance: [],
@@ -93,6 +97,8 @@ export function mapUserDetail(raw: ApiUserDetail): User {
     attendanceGroup: raw.attendance_group || '',
     hasPin: raw.has_pin || false,
     excludeFromAttendance: raw.exclude_from_attendance || false,
+    isSystem: raw.is_system || false,
+    inOrderPrep: raw.in_order_prep !== false,
     payrollDue: raw.payroll_due || '',
     shifts: raw.shifts || {},
     monthlyAttendance: (raw.monthly_attendance || []).map(a => ({
@@ -201,18 +207,19 @@ export async function updateUser(id: string, payload: UserUpdatePayload): Promis
 }
 
 export async function listRoles(): Promise<Role[]> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance?: boolean; is_system?: boolean }[]>('/roles/');
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance?: boolean; in_order_prep?: boolean; is_system?: boolean }[]>('/roles/');
   return raw.map(r => ({
     id: r.id,
     name: r.name,
     permissions: r.permissions as any,
     excludeFromAttendance: r.exclude_from_attendance || false,
+    inOrderPrep: r.in_order_prep !== false,
     isSystem: r.is_system || false,
   }));
 }
 
 export async function createRole(name: string): Promise<Role> {
-  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance: boolean; is_system?: boolean }>('/roles/', {
+  const raw = await apiRequest<{ id: string; name: string; permissions: string[]; exclude_from_attendance: boolean; in_order_prep?: boolean; is_system?: boolean }>('/roles/', {
     method: 'POST',
     body: JSON.stringify({ name, permissions: [], exclude_from_attendance: false }),
   });
@@ -221,11 +228,12 @@ export async function createRole(name: string): Promise<Role> {
     name: raw.name,
     permissions: raw.permissions as any,
     excludeFromAttendance: raw.exclude_from_attendance,
+    inOrderPrep: raw.in_order_prep !== false,
     isSystem: raw.is_system || false,
   };
 }
 
-export async function updateRole(id: string, payload: { permissions?: string[]; exclude_from_attendance?: boolean }): Promise<void> {
+export async function updateRole(id: string, payload: { permissions?: string[]; exclude_from_attendance?: boolean; in_order_prep?: boolean }): Promise<void> {
   await apiRequest(`/roles/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),

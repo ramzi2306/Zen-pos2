@@ -19,6 +19,7 @@ class RoleUpdate(BaseModel):
     name: Optional[str] = None
     permissions: Optional[List[str]] = None
     exclude_from_attendance: Optional[bool] = None
+    in_order_prep: Optional[bool] = None
 
 
 class RoleOut(BaseModel):
@@ -26,6 +27,7 @@ class RoleOut(BaseModel):
     name: str
     permissions: list[str]
     exclude_from_attendance: bool
+    in_order_prep: bool = True
     is_system: bool = False
 
 
@@ -35,6 +37,7 @@ def _role_out(r: RoleDocument) -> RoleOut:
         name=r.name,
         permissions=r.permissions,
         exclude_from_attendance=r.exclude_from_attendance,
+        in_order_prep=r.in_order_prep,
         is_system=r.is_system,
     )
 
@@ -69,6 +72,8 @@ async def update_role(role_id: str, body: RoleUpdate):
         role.permissions = body.permissions
     if body.exclude_from_attendance is not None:
         role.exclude_from_attendance = body.exclude_from_attendance
+    if body.in_order_prep is not None:
+        role.in_order_prep = body.in_order_prep
     await role.save()
     return _role_out(role)
 

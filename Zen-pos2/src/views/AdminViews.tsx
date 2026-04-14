@@ -1854,13 +1854,21 @@ const RoleManagementView = () => {
     }));
   };
 
+  const handleToggleOrderPrep = (roleId: string, val: boolean) => {
+    setRoles(prev => prev.map(role => {
+      if (role.id === roleId) return { ...role, inOrderPrep: val };
+      return role;
+    }));
+  };
+
   const handleSaveRoleConfig = async (roleId: string) => {
     const role = roles.find(r => r.id === roleId);
     if (!role) return;
     try {
-      await api.users.updateRole(roleId, { 
-        permissions: role.permissions, 
-        exclude_from_attendance: role.excludeFromAttendance 
+      await api.users.updateRole(roleId, {
+        permissions: role.permissions,
+        exclude_from_attendance: role.excludeFromAttendance,
+        in_order_prep: role.inOrderPrep,
       });
       const btn = document.getElementById('save-role-btn');
       if (btn) {
@@ -2030,6 +2038,25 @@ const RoleManagementView = () => {
                   <Switch
                     enabled={roles.find(r => r.id === selectedRole.id)?.excludeFromAttendance || false}
                     onChange={(val) => !selectedRole.isSystem && handleToggleAttendanceExclude(selectedRole.id, val)}
+                  />
+                </div>
+              </div>
+
+              {/* Order Preparation Toggle Section */}
+              <div className={`mx-8 p-6 bg-surface-container-highest/20 rounded-2xl border border-outline-variant/10 ${selectedRole.isSystem ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+                      <span className="material-symbols-outlined">cooking</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-wider text-on-surface">Order Preparation</p>
+                      <p className="text-[10px] text-on-surface-variant">Show personnel with this role in the cook/assistant assignment menus.</p>
+                    </div>
+                  </div>
+                  <Switch
+                    enabled={roles.find(r => r.id === selectedRole.id)?.inOrderPrep ?? true}
+                    onChange={(val) => !selectedRole.isSystem && handleToggleOrderPrep(selectedRole.id, val)}
                   />
                 </div>
               </div>
@@ -5590,8 +5617,9 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     setSelectedUserIds(next);
   };
   const toggleSelectAllUsers = () => {
-    if (selectedUserIds.size === users.length && users.length > 0) setSelectedUserIds(new Set());
-    else setSelectedUserIds(new Set(users.map(u => u.id)));
+    const visible = users.filter(u => !u.isSystem);
+    if (selectedUserIds.size === visible.length && visible.length > 0) setSelectedUserIds(new Set());
+    else setSelectedUserIds(new Set(visible.map(u => u.id)));
   };
   const fireSelectedUsers = async () => {
     try {
@@ -5728,6 +5756,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       setBrandingSaving(false);
     }
   };
+
+  const nonSystemUsers = users.filter(u => !u.isSystem);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -6291,7 +6321,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 <div className="relative z-10">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">PERSONNEL COUNT</p>
                   <div className="flex items-baseline gap-3">
-                    <p className="text-5xl font-headline font-extrabold text-on-surface">{users.length}</p>
+                    <p className="text-5xl font-headline font-extrabold text-on-surface">{nonSystemUsers.length}</p>
                     <p className="text-xs font-bold text-tertiary">+2 MOM</p>
                   </div>
                 </div>
@@ -6302,7 +6332,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                   <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">GLOBAL ATTENDANCE SCORE</p>
                   <div className="flex items-baseline gap-3">
                     <p className="text-5xl font-headline font-extrabold text-on-surface">
-                      {users.length > 0 ? Math.round(users.reduce((acc, u) => acc + u.attendanceScore, 0) / users.length) : 0}%
+                      {nonSystemUsers.length > 0 ? Math.round(nonSystemUsers.reduce((acc, u) => acc + u.attendanceScore, 0) / nonSystemUsers.length) : 0}%
                     </p>
                     <p className="text-xs font-bold text-tertiary">OPTIMAL</p>
                   </div>
@@ -6343,7 +6373,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">
-                    {users.map(user => (
+                    {nonSystemUsers.map(user => (
                       <tr key={user.id} className="hover:bg-surface-container-high transition-colors group">
                         <td className="px-6 py-6 border-r border-outline-variant/5">
                           <div className="flex items-center gap-4">
@@ -6402,7 +6432,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 <thead>
                   <tr className="bg-surface-container-low">
                     <th className="px-6 py-4 w-12 text-center border-b border-outline-variant/10">
-                      <input type="checkbox" checked={users.length > 0 && selectedUserIds.size === users.length} onChange={toggleSelectAllUsers} className="rounded text-secondary w-4 h-4 cursor-pointer" />
+                      <input type="checkbox" checked={nonSystemUsers.length > 0 && selectedUserIds.size === nonSystemUsers.length} onChange={toggleSelectAllUsers} className="rounded text-secondary w-4 h-4 cursor-pointer" />
                     </th>
                     <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10">PERSONNEL</th>
                     <th className="px-6 py-4 text-[10px] uppercase tracking-widest text-on-surface-variant font-bold border-b border-outline-variant/10">ROLE</th>
@@ -6411,7 +6441,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
-                  {users.map(user => (
+                  {nonSystemUsers.map(user => (
                     <tr key={user.id} className="hover:bg-surface-container-high transition-colors group">
                       <td className="px-6 py-6 text-center">
                         <input type="checkbox" checked={selectedUserIds.has(user.id)} onChange={() => toggleUserSelect(user.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
@@ -6502,7 +6532,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             </div>
 
             <div className="grid grid-cols-1 gap-8">
-              {users.map(user => {
+              {nonSystemUsers.map(user => {
                 let liveScore = 0;
                 let filteredAttendance: any[] = [];
                 const startDt = new Date(hrDateRange.start);

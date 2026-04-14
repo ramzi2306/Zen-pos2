@@ -1152,7 +1152,7 @@ export const OrdersView = ({
                 <h3 className="text-on-surface font-bold text-xs uppercase tracking-wider">Assign Cook</h3>
               </div>
               <div className="p-2 max-h-80 overflow-y-auto">
-                {users.filter(u => u.role === 'Cook' || u.permissions.includes('view_orders')).map(user => (
+                {users.filter(u => u.inOrderPrep).map(user => (
                   <button
                     key={user.id}
                     onClick={() => handlePrepareOrder(selectedOrder.id, user)}
@@ -1196,7 +1196,7 @@ export const OrdersView = ({
                 <h3 className="text-on-surface font-bold text-xs uppercase tracking-wider">Request Assistance</h3>
               </div>
               <div className="p-2 max-h-80 overflow-y-auto">
-                {users.filter(u => u.id !== selectedOrder.cook?.id).map(user => (
+                {users.filter(u => u.inOrderPrep && u.id !== selectedOrder.cook?.id).map(user => (
                   <button
                     key={user.id}
                     onClick={() => handleAssistRequest(selectedOrder.id, user)}

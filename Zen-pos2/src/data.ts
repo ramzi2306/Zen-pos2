@@ -78,6 +78,7 @@ export interface Role {
   name: string;
   permissions: Permission[];
   excludeFromAttendance: boolean;
+  inOrderPrep: boolean;
   isSystem: boolean;
 }
 
@@ -99,6 +100,10 @@ export interface User {
   hasPin: boolean;
   /** True if this user's role is excluded from attendance tracking */
   excludeFromAttendance: boolean;
+  /** True if this user's role is a system role (e.g. Super Admin) */
+  isSystem: boolean;
+  /** True if this user's role should appear in order preparation cook/assistant menus */
+  inOrderPrep: boolean;
   shifts: Record<string, string>;
   monthlyAttendance: {
     day: string;
