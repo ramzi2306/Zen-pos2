@@ -3796,10 +3796,38 @@ const SalesView = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [registerReports, setRegisterReports] = useState<RegisterReport[]>([]);
 
-  useEffect(() => {
+  const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
+    const now = new Date();
+    return {
+      type: 'this_month',
+      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+      end: now.toISOString().split('T')[0]
+    };
+  });
+
+  const getPeriodDates = (type: string) => {
+    const now = new Date();
+    let start = '';
+    let end = now.toISOString().split('T')[0];
+
+    if (type === 'this_month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    } else if (type === 'last_month') {
+      const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      start = firstOfLastMonth.toISOString().split('T')[0];
+      end = lastOfLastMonth.toISOString().split('T')[0];
+    } else if (type === 'past_90') {
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      start = ninetyDaysAgo.toISOString().split('T')[0];
+    }
+    return { start, end };
+  };
+
+  const fetchData = useCallback(() => {
     setLoading(true);
     Promise.allSettled([
-      api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u)),
+      api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u, undefined, undefined, dateFilter.start, dateFilter.end)),
       api.analytics.getBestsellers(5),
       api.analytics.getLeaderboard(),
       api.analytics.getSalesSummary(),
@@ -3811,7 +3839,11 @@ const SalesView = () => {
       if (sum.status === 'fulfilled') setSummary(sum.value);
       if (rawReports.status === 'fulfilled') setRegisterReports(rawReports.value.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
     }).catch(console.error).finally(() => setLoading(false));
-  }, []);
+  }, [dateFilter.start, dateFilter.end]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const formatDate = (iso?: string | number) => {
     if (!iso) return '—';
@@ -3891,27 +3923,96 @@ const SalesView = () => {
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-extrabold font-headline tracking-tight text-on-surface mb-2">Sales</h1>
-        <p className="text-on-surface-variant text-sm mb-8">Complete sales history and performance analytics.</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+          <div>
+            <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface mb-2 pt-2">Analytics</h1>
+            <p className="text-on-surface-variant text-sm font-medium opacity-70">Synchronized intelligence and performance orchestration.</p>
+          </div>
+          
+          <div className="flex flex-col items-end gap-3 translate-y-1">
+            <div className="flex bg-surface-container-high rounded-2xl p-1.5 border border-outline-variant/10 shadow-sm">
+              {[
+                { id: 'this_month', label: 'This Month' },
+                { id: 'last_month', label: 'Last Month' },
+                { id: 'past_90', label: '90 Past Days' },
+                { id: 'custom', label: 'Custom' }
+              ].map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    if (s.id === 'custom') {
+                      setDateFilter(prev => ({ ...prev, type: 'custom' }));
+                    } else {
+                      const range = getPeriodDates(s.id);
+                      setDateFilter({ type: s.id, ...range });
+                    }
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${dateFilter.type === s.id ? 'bg-primary text-on-primary shadow-lg scale-[1.02]' : 'text-on-surface-variant hover:bg-surface-container-highest'}`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            
+            <AnimatePresence>
+              {dateFilter.type === 'custom' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="flex items-center gap-3"
+                >
+                  <div className="flex items-center gap-2 bg-surface-container rounded-xl px-4 py-2 border border-outline-variant/20">
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">From</span>
+                    <input 
+                      type="date" 
+                      value={dateFilter.start} 
+                      onChange={e => setDateFilter({...dateFilter, start: e.target.value})}
+                      className="bg-transparent text-xs text-on-surface font-bold outline-none focus:text-primary transition-colors"
+                    />
+                  </div>
+                  <div className="w-2 h-px bg-outline-variant/50" />
+                  <div className="flex items-center gap-2 bg-surface-container rounded-xl px-4 py-2 border border-outline-variant/20">
+                    <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">To</span>
+                    <input 
+                      type="date" 
+                      value={dateFilter.end} 
+                      onChange={e => setDateFilter({...dateFilter, end: e.target.value})}
+                      className="bg-transparent text-xs text-on-surface font-bold outline-none focus:text-primary transition-colors"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
         {/* KPI cards */}
-        {summary && (
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            {[
-              { label: 'Total Orders', value: summary.totalOrders, icon: 'receipt_long' },
-              { label: 'Total Revenue', value: formatCurrency(summary.totalRevenue), icon: 'payments' },
-              { label: 'Avg. Order', value: formatCurrency(summary.avgOrderValue), icon: 'calculate' },
-              { label: 'This Month', value: summary.ordersThisMonth + ' orders', icon: 'calendar_month' },
-              { label: 'Month Revenue', value: formatCurrency(summary.revenueThisMonth), icon: 'trending_up' },
-            ].map(kpi => (
-              <div key={kpi.label} className="bg-surface-container rounded-xl p-4 flex flex-col gap-1">
-                <span className="material-symbols-outlined text-secondary text-xl">{kpi.icon}</span>
-                <div className="text-lg font-bold text-on-surface">{kpi.value}</div>
-                <div className="text-[10px] uppercase tracking-wider text-on-surface-variant font-semibold">{kpi.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const paidOrders = orders.filter(o => o.status !== 'Cancelled' && o.paymentStatus === 'Paid');
+          const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
+          const totalOrderCount = paidOrders.length;
+          const avgValue = totalOrderCount > 0 ? totalRevenue / totalOrderCount : 0;
+          
+          return (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {[
+                { label: 'Total Volume', value: totalOrderCount + ' orders', icon: 'receipt_long' },
+                { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: 'payments' },
+                { label: 'Avg. Transaction', value: formatCurrency(avgValue), icon: 'calculate' },
+                { label: 'Selected Period', value: dateFilter.type === 'custom' ? `${dateFilter.start} to ${dateFilter.end}` : dateFilter.label || dateFilter.type.replace('_',' '), icon: 'calendar_month' },
+              ].map(kpi => (
+                <div key={kpi.label} className="bg-surface-container rounded-2xl p-6 flex flex-col gap-1 border border-outline-variant/5 shadow-sm hover:border-primary/20 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="material-symbols-outlined text-secondary text-xl opacity-80">{kpi.icon}</span>
+                  </div>
+                  <div className="text-2xl font-headline font-black text-on-surface tracking-tight">{kpi.value}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold opacity-60">{kpi.label}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Daily Performance Chart */}
         <div className="bg-surface-container rounded-[2rem] p-8 mb-8 border border-outline-variant/10 shadow-sm">
