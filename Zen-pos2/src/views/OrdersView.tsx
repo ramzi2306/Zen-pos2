@@ -1407,7 +1407,9 @@ export const OrdersView = ({
                       setAgentPickerOrder(null);
                       setAgentSearch('');
                       try {
-                        await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                        if (agentPickerOrder!.status !== 'Out for delivery') {
+                          await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                        }
                         await api.delivery.assignAgentToOrder(orderId, agent.id);
                         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: agent.id, name: agent.name, phone: agent.phone } } : o));
                         onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
@@ -1456,7 +1458,9 @@ export const OrdersView = ({
                             setNewAgentForm({ name: '', phone: '' });
                             
                             // Auto-select the new agent
-                            await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                            if (agentPickerOrder!.status !== 'Out for delivery') {
+                              await api.orders.updateOrderStatus(orderId, 'Out for delivery');
+                            }
                             await api.delivery.assignAgentToOrder(orderId, newAgent.id);
                             setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'Out for delivery' as Order['status'], deliveryAgent: { agent_id: newAgent.id, name: newAgent.name, phone: newAgent.phone } } : o));
                             onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);

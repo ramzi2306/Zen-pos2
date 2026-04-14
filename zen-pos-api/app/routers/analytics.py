@@ -108,8 +108,8 @@ async def kitchen_leaderboard():
         user = user_map.get(cook_id)
         entries.append(LeaderboardEntry(
             user_id=cook_id,
-            name=user.full_name if user else "Unknown",
-            avatar=getattr(user, "avatar", "") or "",
+            name=user.name if user else "Unknown",
+            avatar=getattr(user, "image", "") or "",
             orders_completed=count,
             rank=rank,
         ))

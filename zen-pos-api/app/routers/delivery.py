@@ -106,8 +106,7 @@ async def assign_agent_to_order(order_id: str, data: AssignAgentRequest):
         phone=agent.phone,
     )
     await order.save()
-    await manager.broadcast({
-        "type": "order_update",
+    await manager.broadcast("order_update", {
         "order_id": str(order.id),
         "order_number": order.order_number,
         "message": f"Delivery agent {agent.name} assigned to order {order.order_number}",
