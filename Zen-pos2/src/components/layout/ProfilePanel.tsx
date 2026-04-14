@@ -35,11 +35,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const completedOrders = sessionOrders.filter(o => o.status === 'Done' || o.status === 'Served');
+  // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
+  const paidOrders = sessionOrders.filter(o => o.paymentStatus === 'Paid');
 
-  const cashOrders   = completedOrders.filter(o => o.paymentStatus === 'Paid' && (!o.paymentMethod || o.paymentMethod === 'Cash'));
-  const cardOrders   = completedOrders.filter(o => o.paymentStatus === 'Paid' && o.paymentMethod === 'Credit Card');
-  const otherOrders  = completedOrders.filter(o => o.paymentStatus === 'Paid' && o.paymentMethod === 'Other');
+  const cashOrders   = paidOrders.filter(o => (!o.paymentMethod || o.paymentMethod === 'Cash'));
+  const cardOrders   = paidOrders.filter(o => o.paymentMethod === 'Credit Card');
+  const otherOrders  = paidOrders.filter(o => o.paymentMethod === 'Other');
 
   const expectedCash  = cashOrders.reduce((sum, o) => sum + o.total, 0);
   const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
@@ -395,10 +396,11 @@ export const ProfilePanel = ({
     return t >= openedAt;
   }) : [];
   
-  const totalSales = sessionOrders
+  // Use all orders for the daily total displayed in the panel, per user request.
+  const totalSales = orders
     .filter(o => o.paymentStatus === 'Paid' && o.status !== 'Cancelled')
     .reduce((sum, o) => sum + o.total, 0);
-  const totalOrders = sessionOrders.length;
+  const totalOrders = orders.filter(o => o.status !== 'Cancelled').length;
 
   const canSwitchLocation = !currentUser?.locationId && locations.length > 0 && !!setActiveLocationId;
 

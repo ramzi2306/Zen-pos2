@@ -345,7 +345,9 @@ function AppShell() {
     const canStaff  = hasPermission('view_staff');
 
     const today = new Date().toISOString().split('T')[0];
-    if (canStaff) {
+    
+    // Fetch users if we can manage staff OR if we need them to assign cooks in OrdersView
+    if (canStaff || canOrders) {
       api.users.listUsers().then(u => {
         setUsers(u);
         if (canOrders) {
@@ -353,7 +355,7 @@ function AppShell() {
         }
       }).catch(console.error);
     } else if (canOrders) {
-      // No staff permission — fetch orders directly (users array stays empty)
+      // Fallback (though canOrders is covered above, keeping for clarity if logic changes)
       api.orders.listOrders([], today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
