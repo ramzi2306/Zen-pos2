@@ -50,8 +50,6 @@ export const AttendanceView = ({ setCurrentView, onLogout, isKioskOnly, isKioskF
     ]).then(([loadedUsers, loadedRoles]) => {
       setUsers(loadedUsers);
       setRoles(loadedRoles);
-      // Load check-in status for each user
-      Promise.all(loadedUsers.map(u => api.attendance.getUserStatus(u.id).then(status => ({ id: u.id, status }))));
     }).catch(console.error);
 
     api.attendance.getTodayRecords().then(records => {

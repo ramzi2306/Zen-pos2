@@ -43,7 +43,6 @@ export const Sidebar = ({
     { id: 'products',   icon: 'restaurant_menu', label: 'Products',        category: 'admin_panel', permission: 'view_menu'       },
     { id: 'inventory',  icon: 'inventory_2',     label: 'Inventory',       category: 'admin_panel', permission: 'view_inventory'  },
     { id: 'delivery',   icon: 'local_shipping',  label: 'Delivery',        category: 'admin_panel', permission: 'view_orders'     },
-    { id: 'attendance', icon: 'fingerprint',     label: 'Attendance',      category: 'admin_panel', permission: 'view_attendance' },
     { id: 'hr',         icon: 'badge',           label: 'Human Resources', category: 'admin_panel', permission: 'view_hr'         },
   ];
 

@@ -577,23 +577,34 @@ export const ProfilePanel = ({
               </div>
 
               {/* Footer Buttons */}
-              <div className="p-4 grid grid-cols-2 gap-4 bg-[#3c3f41] border-t border-white/10">
-                {hasPermission('view_settings') && (
+              <div className="p-4 space-y-3 bg-[#3c3f41] border-t border-white/10">
+                {hasPermission('view_attendance') && (
                   <button
-                    onClick={() => { setCurrentView('pos_settings'); onClose(); }}
-                    className="py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-white/10"
+                    onClick={() => { setCurrentView('attendance'); onClose(); }}
+                    className="w-full py-3 bg-[#d84315]/10 hover:bg-[#d84315]/20 text-[#d84315] rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-[#d84315]/20 flex items-center justify-center gap-2"
                   >
-                    POS Settings
+                    <span className="material-symbols-outlined text-lg">fingerprint</span>
+                    Timeclock / Attendance
                   </button>
                 )}
-                {(hasPermission('view_staff') || hasPermission('view_hr')) && (
-                  <button
-                    onClick={() => { setCurrentView('admin_panel'); onClose(); }}
-                    className="py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-white/10"
-                  >
-                    Administration
-                  </button>
-                )}
+                <div className="grid grid-cols-2 gap-4">
+                  {hasPermission('view_settings') && (
+                    <button
+                      onClick={() => { setCurrentView('pos_settings'); onClose(); }}
+                      className="py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-white/10"
+                    >
+                      POS Settings
+                    </button>
+                  )}
+                  {(hasPermission('view_staff') || hasPermission('view_hr')) && (
+                    <button
+                      onClick={() => { setCurrentView('admin_panel'); onClose(); }}
+                      className="py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-white/10"
+                    >
+                      Administration
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isLoggedIn && (
