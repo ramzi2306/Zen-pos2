@@ -758,6 +758,20 @@ function AppShell() {
         currentUser={currentUser}
         onLogout={handleLogout}
         onCloseRegister={handleCloseRegister}
+        onCloseRegisterBlocked={() => {
+          setCurrentView('orders');
+          setIsProfileOpen(false);
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          setToast({
+            id: Date.now().toString(),
+            type: 'urgent',
+            title: 'Active Orders',
+            message: 'All orders must be finished before closing the register',
+            time: new Date().toISOString(),
+            read: false,
+          });
+          toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+        }}
         hasPermission={hasPermission}
         orders={orders}
         locations={locations}

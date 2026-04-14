@@ -359,6 +359,7 @@ export const ProfilePanel = ({
   currentUser,
   onLogout,
   onCloseRegister,
+  onCloseRegisterBlocked,
   hasPermission,
   orders = [],
   locations = [],
@@ -375,6 +376,8 @@ export const ProfilePanel = ({
   onLogout: () => void;
   /** Called after the cashier confirms "Close Register" — handles checkout + navigation */
   onCloseRegister?: (reportData: { actualSales: number, expectedSales: number, difference: number, notes: string }) => void;
+  /** Called when the cashier tries to close the register but active orders exist */
+  onCloseRegisterBlocked?: () => void;
   hasPermission: (p: any) => boolean;
   orders?: Order[];
   locations?: Location[];
@@ -392,7 +395,9 @@ export const ProfilePanel = ({
     return t >= openedAt;
   }) : orders;
   
-  const totalSales = sessionOrders.reduce((sum, order) => sum + order.total, 0);
+  const totalSales = sessionOrders
+    .filter(o => o.paymentStatus === 'Paid' && o.status !== 'Cancelled')
+    .reduce((sum, o) => sum + o.total, 0);
   const totalOrders = sessionOrders.length;
 
   const canSwitchLocation = !currentUser?.locationId && locations.length > 0 && !!setActiveLocationId;
@@ -554,7 +559,17 @@ export const ProfilePanel = ({
                   <p className="text-2xl font-bold">{formatCurrency(totalSales)}</p>
                 </div>
                 <button
-                  onClick={() => setIsCloseModalOpen(true)}
+                  onClick={() => {
+                    const activeOrders = sessionOrders.filter(
+                      o => !['Done', 'Cancelled', 'Served'].includes(o.status)
+                    );
+                    if (activeOrders.length > 0) {
+                      onClose();
+                      onCloseRegisterBlocked?.();
+                      return;
+                    }
+                    setIsCloseModalOpen(true);
+                  }}
                   className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
                 >
                   <span className="material-symbols-outlined text-3xl opacity-60">logout</span>
