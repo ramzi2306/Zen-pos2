@@ -390,10 +390,10 @@ export const ProfilePanel = ({
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
   const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
-  const sessionOrders = openedAt ? orders.filter(o => {
+  const sessionOrders = openedAt > 0 ? orders.filter(o => {
     const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
     return t >= openedAt;
-  }) : orders;
+  }) : [];
   
   const totalSales = sessionOrders
     .filter(o => o.paymentStatus === 'Paid' && o.status !== 'Cancelled')

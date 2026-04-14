@@ -514,6 +514,7 @@ function AppShell() {
     }
 
     sessionStorage.removeItem('sessionOpenedAt');
+    setOrders([]);
     setNotifications([]);
     try { localStorage.removeItem(NOTIF_STORAGE_KEY); } catch {}
 
