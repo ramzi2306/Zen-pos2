@@ -5636,6 +5636,9 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   });
 
   const [attendanceReport, setAttendanceReport] = useState<import('../api/attendance').AttendanceReport | null>(null);
+  const [todayAttendance, setTodayAttendance] = useState<import('../api/attendance').AttendanceRecord[]>([]);
+  // Tick every 60 s so "Online since Xm" labels stay current without a full re-fetch
+  const [, setAttendanceTick] = useState(0);
 
   useEffect(() => {
     if (currentSetting !== 'hr') return;
@@ -5643,6 +5646,16 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       .then(setAttendanceReport)
       .catch(console.error);
   }, [currentSetting, hrDateRange]);
+
+  // Fetch live check-in status and refresh every 30 s while HR section is open
+  useEffect(() => {
+    if (currentSetting !== 'hr') return;
+    const fetch = () => api.attendance.getTodayRecords().then(setTodayAttendance).catch(console.error);
+    fetch();
+    const fetchInterval = setInterval(fetch, 30_000);
+    const tickInterval = setInterval(() => setAttendanceTick(t => t + 1), 60_000);
+    return () => { clearInterval(fetchInterval); clearInterval(tickInterval); };
+  }, [currentSetting]);
   const [branding, setBranding] = useState<BrandingData>(() => {
     // Prioritise prop from App (already fetched from API), then localStorage cache, then hardcoded defaults
     if (appBranding) return appBranding;
@@ -6530,17 +6543,50 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 } else {
                   liveScore = 0;
                 }
+                const todayRec = !user.excludeFromAttendance
+                  ? todayAttendance.find(r => r.userId === user.id)
+                  : undefined;
+                const isOnline = todayRec?.status === 'active';
+                let sinceLabel = '';
+                if (isOnline && todayRec?.checkIn) {
+                  const [h, m] = todayRec.checkIn.split(':').map(Number);
+                  const now = new Date();
+                  const checkedIn = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+                  const diffMin = Math.max(0, Math.floor((now.getTime() - checkedIn.getTime()) / 60000));
+                  const hrs = Math.floor(diffMin / 60);
+                  const mins = diffMin % 60;
+                  sinceLabel = hrs > 0 ? (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`) : `${mins}m`;
+                }
                 return (
                   <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden flex flex-col">
                     <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
-                      <div className="w-14 h-14 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden">
-                        <img src={user.image} alt={user.name} className="w-full h-full object-cover grayscale" />
+                      <div className="relative w-14 h-14 shrink-0">
+                        <div className="w-14 h-14 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden">
+                          <img src={user.image} alt={user.name} className="w-full h-full object-cover grayscale" />
+                        </div>
+                        {!user.excludeFromAttendance && (
+                          <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-surface-container-low ${isOnline ? 'bg-tertiary' : 'bg-on-surface-variant/30'}`} />
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-headline font-extrabold text-on-surface uppercase tracking-tight">{user.name}</h3>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-headline font-extrabold text-on-surface uppercase tracking-tight truncate">{user.name}</h3>
                         <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{user.role}</p>
+                        {!user.excludeFromAttendance && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-tertiary animate-pulse' : 'bg-on-surface-variant/40'}`} />
+                            {isOnline ? (
+                              <span className="text-[10px] font-bold text-tertiary uppercase tracking-widest">
+                                Online · {sinceLabel}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
+                                {todayRec?.checkOut ? `Checked out ${todayRec.checkOut}` : 'Offline'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">ATTENDANCE SCORE</p>
                         <p className={`text-2xl font-headline font-extrabold ${workedDays === 0 ? 'text-on-surface-variant' : liveScore > 90 ? 'text-tertiary' : 'text-secondary'}`}>{workedDays === 0 ? 'N/A' : `${liveScore}%`}</p>
                       </div>
