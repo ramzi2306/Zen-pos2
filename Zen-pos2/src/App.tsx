@@ -147,7 +147,16 @@ function AppShell() {
           _routeToLanding(u);
         }
       })
-      .catch(() => { if (!cancelled) api.clearTokens(); })
+      .catch((err) => {
+        if (!cancelled) {
+          // Only clear tokens if the error is explicitly an authentication failure (e.g., 401)
+          // Avoid logging out on network timeouts or server errors to prevent frustrating session loss.
+          const isAuthError = err.message?.includes('401') || err.status === 401;
+          if (isAuthError) {
+            api.clearTokens();
+          }
+        }
+      })
       .finally(() => { if (!cancelled) setIsAuthLoading(false); });
 
     return () => { cancelled = true; };

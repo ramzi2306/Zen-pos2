@@ -4,8 +4,9 @@ import { User } from '../data';
 import * as api from '../api';
 
 export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('zenpos_remembered_email') || '');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('zenpos_remember_me') === 'true');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -14,10 +15,19 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) =
     setIsLoading(true);
     setError('');
     try {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timed out. Is the server running?')), 8000)
-      );
-      const user = await Promise.race([api.auth.login(email, password), timeout]);
+      const user = await Promise.race([
+        api.login(email, password),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Connection timed out. Is the server running?')), 8000)
+        )
+      ]);
+      if (rememberMe) {
+        localStorage.setItem('zenpos_remember_me', 'true');
+        localStorage.setItem('zenpos_remembered_email', email);
+      } else {
+        localStorage.removeItem('zenpos_remember_me');
+        localStorage.removeItem('zenpos_remembered_email');
+      }
       onLogin(user);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
@@ -72,6 +82,21 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) =
                   className="w-full bg-surface-container-low rounded-2xl pl-12 pr-6 py-4 text-sm text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-none transition-all"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between px-2">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="hidden"
+                />
+                <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-primary border-primary' : 'border-outline-variant group-hover:border-primary/50'}`}>
+                  {rememberMe && <span className="material-symbols-outlined text-on-primary text-sm font-bold">check</span>}
+                </div>
+                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Remember me</span>
+              </label>
             </div>
 
             {error && (
