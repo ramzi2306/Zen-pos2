@@ -1100,17 +1100,19 @@ export const OrdersView = ({
 
                     {/* Action Buttons */}
                     <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low flex gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => {
-                          if (onEditOrder && selectedOrder) {
-                            onEditOrder(selectedOrder);
-                          }
-                        }}
-                        className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-lg text-xs font-bold hover:bg-surface-variant transition-colors shadow-sm flex items-center justify-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">edit</span>
-                        Edit Order
-                      </button>
+                      {selectedOrder.status !== 'Done' && (
+                        <button
+                          onClick={() => {
+                            if (onEditOrder && selectedOrder) {
+                              onEditOrder(selectedOrder);
+                            }
+                          }}
+                          className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-lg text-xs font-bold hover:bg-surface-variant transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">edit</span>
+                          Edit Order
+                        </button>
+                      )}
                       <button
                         onClick={() => setIsCancelDialogOpen(true)}
                         className="flex-1 py-3 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors shadow-sm flex items-center justify-center gap-1.5"

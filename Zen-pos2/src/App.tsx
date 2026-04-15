@@ -42,7 +42,7 @@ function AppShell() {
   const [users, setUsers] = useState<User[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrderObj] = useState<Order | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [branding, setBranding] = useState<BrandingData>(() => {
     try {
@@ -558,9 +558,9 @@ function AppShell() {
     });
   };
 
-  const setEditingOrder = (order: Order) => {
+  const handleStartEditing = (order: Order) => {
     setCart(order.items);
-    setEditingOrderId(order.id);
+    setEditingOrderObj(order);
     navigate('/menu');
     setIsCartOpen(true);
   };
@@ -580,12 +580,12 @@ function AppShell() {
   };
 
   const handleEditOrder = (order: Order) => {
-    setEditingOrder(order);
+    handleStartEditing(order);
   };
 
   const clearCart = () => {
     setCart([]);
-    setEditingOrderId(null);
+    setEditingOrderObj(null);
   };
 
   const handleOrderCreated = (newOrder: Order) => {
@@ -598,7 +598,7 @@ function AppShell() {
       }
       return [newOrder, ...prev];
     });
-    setEditingOrderId(null);
+    setEditingOrderObj(null);
   };
 
   const refreshOrders = (date?: string, startDate?: string, endDate?: string) => {
@@ -746,7 +746,7 @@ function AppShell() {
                 onClearCart={clearCart}
                 onOrderCreated={handleOrderCreated}
                 branding={branding}
-                editingOrderId={editingOrderId}
+                editingOrder={editingOrder}
               />
             </>
           )}

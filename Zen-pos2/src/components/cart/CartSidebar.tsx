@@ -43,7 +43,7 @@ export const CartSidebar = ({
   onClearCart,
   onOrderCreated,
   branding,
-  editingOrderId,
+  editingOrder,
 }: {
   cart: CartItem[];
   updateQuantity: (cartItemId: string, delta: number) => void;
@@ -53,7 +53,7 @@ export const CartSidebar = ({
   onClearCart?: () => void;
   onOrderCreated?: (order: Order) => void;
   branding?: BrandingData;
-  editingOrderId?: string | null;
+  editingOrder?: Order | null;
 }) => {
   const { localization, formatCurrency } = useLocalization();
 
@@ -133,6 +133,25 @@ export const CartSidebar = ({
   );
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+  // Load metadata when editing an order
+  useEffect(() => {
+    if (editingOrder) {
+      if (editingOrder.orderType) {
+        const type = editingOrder.orderType === 'online' ? 'delivery' : editingOrder.orderType;
+        setOrderType(type as any);
+      }
+      setOrderNote(editingOrder.notes || '');
+      if (editingOrder.customer) {
+        setDeliveryDetails({
+          name: editingOrder.customer.name || '',
+          phone: editingOrder.customer.phone || '',
+          address: editingOrder.customer.address || '',
+          zone: ''
+        });
+      }
+    }
+  }, [editingOrder]);
+
   const _buildCartReceiptItems = (): ReceiptItem[] =>
     cart.map(item => {
       const itemPrice = getCartItemPrice(item);
@@ -196,7 +215,7 @@ export const CartSidebar = ({
 
 
 
-  const handleCreateOrder = async (paymentStatus: 'Unpaid' | 'Paid', orderStatus: 'Queued' | 'Draft' = 'Queued') => {
+  const handleCreateOrder = async (paymentStatus: 'Unpaid' | 'Paid', orderStatus: Order['status'] = 'Queued') => {
     if (cart.length === 0) return;
     try {
       const customer = deliveryDetails.name || deliveryDetails.phone
@@ -205,9 +224,9 @@ export const CartSidebar = ({
       const method = paymentStatus === 'Paid' ? paymentMethod : 'Cash';
       
       let newOrder: Order;
-      if (editingOrderId) {
+      if (editingOrder) {
         newOrder = await api.orders.updateOrder(
-          editingOrderId,
+          editingOrder.id,
           cart,
           orderType,
           undefined,   // don't overwrite the original table
@@ -230,7 +249,7 @@ export const CartSidebar = ({
         setTimeout(() => setPrintReady(true), 3000);
       } else {
         let label = orderStatus === 'Draft' ? 'Draft saved!' : `${newOrder.orderNumber ?? 'Order'} sent to kitchen!`;
-        if (editingOrderId && orderStatus !== 'Draft') {
+        if (editingOrder && orderStatus !== 'Draft') {
           label = `Order ${newOrder.orderNumber ?? ''} updated!`;
         }
         setToast({ message: label, type: 'success' });
@@ -506,11 +525,17 @@ export const CartSidebar = ({
                 )}
               </div>
               <button
-                onClick={() => { if (cart.length > 0) setViewMode('receipt'); }}
-                className="w-full py-3 bg-[#8bc34a] text-white rounded-lg font-headline font-extrabold text-lg hover:bg-[#7cb342] transition-colors shadow-lg flex items-center justify-between px-5"
+                onClick={() => { 
+                  if (editingOrder) {
+                    handleCreateOrder(editingOrder.paymentStatus, editingOrder.status);
+                  } else if (cart.length > 0) {
+                    setViewMode('receipt'); 
+                  }
+                }}
+                className={`w-full py-3 ${editingOrder ? 'bg-primary text-on-primary' : 'bg-[#8bc34a] text-white'} rounded-lg font-headline font-extrabold text-lg hover:opacity-90 transition-all shadow-lg flex items-center justify-between px-5 active:scale-[0.98]`}
               >
                 <div className="flex flex-col items-start">
-                  <span>Payer</span>
+                  <span>{editingOrder ? "Update Order" : "Payer"}</span>
                   <span className="text-xs font-medium opacity-90">{cart.length} articles</span>
                 </div>
                 <span className="text-xl">{formatCurrency(subtotal)}</span>
@@ -614,36 +639,48 @@ export const CartSidebar = ({
 
             {/* Action buttons */}
             <div className="p-4 bg-[#22252a] border-t border-white/10 space-y-3">
-              <button
-                onClick={(e) => setPaymentMenuRect(e.currentTarget.getBoundingClientRect())}
-                className="w-full py-3 bg-[#8bc34a] text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-[#7cb342] transition-colors shadow-md"
-              >
-                <span className="material-symbols-outlined">payments</span>
-                Process Payment
-              </button>
-              <button
-                onClick={() => handleCreateOrder('Unpaid')}
-                className="w-full py-3 bg-secondary text-on-secondary rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-secondary/90 transition-colors shadow-md"
-              >
-                <span className="material-symbols-outlined">restaurant</span>
-                Send to Kitchen
-              </button>
-              <div className="grid grid-cols-2 gap-3">
+              {editingOrder ? (
                 <button
-                  onClick={() => handleCreateOrder('Unpaid', 'Draft')}
-                  className="py-3 bg-white/10 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-white/20 transition-colors text-xs shadow-sm"
+                  onClick={() => handleCreateOrder(editingOrder.paymentStatus, editingOrder.status)}
+                  className="w-full py-4 bg-primary text-on-primary rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-primary/90 transition-all shadow-lg active:scale-[0.98]"
                 >
-                  <span className="material-symbols-outlined text-sm">save</span>
-                  Save for Later
+                  <span className="material-symbols-outlined">update</span>
+                  Update Order
                 </button>
-                <button
-                  onClick={(e) => setNoteMenuRect(e.currentTarget.getBoundingClientRect())}
-                  className="py-3 bg-white/10 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-white/20 transition-colors text-xs shadow-sm"
-                >
-                  <span className="material-symbols-outlined text-sm">edit_note</span>
-                  Order Note
-                </button>
-              </div>
+              ) : (
+                <>
+                  <button
+                    onClick={(e) => setPaymentMenuRect(e.currentTarget.getBoundingClientRect())}
+                    className="w-full py-3 bg-[#8bc34a] text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-[#7cb342] transition-colors shadow-md"
+                  >
+                    <span className="material-symbols-outlined">payments</span>
+                    Process Payment
+                  </button>
+                  <button
+                    onClick={() => handleCreateOrder('Unpaid')}
+                    className="w-full py-3 bg-secondary text-on-secondary rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-secondary/90 transition-colors shadow-md"
+                  >
+                    <span className="material-symbols-outlined">restaurant</span>
+                    Send to Kitchen
+                  </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleCreateOrder('Unpaid', 'Draft')}
+                      className="py-3 bg-white/10 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-white/20 transition-colors text-xs shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-sm">save</span>
+                      Save for Later
+                    </button>
+                    <button
+                      onClick={(e) => setNoteMenuRect(e.currentTarget.getBoundingClientRect())}
+                      className="py-3 bg-white/10 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-white/20 transition-colors text-xs shadow-sm"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit_note</span>
+                      Order Note
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
