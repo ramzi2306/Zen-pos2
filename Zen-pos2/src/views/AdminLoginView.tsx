@@ -16,7 +16,7 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) =
     setError('');
     try {
       const user = await Promise.race([
-        api.login(email, password),
+        api.auth.login(email, password),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Connection timed out. Is the server running?')), 8000)
         )
