@@ -210,7 +210,7 @@ export const CartSidebar = ({
           editingOrderId,
           cart,
           orderType,
-          '',
+          undefined,   // don't overwrite the original table
           customer,
           orderNote,
           paymentStatus,

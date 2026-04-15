@@ -95,8 +95,10 @@ async def update_order(order_id: str, body: OrderUpdate):
     if not order:
         raise NotFoundError("Order not found")
     
-    if body.status:
+    if body.status and body.status != order.status:
         order = await order_service.transition_status(order_id, body.status, body.scheduled_time)
+    elif body.status and body.scheduled_time:
+        order.scheduled_time = body.scheduled_time
     
     if body.items is not None:
         order.items = [

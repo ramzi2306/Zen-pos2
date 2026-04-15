@@ -730,7 +730,7 @@ export const OrdersView = ({
                 Mark as Done
               </button>
             )}
-            {(order.status === 'Out for delivery' || (order.status === 'Packaging' && order.orderType !== 'delivery')) && !order.review && (
+            {(['Out for delivery', 'Done'].includes(order.status) || (order.status === 'Packaging' && order.orderType !== 'delivery')) && !order.review && (
               <button 
                 onClick={(e) => {
                   e.stopPropagation();

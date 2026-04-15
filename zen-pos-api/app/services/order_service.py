@@ -13,9 +13,9 @@ from app.schemas.order import OrderCreate, OrderUpdate
 
 VALID_TRANSITIONS: dict[str, list[str]] = {
     "Draft":            ["Queued", "Cancelled"],
-    "Queued":           ["Preparing", "Scheduled", "Cancelled"],
+    "Queued":           ["Queued", "Preparing", "Scheduled", "Cancelled"],
     "Scheduled":        ["Queued", "Cancelled"],
-    "Preparing":        ["Served", "Packaging", "Cancelled"],
+    "Preparing":        ["Queued", "Served", "Packaging", "Cancelled"],
     "Served":           ["Done", "Packaging"],
     "Packaging":        ["Out for delivery", "Done"],
     "Out for delivery": ["Done"],

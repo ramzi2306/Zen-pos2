@@ -510,8 +510,11 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
       if (tracking) {
         setTracking({ ...tracking, review: { stars: trackingReviewStars, comment: trackingReviewComment } });
       }
-    } catch {}
-    setTrackingReviewDone(true); setTrackingReviewOpen(false);
+      setTrackingReviewDone(true); 
+      setTrackingReviewOpen(false);
+    } catch (err: any) {
+      setServerError(err.message || 'Failed to submit review.');
+    }
   };
 
 
@@ -635,15 +638,17 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
 
   const submitReview = async () => {
     if (!reviewTarget) return;
-    const token = localStorage.getItem('customer_session') ?? '';
+    const token = localStorage.getItem(CUSTOMER_SESSION_KEY) ?? '';
     try {
       await publicApi.submitCustomerReview(reviewTarget.id, reviewStars, reviewComment, token);
-      setHistOrders(prev => prev.map(o => o.id === reviewTarget!.id ? { ...o, review: { stars: reviewStars, comment: reviewComment } } : o));
+      setHistOrders(prev => prev.map(o => o.id === reviewTarget.id ? { ...o, review: { stars: reviewStars, comment: reviewComment } } : o));
       // Delay reset slightly to avoid UI flicker while state propagates
       setTimeout(() => {
         setReviewTarget(null); setReviewStars(5); setReviewComment('');
       }, 300);
-    } catch {}
+    } catch (err: any) {
+      setServerError(err.message || 'Failed to submit history review.');
+    }
   };
 
 
@@ -1337,7 +1342,8 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                           )}
 
                           {/* Leave Review (only if Done) */}
-                          {currentStep === 3 && !trackingReviewDone && (
+                          {/* Review Button: show if Done AND no review locally or server-side */}
+                          {currentStep === 3 && !trackingReviewDone && !tracking?.review && (
                             <motion.button
                               key="btn-review"
                               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
@@ -1349,8 +1355,8 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                             </motion.button>
                           )}
 
-                          {/* Thank you message */}
-                          {currentStep === 3 && trackingReviewDone && (
+                          {/* Thank you message + Star reflection */}
+                          {currentStep === 3 && (trackingReviewDone || tracking?.review) && (
                             <motion.div
                               key="msg-thanks"
                               initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
@@ -1358,7 +1364,17 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                             >
                               <div className="flex items-center gap-2 text-tertiary font-bold">
                                 <span className="material-symbols-outlined fill-1 text-xl">check_circle</span>
-                                <span className="text-sm">Delivered & Reviewed</span>
+                                <span className="text-sm">Order Delivered</span>
+                              </div>
+                              <div className="flex items-center gap-1 mb-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <span 
+                                    key={i} 
+                                    className={`material-symbols-outlined text-sm ${i < (trackingReviewDone ? trackingReviewStars : (tracking?.review?.stars || 0)) ? 'text-tertiary fill-1' : 'text-outline-variant/30 fill-0'}`}
+                                  >
+                                    star
+                                  </span>
+                                ))}
                               </div>
                               <p className="text-[10px] text-on-surface-variant font-medium">Thank you for your feedback!</p>
                             </motion.div>

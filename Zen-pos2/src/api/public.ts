@@ -98,6 +98,7 @@ export async function getOrderTracking(
   const raw = await publicRequest<any>(`/public/orders/track/${trackingToken}`);
   return {
     ...raw,
+    orderId: raw.id, // Map 'id' from backend to 'orderId' used by frontend
     orderType: raw.order_type ?? raw.orderType,
   } as PublicTrackingInfo;
 }
