@@ -23,7 +23,7 @@ function getBranding() {
   return DEFAULT_BRANDING;
 }
 
-const CUSTOMER_SESSION_KEY = 'zenpos_public_customer';
+const CUSTOMER_SESSION_KEY = 'customer_session';
 const MOCK_ORDERS_KEY = 'zenpos_mock_online_orders';
 interface SavedCustomer { phone: string; name: string; address: string; customerId?: string; savedAt: number; }
 function loadCustomerSession(): SavedCustomer | null {
@@ -329,7 +329,10 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [trackingReviewDone, setTrackingReviewDone] = useState(false);
 
   // History
-  const [histPhone, setHistPhone] = useState('');
+  const [histPhone, setHistPhone] = useState(() => {
+    const s = loadCustomerSession();
+    return s?.phone || '';
+  });
   const [otp, setOtp] = useState('');
   const [otpSending, setOtpSending] = useState(false);
   const [otpError, setOtpError] = useState('');
@@ -483,14 +486,12 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     }
   }, [view]);
   
-  // Handle order delivery/completion: clear cart and reset to empty cart view
+  // Handle order delivery/completion: clear cart but stay on tracking for review
   useEffect(() => {
     if (tracking?.status === 'Done') {
       clearCart();
-      resetUi();
-      navigate('/');
     }
-  }, [tracking?.status, clearCart, resetUi, navigate]);
+  }, [tracking?.status, clearCart]);
 
   const reset = () => {
     resetUi();
@@ -501,9 +502,9 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   };
 
   const submitTrackingReview = async () => {
-    if (!placed && !ui.placedOrder) return;
-    const orderId = placed?.orderId || ui.placedOrder?.orderId || '';
-    const token = localStorage.getItem('customer_session') ?? '';
+    const orderId = tracking?.orderId || placed?.orderId || ui.placedOrder?.orderId;
+    if (!orderId) return;
+    const token = localStorage.getItem(CUSTOMER_SESSION_KEY) ?? '';
     try { 
       await publicApi.submitCustomerReview(orderId, trackingReviewStars, trackingReviewComment, token);
       if (tracking) {
@@ -676,16 +677,12 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
           {(location.pathname !== '/' || view === 'tracking' || view === 'placed' || view.startsWith('history')) && (
             <button
               onClick={() => {
-                if (location.pathname.startsWith('/track/') || view === 'tracking' || view === 'placed') {
-                  setView('history_phone');
-                  setOpen(true);
-                  navigate('/history');
-                } else if (view.startsWith('history')) {
-                  setView('cart');
+                if (location.pathname !== '/') {
                   navigate('/');
+                } else if (view !== 'cart') {
+                  setView('cart');
                 } else {
-                  setView('cart');
-                  navigate('/');
+                  setOpen(false);
                 }
               }}
               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors text-on-surface-variant flex-shrink-0"
@@ -1463,6 +1460,7 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
             <p className="text-sm text-on-surface-variant leading-relaxed">
               {firebaseActive ? 'Enter your phone number to view your order history.' : 'Enter your phone number to access your orders.'}
             </p>
+            {!histPhone && <p className="text-[10px] text-primary/80 font-bold uppercase tracking-widest -mt-2">New profile? Enter your phone to start.</p>}
             <label className="flex items-center gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-primary/60 transition-all">
               <span className="material-symbols-outlined text-[18px] text-outline-variant">phone</span>
               <input
