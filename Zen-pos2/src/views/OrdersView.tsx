@@ -189,11 +189,11 @@ export const OrdersView = ({
       'Preparing':        order.orderType === 'dine_in'
                             ? ['Served', 'Cancelled']
                             : ['Packaging', 'Cancelled'],
-      'Served':           ['Done'],
+      'Served':           ['Done', 'Cancelled'],
       'Packaging':        order.orderType === 'delivery'
-                            ? ['Out for delivery', 'Done']
-                            : ['Done'],
-      'Out for delivery': ['Done'],
+                            ? ['Out for delivery', 'Done', 'Cancelled']
+                            : ['Done', 'Cancelled'],
+      'Out for delivery': ['Done', 'Cancelled'],
       'Done':             [],
       'Cancelled':        [],
     };
