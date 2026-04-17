@@ -105,61 +105,107 @@ function AppShell() {
     else navigate('/menu');
   };
 
-  // Restore session on mount — race against a 5s timeout so a dead backend
-  // never leaves the app stuck on the loading spinner indefinitely.
-  // A `cancelled` flag prevents stale responses from updating state after
-  // the timeout fires and clears tokens.
+  // ── Session restore ────────────────────────────────────────────────────────
+  // Strategy:
+  //   1. If a cached user exists in localStorage, restore IMMEDIATELY — no spinner,
+  //      no network required. This eliminates "random logouts" caused by slow servers,
+  //      brief outages, or token refresh hiccups during an active session.
+  //   2. Verify the session in the background via me(). On success, refresh the cached
+  //      user data. On a genuine 401/403, clear everything and log out.
+  //   3. If no cache exists (first device), fall back to fetching me() with a 5s
+  //      timeout so a dead backend never leaves the spinner up forever.
+  //   4. Schedule an AudioContext unlock on the first user interaction so that
+  //      notification sounds work immediately after a page reload (the AudioContext
+  //      is suspended until a gesture occurs, and handleLogin is never called on reload).
+  const SESSION_CACHE_KEY = 'zenpos_session_user';
+
+  const _scheduleAudioUnlock = () => {
+    const unlock = () => { unlockAudio(); };
+    document.addEventListener('click',      unlock, { once: true, capture: true });
+    document.addEventListener('keydown',    unlock, { once: true, capture: true });
+    document.addEventListener('touchstart', unlock, { once: true, capture: true });
+  };
+
+  const _finishSetup = async (u: User, cancelled: { v: boolean }) => {
+    if (cancelled.v) return;
+    setCurrentUser(u);
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(u));
+    _scheduleAudioUnlock();
+
+    if (_isAttendanceMgrRole(u)) { navigate('/attendance'); return; }
+
+    if (!u.excludeFromAttendance) {
+      try {
+        const isCheckedIn = await api.attendance.getUserStatus(u.id);
+        if (!cancelled.v) setIsRegisterOpen(isCheckedIn);
+        if (!cancelled.v && !isCheckedIn) navigate('/attendance');
+      } catch {
+        if (!cancelled.v) { setIsRegisterOpen(false); navigate('/attendance'); }
+      }
+    } else {
+      if (!cancelled.v && (location.pathname === '/' || location.pathname === '/admin')) {
+        _routeToLanding(u);
+      }
+    }
+  };
+
   useEffect(() => {
     const token = api.getAccessToken();
     if (!token) { setIsAuthLoading(false); return; }
 
-    let cancelled = false;
+    const cancelled = { v: false };
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('auth_timeout')), 5000)
-    );
+    // Try to restore from localStorage cache
+    let cached: User | null = null;
+    try {
+      const raw = localStorage.getItem(SESSION_CACHE_KEY);
+      if (raw) cached = JSON.parse(raw) as User;
+    } catch { localStorage.removeItem(SESSION_CACHE_KEY); }
 
-    Promise.race([api.auth.me(), timeout])
-      .then(async (user) => {
-        if (cancelled) return;
-        const u = user as User;
-        setCurrentUser(u);
+    if (cached) {
+      // Instant restore — no spinner, no waiting for the network
+      _finishSetup(cached, cancelled).finally(() => {
+        if (!cancelled.v) setIsAuthLoading(false);
+      });
 
-        if (_isAttendanceMgrRole(u)) {
-          navigate('/attendance');
-          return;
-        }
-
-        if (!u.excludeFromAttendance) {
-          // Check if already clocked in (page reload after check-in)
-          try {
-            const isCheckedIn = await api.attendance.getUserStatus(u.id);
-            if (!cancelled) setIsRegisterOpen(isCheckedIn);
-            if (!cancelled && !isCheckedIn) navigate('/attendance');
-          } catch {
-            if (!cancelled) { setIsRegisterOpen(false); navigate('/attendance'); }
+      // Background verify: refresh user data, or log out on genuine 401
+      api.auth.me()
+        .then(fresh => {
+          if (!cancelled.v) {
+            setCurrentUser(fresh as User);
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(fresh));
           }
-          return;
-        }
-
-        // Excluded from attendance — restore to current page or re-route if on root
-        if (!cancelled && (location.pathname === '/' || location.pathname === '/admin')) {
-          _routeToLanding(u);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          // Only clear tokens if the error is explicitly an authentication failure (e.g., 401)
-          // Avoid logging out on network timeouts or server errors to prevent frustrating session loss.
-          const isAuthError = err.message?.includes('401') || err.status === 401;
-          if (isAuthError) {
-            api.clearTokens();
+        })
+        .catch(err => {
+          if (!cancelled.v) {
+            const is401 = err.message?.includes('401') || err.status === 401 || err.message?.includes('403');
+            if (is401) {
+              api.clearTokens();
+              localStorage.removeItem(SESSION_CACHE_KEY);
+              setCurrentUser(null);
+            }
+            // Network errors / server down: keep the cached user — do NOT log out.
           }
-        }
-      })
-      .finally(() => { if (!cancelled) setIsAuthLoading(false); });
+        });
+    } else {
+      // No cache (first load on a new device or after storage was cleared).
+      // Race with 5s timeout so the spinner doesn't hang forever on a dead server.
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('auth_timeout')), 5000)
+      );
+      Promise.race([api.auth.me(), timeout])
+        .then(async user => { if (!cancelled.v) await _finishSetup(user as User, cancelled); })
+        .catch(err => {
+          if (!cancelled.v) {
+            const is401 = err.message?.includes('401') || err.status === 401;
+            if (is401) { api.clearTokens(); localStorage.removeItem(SESSION_CACHE_KEY); }
+            // Timeout or network error with no cache: fall through to login screen.
+          }
+        })
+        .finally(() => { if (!cancelled.v) setIsAuthLoading(false); });
+    }
 
-    return () => { cancelled = true; };
+    return () => { cancelled.v = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load branding once on mount (no auth required — public config)
@@ -476,8 +522,9 @@ function AppShell() {
   };
 
   const handleLogin = (user: User) => {
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
     sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
-    unlockAudio(); // Unlock AudioContext on first user gesture
+    unlockAudio(); // Unlock AudioContext — login IS a user gesture
     setCurrentUser(user);
 
     // Attendance Manager: locked to attendance screen, no exit
@@ -498,6 +545,7 @@ function AppShell() {
 
   const handleLogout = () => {
     api.auth.logout().catch(console.error);
+    localStorage.removeItem(SESSION_CACHE_KEY);
     sessionStorage.removeItem('sessionOpenedAt');
     setCurrentUser(null);
     setOrders([]);
@@ -538,6 +586,8 @@ function AppShell() {
     setOrders([]);
     setNotifications([]);
     try { localStorage.removeItem(NOTIF_STORAGE_KEY); } catch {}
+    // Do NOT clear SESSION_CACHE_KEY here — closing register is not a logout.
+    // The user stays authenticated; they just check out and go to attendance screen.
 
     if (currentUser && !currentUser.excludeFromAttendance) {
       try { await api.attendance.forceCheckOut(currentUser.id); } catch { /* already checked out is fine */ }

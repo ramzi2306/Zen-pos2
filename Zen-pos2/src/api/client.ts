@@ -33,14 +33,23 @@ async function refreshAccessToken(): Promise<string | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refresh }),
       });
-      if (!res.ok) { clearTokens(); window.location.href = '/login'; return null; }
+      if (res.status === 401 || res.status === 403) {
+        // Token is genuinely revoked or invalid — must log out
+        clearTokens();
+        window.location.href = '/login';
+        return null;
+      }
+      if (!res.ok) {
+        // Server error (5xx) or network hiccup — do NOT log out.
+        // The request that triggered this will just fail; the user stays logged in.
+        return null;
+      }
       const data = await res.json();
       localStorage.setItem('access_token', data.access_token);
       if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
       return data.access_token as string;
     } catch {
-      clearTokens();
-      window.location.href = '/login';
+      // Network error (offline, timeout) — do NOT log out.
       return null;
     } finally {
       refreshPromise = null;
