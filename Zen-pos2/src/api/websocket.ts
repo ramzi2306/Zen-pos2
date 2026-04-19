@@ -55,6 +55,7 @@ class ZenWebSocket {
   private ws: WebSocket | null = null;
   private handlers: Set<EventHandler> = new Set();
   private reconnectHandlers: Set<ReconnectHandler> = new Set();
+  private statusHandlers: Set<(connected: boolean) => void> = new Set();
   private reconnectDelay = 1_000; // ms
   private readonly maxDelay = 15_000; // reduced from 30s for faster recovery
   private shouldReconnect = false;
@@ -90,6 +91,7 @@ class ZenWebSocket {
       this.ws = null;
     }
     this.reconnectDelay = 1_000;
+    this._notifyStatusChange(false);
   }
 
   /** Subscribe to incoming events. Returns an unsubscribe function. */
@@ -107,11 +109,23 @@ class ZenWebSocket {
     return () => this.reconnectHandlers.delete(handler);
   }
 
+  /** Subscribe to connection status changes. */
+  onStatusChange(handler: (connected: boolean) => void): () => void {
+    this.statusHandlers.add(handler);
+    // Call immediately with current status
+    handler(this.isConnected);
+    return () => this.statusHandlers.delete(handler);
+  }
+
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────
+
+  private _notifyStatusChange(connected: boolean): void {
+    this.statusHandlers.forEach(h => h(connected));
+  }
 
   private _onVisibilityChange = (): void => {
     if (document.visibilityState === 'visible' && this.shouldReconnect && !this.isConnected) {
@@ -132,6 +146,7 @@ class ZenWebSocket {
       this.ws = null;
     }
     this._stopHeartbeat();
+    this._notifyStatusChange(false);
 
     try {
       this.ws = new WebSocket(`${wsBase()}/ws/notifications?token=${token}`);
@@ -144,6 +159,7 @@ class ZenWebSocket {
     this.ws.onopen = () => {
       this.reconnectDelay = 1_000; // reset backoff on success
       this._startHeartbeat();
+      this._notifyStatusChange(true);
       // If this is a re-connection (not the initial connect), notify subscribers
       // so they can re-fetch to catch up on any events missed during the gap.
       if (this.everConnected) {
@@ -165,6 +181,7 @@ class ZenWebSocket {
 
     this.ws.onclose = () => {
       this._stopHeartbeat();
+      this._notifyStatusChange(false);
       if (!this.shouldReconnect) return;
       this._scheduleReconnect();
     };

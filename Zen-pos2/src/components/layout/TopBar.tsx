@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Location } from '../../api/locations';
 import type { AppNotification } from '../../App';
+import { zenWs } from '../../api/websocket';
 
 /**
  * TopBar — sticky header with brand, main tab navigation, search, notifications,
@@ -51,7 +52,14 @@ export const TopBar = ({
   onMarkAllRead?: () => void;
 }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isWsConnected, setIsWsConnected] = useState(zenWs.isConnected);
   const notificationsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return zenWs.onStatusChange((connected) => {
+      setIsWsConnected(connected);
+    });
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -131,18 +139,16 @@ export const TopBar = ({
 
       {/* Right Actions */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Search */}
-        <div className="relative">
-          <button className="lg:hidden w-10 h-10 flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container rounded-full transition-colors">
-            <span className="material-symbols-outlined">search</span>
-          </button>
-          <div className="relative hidden lg:block">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-sm">search</span>
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              className="bg-surface-container border-none rounded text-xs pl-9 pr-4 py-2 w-48 focus:ring-1 focus:ring-primary/50 text-on-surface placeholder:text-outline-variant transition-all"
-            />
+        {/* Status Lights */}
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-surface-container rounded-full border border-outline-variant/10">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${currentUser ? 'bg-[#8bc34a] shadow-[0_0_8px_rgba(139,195,74,0.5)]' : 'bg-error shadow-[0_0_8px_rgba(186,26,26,0.5)]'} animate-pulse`} />
+            <span className="font-headline text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Auth</span>
+          </div>
+          <div className="w-px h-3 bg-outline-variant/30" />
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${isWsConnected ? 'bg-[#8bc34a] shadow-[0_0_8px_rgba(139,195,74,0.5)]' : 'bg-error shadow-[0_0_8px_rgba(186,26,26,0.5)]'} animate-pulse`} />
+            <span className="font-headline text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Live</span>
           </div>
         </div>
 
