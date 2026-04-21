@@ -5995,11 +5995,26 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       }
 
       const workedDays = contributionRecords.filter(r => r.checkIn).length;
-      const lateDeduction = contributionRecords.filter(r => r.isLate).length * 20;
-      const earlyDeduction = contributionRecords.filter(r => r.isEarlyDeparture).length * 20;
-      const overtimeBonus = contributionRecords.reduce((acc, r) => acc + (r.isOvertime && r.hours > 8 ? r.hours - 8 : 0), 0) * 30;
-      const attendanceAdjustments = overtimeBonus - lateDeduction - earlyDeduction;
-      const totalSalary = user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments;
+
+      // Hourly rate: (baseSalary / 22 working days) / 8 hours
+      const hourlyRate = user.baseSalary / (22 * 8);
+      let deduction = 0;
+      let overtimeBonus = 0;
+      contributionRecords.forEach(r => {
+        if (!r.checkIn) return;
+        const shortfall = 8 - r.hours;
+        if ((r.isLate || r.isEarlyDeparture) && shortfall > 0) {
+          deduction += shortfall * hourlyRate;
+        }
+        if (r.isOvertime && r.hours > 8) {
+          overtimeBonus += (r.hours - 8) * hourlyRate;
+        }
+      });
+      deduction = Math.round(deduction * 100) / 100;
+      overtimeBonus = Math.round(overtimeBonus * 100) / 100;
+      const attendanceAdjustments = Math.round((overtimeBonus - deduction) * 100) / 100;
+      const totalSalary = Math.round((user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments) * 100) / 100;
+
       const liveScore = workedDays > 0
         ? Math.round((contributionRecords.filter(r => r.checkIn && !r.isLate && !r.isEarlyDeparture).length / workedDays) * 100)
         : 0;
@@ -6007,8 +6022,8 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
       return {
         user, reportSummary, contributionRecords,
-        workedDays, liveScore, totalHours,
-        lateDeduction, earlyDeduction, overtimeBonus,
+        workedDays, liveScore, totalHours, hourlyRate,
+        deduction, overtimeBonus,
         attendanceAdjustments, totalSalary,
       };
     });
@@ -6761,36 +6776,21 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 <p className="text-on-surface-variant text-sm mt-2">Comprehensive analysis of personnel attendance, performance, and financial distribution.</p>
               </div>
               <div className="flex gap-3 items-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={hrDateRange.start}
-                    onChange={(e) => setHrDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-xs text-on-surface focus:border-primary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                  />
-                  <span className="text-on-surface-variant text-xs font-bold uppercase tracking-widest">to</span>
-                  <input
-                    type="date"
-                    value={hrDateRange.end}
-                    onChange={(e) => setHrDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-xs text-on-surface focus:border-primary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                  />
-                </div>
                 <button
                   onClick={() => {
-                    const header = 'Name,Role,Days Worked,Total Hours,Late,Early Out,Overtime,Base Salary,Adjustments,Total Salary';
-                    const rows = hrUserData.map(({ user, reportSummary, workedDays, totalHours, attendanceAdjustments, totalSalary }) => {
+                    const header = 'Name,Role,Days Worked,Total Hours,Late,Early Out,Overtime,Hourly Rate,Deduction,OT Bonus,Base Salary,Adjustments,Total Salary';
+                    const rows = hrUserData.map(({ user, reportSummary, workedDays, totalHours, hourlyRate, deduction, overtimeBonus, attendanceAdjustments, totalSalary }) => {
                       const late = reportSummary?.lateCount ?? 0;
                       const earlyOut = reportSummary?.earlyDepartureCount ?? 0;
                       const ot = reportSummary?.overtimeCount ?? 0;
-                      return [user.name, user.role, workedDays, totalHours.toFixed(1), late, earlyOut, ot, user.baseSalary, attendanceAdjustments.toFixed(2), totalSalary.toFixed(2)].join(',');
+                      return [user.name, user.role, workedDays, totalHours.toFixed(1), late, earlyOut, ot, hourlyRate.toFixed(2), deduction.toFixed(2), overtimeBonus.toFixed(2), user.baseSalary, attendanceAdjustments.toFixed(2), totalSalary.toFixed(2)].join(',');
                     });
                     const csv = [header, ...rows].join('\n');
                     const blob = new Blob([csv], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `hr-report-${hrDateRange.start}-to-${hrDateRange.end}.csv`;
+                    a.download = `hr-report-${hrDateRange.start}.csv`;
                     a.click();
                     URL.revokeObjectURL(url);
                   }}
@@ -6818,14 +6818,14 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         <div className="h-3 bg-surface-container-highest rounded w-20" />
                       </div>
                     </div>
-                    <div className="p-6 h-40 bg-surface-container-high/20" />
+                    <div className="p-6 h-64 bg-surface-container-high/20" />
                   </div>
                 ))}
               </div>
             )}
 
             <div className={`grid grid-cols-1 gap-8 ${!attendanceReport && nonSystemUsers.length > 0 ? 'hidden' : ''}`}>
-              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, attendanceAdjustments, totalSalary }) => {
+              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, attendanceAdjustments, totalSalary }) => {
                 const todayRec = !user.excludeFromAttendance
                   ? todayAttendance.find(r => r.userId === user.id)
                   : undefined;
@@ -6836,12 +6836,14 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                   const now = new Date();
                   const checkedIn = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
                   const diffMin = Math.max(0, Math.floor((now.getTime() - checkedIn.getTime()) / 60000));
-                  const hrs = Math.floor(diffMin / 60);
-                  const mins = diffMin % 60;
-                  sinceLabel = hrs > 0 ? (mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`) : `${mins}m`;
+                  const hrs2 = Math.floor(diffMin / 60);
+                  const mins2 = diffMin % 60;
+                  sinceLabel = hrs2 > 0 ? (mins2 > 0 ? `${hrs2}h ${mins2}m` : `${hrs2}h`) : `${mins2}m`;
                 }
+                const currentMonth = hrDateRange.start.slice(0, 7); // "2026-04"
                 return (
                   <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden flex flex-col">
+                    {/* Employee header */}
                     <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
                       <div className="relative w-14 h-14 shrink-0">
                         <div className="w-14 h-14 rounded-xl bg-surface-container-high border border-outline-variant/30 overflow-hidden">
@@ -6858,9 +6860,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-tertiary animate-pulse' : 'bg-on-surface-variant/40'}`} />
                             {isOnline ? (
-                              <span className="text-[10px] font-bold text-tertiary uppercase tracking-widest">
-                                Online · {sinceLabel}
-                              </span>
+                              <span className="text-[10px] font-bold text-tertiary uppercase tracking-widest">Online · {sinceLabel}</span>
                             ) : (
                               <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
                                 {todayRec?.checkOut ? `Checked out ${todayRec.checkOut}` : 'Offline'}
@@ -6871,11 +6871,13 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">ATTENDANCE SCORE</p>
-                        <p className={`text-2xl font-headline font-extrabold ${workedDays === 0 ? 'text-on-surface-variant' : liveScore > 90 ? 'text-tertiary' : 'text-secondary'}`}>{workedDays === 0 ? 'N/A' : `${liveScore}%`}</p>
+                        <p className={`text-2xl font-headline font-extrabold ${workedDays === 0 ? 'text-on-surface-variant' : liveScore > 90 ? 'text-tertiary' : 'text-secondary'}`}>
+                          {workedDays === 0 ? 'N/A' : `${liveScore}%`}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Live report summary strip */}
+                    {/* API summary strip */}
                     {reportSummary && (
                       <div className="px-6 py-3 bg-surface-container-highest/40 border-b border-outline-variant/10 flex gap-6 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
                         <span className="text-on-surface">{reportSummary.totalDays} <span className="text-on-surface-variant font-normal">days</span></span>
@@ -6886,72 +6888,88 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                       </div>
                     )}
 
+                    {/* Full-width monthly calendar */}
+                    <div className="p-6 border-b border-outline-variant/10">
+                      <AttendanceContributionGraph
+                        records={contributionRecords}
+                        month={currentMonth}
+                        totalHours={totalHours}
+                        workedDays={workedDays}
+                      />
+                    </div>
+
+                    {/* Performance + Financial summary row */}
                     <div className="p-6 grid grid-cols-2 gap-8">
-                      {/* Attendance Contribution Graph */}
-                      <div className="w-full min-w-0">
-                        <AttendanceContributionGraph
-                          records={contributionRecords}
-                          startDate={hrDateRange.start}
-                          endDate={hrDateRange.end}
-                          totalHours={totalHours}
-                          workedDays={workedDays}
-                        />
+                      {/* Performance metrics */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">PERFORMANCE METRICS</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <button
+                            onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Reward' })}
+                            className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1 group-hover:text-tertiary/80">REWARDS</p>
+                                <p className="text-lg font-headline font-extrabold text-on-surface">+{formatCurrency(user.rewards)}</p>
+                              </div>
+                              <span className="material-symbols-outlined text-sm text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Sanction' })}
+                            className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1 group-hover:text-error/80">SANCTIONS</p>
+                                <p className="text-lg font-headline font-extrabold text-on-surface">-{formatCurrency(user.sanctions)}</p>
+                              </div>
+                              <span className="material-symbols-outlined text-sm text-error opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
+                            </div>
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Financial & Performance Summary */}
-                      <div className="space-y-6">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">PERFORMANCE METRICS</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <button
-                              onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Reward' })}
-                              className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1 group-hover:text-tertiary/80">REWARDS</p>
-                                  <p className="text-lg font-headline font-extrabold text-on-surface">+{formatCurrency(user.rewards)}</p>
-                                </div>
-                                <span className="material-symbols-outlined text-sm text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Sanction' })}
-                              className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
-                            >
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1 group-hover:text-error/80">SANCTIONS</p>
-                                  <p className="text-lg font-headline font-extrabold text-on-surface">-{formatCurrency(user.sanctions)}</p>
-                                </div>
-                                <span className="material-symbols-outlined text-sm text-error opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
-                              </div>
-                            </button>
+                      {/* Financial summary */}
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">FINANCIAL SUMMARY</p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">BASE SALARY</span>
+                            <span className="text-xs font-bold text-on-surface">{formatCurrency(user.baseSalary)}</span>
                           </div>
-                        </div>
-
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">FINANCIAL SUMMARY</p>
-                          <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">HOURLY RATE</span>
+                            <span className="text-xs font-bold text-on-surface-variant">{formatCurrency(hourlyRate)}/h</span>
+                          </div>
+                          {deduction > 0 && (
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">RAW SALARY</span>
-                              <span className="text-xs font-bold text-on-surface">{formatCurrency(user.baseSalary)}</span>
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">LATE/EARLY CUTS</span>
+                              <span className="text-xs font-bold text-error">-{formatCurrency(deduction)}</span>
                             </div>
+                          )}
+                          {overtimeBonus > 0 && (
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ADJUSTMENTS</span>
-                              <span className={`text-xs font-bold ${user.rewards - user.sanctions + attendanceAdjustments >= 0 ? 'text-tertiary' : 'text-error'}`}>
-                                {user.rewards - user.sanctions + attendanceAdjustments >= 0 ? '+' : '-'}{formatCurrency(Math.abs(user.rewards - user.sanctions + attendanceAdjustments))}
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">OVERTIME BONUS</span>
+                              <span className="text-xs font-bold text-tertiary">+{formatCurrency(overtimeBonus)}</span>
+                            </div>
+                          )}
+                          {(user.rewards > 0 || user.sanctions > 0) && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">REWARDS / SANCTIONS</span>
+                              <span className={`text-xs font-bold ${user.rewards - user.sanctions >= 0 ? 'text-tertiary' : 'text-error'}`}>
+                                {user.rewards - user.sanctions >= 0 ? '+' : ''}{formatCurrency(user.rewards - user.sanctions)}
                               </span>
                             </div>
-                            <div className="h-px bg-outline-variant/10 my-2"></div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">TOTAL SALARY</span>
-                              <span className="text-lg font-headline font-extrabold text-primary">{formatCurrency(totalSalary)}</span>
-                            </div>
+                          )}
+                          <div className="h-px bg-outline-variant/10 my-1" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold text-on-surface uppercase tracking-widest">TOTAL SALARY</span>
+                            <span className="text-lg font-headline font-extrabold text-primary">{formatCurrency(totalSalary)}</span>
                           </div>
                         </div>
-
-                        <div className="bg-surface-container-highest/20 p-4 rounded-xl border border-outline-variant/10">
+                        <div className="mt-4">
                           <button
                             onClick={() => setSelectedWithdrawalUser(user)}
                             className="w-full py-2.5 bg-secondary text-on-secondary rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-[#ffc4b8] transition-all flex items-center justify-center gap-2 shadow-sm"

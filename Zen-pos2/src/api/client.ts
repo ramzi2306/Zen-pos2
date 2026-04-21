@@ -23,7 +23,8 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   const refresh = localStorage.getItem('refresh_token');
   if (!refresh) {
-    window.location.href = '/login';
+    clearTokens();
+    window.location.href = '/admin';
     return null;
   }
   refreshPromise = (async () => {
@@ -36,12 +37,12 @@ async function refreshAccessToken(): Promise<string | null> {
       if (res.status === 401 || res.status === 403) {
         // Token is genuinely revoked or invalid — must log out
         clearTokens();
-        window.location.href = '/login';
+        localStorage.removeItem('zenpos_session_user');
+        window.location.href = '/admin';
         return null;
       }
       if (!res.ok) {
         // Server error (5xx) or network hiccup — do NOT log out.
-        // The request that triggered this will just fail; the user stays logged in.
         return null;
       }
       const data = await res.json();
@@ -56,6 +57,24 @@ async function refreshAccessToken(): Promise<string | null> {
     }
   })();
   return refreshPromise;
+}
+
+/**
+ * Returns a valid access token, refreshing it first if it expires within 5 minutes.
+ * Used by the WebSocket client so it always connects with a fresh token.
+ */
+export async function getValidToken(): Promise<string | null> {
+  const token = getAccessToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (typeof payload.exp === 'number' && payload.exp * 1000 - Date.now() < 5 * 60 * 1000) {
+      return await refreshAccessToken();
+    }
+  } catch {
+    // Non-decodable token — return as-is and let the server reject if needed
+  }
+  return token;
 }
 
 /** Public (unauthenticated) request — no Authorization header. */

@@ -15,12 +15,21 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
-            'vendor-charts':  ['recharts'],
-            'vendor-motion':  ['motion', 'framer-motion'],
-            'vendor-qr':      ['react-qr-code'],
-            'vendor-radix':   ['@radix-ui/react-dropdown-menu', '@radix-ui/react-slot'],
+          manualChunks(id: string) {
+            // Stable vendor chunks — content rarely changes so they stay cached
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) return 'vendor-react';
+            if (id.includes('node_modules/recharts/')) return 'vendor-charts';
+            if (id.includes('node_modules/motion/') || id.includes('node_modules/framer-motion/')) return 'vendor-motion';
+            if (id.includes('node_modules/react-qr-code/')) return 'vendor-qr';
+            if (id.includes('node_modules/@radix-ui/')) return 'vendor-radix';
+            if (id.includes('node_modules/lucide-react/')) return 'vendor-icons';
+
+            // App-level code splits — each lazy route gets its own chunk
+            if (id.includes('src/views/AdminViews')) return 'view-admin';
+            if (id.includes('src/views/OrdersView')) return 'view-orders';
+            if (id.includes('src/views/MenuView')) return 'view-menu';
+            if (id.includes('src/views/AttendanceView')) return 'view-attendance';
+            if (id.includes('src/views/public/')) return 'view-public';
           },
         },
       },

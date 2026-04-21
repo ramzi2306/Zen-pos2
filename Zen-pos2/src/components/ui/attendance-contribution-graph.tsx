@@ -13,166 +13,201 @@ export interface ContributionDayRecord {
 
 interface AttendanceContributionGraphProps {
   records: ContributionDayRecord[];
-  startDate: string;   // "2024-01-01"
-  endDate: string;     // "2024-01-31"
+  /** "2026-04" — always shows the full month regardless */
+  month: string;
   totalHours: number;
   workedDays: number;
   className?: string;
 }
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-function getCellStyle(rec: ContributionDayRecord | undefined, inRange: boolean): React.CSSProperties {
-  if (!inRange) return {};
-  if (!rec || !rec.checkIn) {
-    return { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 8%, transparent)' };
+const WEEKEND = new Set([6, 0]); // Saturday = 6, Sunday = 0 (getDay)
+
+function cellBg(rec: ContributionDayRecord | undefined, isWeekend: boolean): React.CSSProperties {
+  if (!rec?.checkIn) {
+    return isWeekend
+      ? { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 4%, transparent)' }
+      : { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 10%, transparent)' };
+  }
+  if (rec.isOvertime && !rec.isLate && !rec.isEarlyDeparture) {
+    return { backgroundColor: 'var(--color-tertiary)', color: 'var(--color-on-tertiary)' };
   }
   if (rec.isLate || rec.isEarlyDeparture) {
-    // orange — punctuality issue
-    return { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 75%, transparent)' };
+    return { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 80%, transparent)' };
   }
-  if (rec.isOvertime) {
-    // bright green — exceeded hours
-    return { backgroundColor: 'var(--color-tertiary)' };
-  }
-  // intensity by hours: base 60% opacity, scales up to 100% at 8h+
-  const intensity = Math.min(1, 0.5 + (rec.hours / 8) * 0.5);
-  return { backgroundColor: `color-mix(in srgb, var(--color-tertiary) ${Math.round(intensity * 100)}%, transparent)` };
+  const intensity = Math.min(100, Math.round((0.45 + (rec.hours / 8) * 0.55) * 100));
+  return { backgroundColor: `color-mix(in srgb, var(--color-tertiary) ${intensity}%, transparent)` };
 }
 
-function buildTooltip(rec: ContributionDayRecord | undefined, date: string): string {
+function cellTooltip(rec: ContributionDayRecord | undefined, date: string): string {
   const d = new Date(date + 'T00:00:00');
   const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  if (!rec || !rec.checkIn) return `${label} — Off / No record`;
-  const flags = [
-    rec.isLate && 'Late',
-    rec.isEarlyDeparture && 'Early out',
-    rec.isOvertime && 'Overtime',
-  ].filter(Boolean).join(' · ');
+  if (!rec?.checkIn) return `${label} — Off`;
+  const flags = [rec.isLate && 'Late', rec.isEarlyDeparture && 'Early out', rec.isOvertime && 'Overtime'].filter(Boolean).join(' · ');
   const range = rec.checkOut ? `${rec.checkIn} → ${rec.checkOut}` : `In: ${rec.checkIn}`;
   return `${label}\n${rec.hours.toFixed(1)}h  ${range}${flags ? `\n${flags}` : ''}`;
 }
 
 export const AttendanceContributionGraph = ({
   records,
-  startDate,
-  endDate,
+  month,
   totalHours,
   workedDays,
   className,
 }: AttendanceContributionGraphProps) => {
   const recordMap = React.useMemo(() => {
-    const map = new Map<string, ContributionDayRecord>();
-    records.forEach(r => map.set(r.date, r));
-    return map;
+    const m = new Map<string, ContributionDayRecord>();
+    records.forEach(r => m.set(r.date, r));
+    return m;
   }, [records]);
 
-  // Build a Mon-anchored weekly grid covering [startDate, endDate]
-  const weeks = React.useMemo(() => {
-    if (!startDate || !endDate) return [];
+  // Parse the month string and build the full calendar grid
+  const { monthLabel, calendarWeeks } = React.useMemo(() => {
+    const [y, mo] = month.split('-').map(Number);
+    const label = new Date(y, mo - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
+    const firstDay = new Date(y, mo - 1, 1);
+    const lastDay  = new Date(y, mo, 0);
 
-    // Rewind cursor to previous Monday
-    const gridStart = new Date(start);
-    const dow = gridStart.getDay(); // 0=Sun
-    gridStart.setDate(gridStart.getDate() - ((dow + 6) % 7));
+    // Mon-anchored: 0=Mon…6=Sun
+    const startOffset = (firstDay.getDay() + 6) % 7;
 
-    const result: Array<Array<{ date: string; rec?: ContributionDayRecord; inRange: boolean }>> = [];
-    const cursor = new Date(gridStart);
+    type Cell = { date: string; day: number; inMonth: boolean };
+    const cells: Cell[] = [];
 
-    while (cursor <= end) {
-      const week: typeof result[0] = [];
-      for (let d = 0; d < 7; d++) {
-        const iso = cursor.toISOString().split('T')[0];
-        const inRange = cursor >= start && cursor <= end;
-        week.push({ date: iso, rec: inRange ? recordMap.get(iso) : undefined, inRange });
-        cursor.setDate(cursor.getDate() + 1);
-      }
-      result.push(week);
+    // Leading empty cells
+    for (let i = 0; i < startOffset; i++) cells.push({ date: '', day: 0, inMonth: false });
+
+    // Actual days
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      cells.push({ date: iso, day: d, inMonth: true });
     }
-    return result;
-  }, [startDate, endDate, recordMap]);
 
-  const lateDays = records.filter(r => r.isLate || r.isEarlyDeparture).length;
+    // Trailing empty cells to complete the last week
+    while (cells.length % 7 !== 0) cells.push({ date: '', day: 0, inMonth: false });
+
+    // Split into rows
+    const weeks: Cell[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+    return { monthLabel: label, calendarWeeks: weeks };
+  }, [month]);
+
+  const lateDays     = records.filter(r => r.isLate || r.isEarlyDeparture).length;
   const overtimeDays = records.filter(r => r.isOvertime).length;
 
+  const [y, mo] = month.split('-').map(Number);
+
   return (
-    <div className={cn("flex flex-col gap-3 w-full min-w-0", className)}>
-      {/* Header stats */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">
-            Attendance
+    <div className={cn("flex flex-col gap-4 w-full", className)}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">
+            Attendance Calendar
           </p>
-          <p className="text-2xl font-headline font-extrabold text-on-surface leading-none tracking-tight">
-            {totalHours.toFixed(1)} hrs
-          </p>
-          <p className="text-[10px] text-on-surface-variant mt-1 font-medium">
-            {workedDays} day{workedDays !== 1 ? 's' : ''} worked
+          <p className="text-xl font-headline font-extrabold text-on-surface tracking-tight">
+            {monthLabel}
           </p>
         </div>
-        <div className="text-right shrink-0 flex flex-col gap-0.5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-[11px] font-bold text-on-surface">
+            {totalHours.toFixed(1)} <span className="text-on-surface-variant font-normal">hrs</span>
+          </span>
+          <span className="text-[11px] font-bold text-on-surface">
+            {workedDays} <span className="text-on-surface-variant font-normal">days</span>
+          </span>
           {lateDays > 0 && (
-            <span className="text-[10px] font-bold" style={{ color: 'var(--color-secondary)' }}>
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-secondary) 15%, transparent)', color: 'var(--color-secondary)' }}
+            >
               {lateDays} late
             </span>
           )}
           {overtimeDays > 0 && (
-            <span className="text-[10px] font-bold" style={{ color: 'var(--color-tertiary)' }}>
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}
+            >
               {overtimeDays} OT
             </span>
           )}
         </div>
       </div>
 
-      {/* Contribution grid */}
-      {weeks.length > 0 ? (
-        <div className="flex gap-0.5 items-start">
-          {/* Day-of-week labels */}
-          <div className="flex flex-col gap-0.5 mr-1 shrink-0">
-            {DAY_LABELS.map((label, i) => (
-              <div
-                key={i}
-                className="w-3 h-3 flex items-center justify-center text-[8px] font-bold text-on-surface-variant/50 leading-none"
-              >
-                {i % 2 === 0 ? label : ''}
-              </div>
-            ))}
+      {/* Day-of-week header */}
+      <div className="grid grid-cols-7 gap-1 w-full">
+        {DOW_LABELS.map(d => (
+          <div key={d} className="text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant py-1">
+            {d}
           </div>
+        ))}
+      </div>
 
-          {/* Weeks */}
-          {weeks.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-0.5">
-              {week.map(({ date, rec, inRange }, di) => (
-                <div
-                  key={di}
-                  className="w-3 h-3 rounded-[2px] transition-opacity hover:opacity-80 cursor-default"
-                  style={getCellStyle(rec, inRange)}
-                  title={inRange ? buildTooltip(rec, date) : undefined}
-                />
-              ))}
+      {/* Calendar grid */}
+      <div className="grid gap-1 w-full" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
+        {calendarWeeks.flat().map((cell, i) => {
+          if (!cell.inMonth) {
+            return <div key={i} className="min-h-[56px] rounded-lg" />;
+          }
+          const d = new Date(y, mo - 1, cell.day);
+          const isWeekend = WEEKEND.has(d.getDay());
+          const rec = recordMap.get(cell.date);
+          const bg = cellBg(rec, isWeekend);
+          const isWorked = !!rec?.checkIn;
+
+          return (
+            <div
+              key={i}
+              className="min-h-[56px] rounded-lg p-1.5 flex flex-col justify-between cursor-default transition-opacity hover:opacity-80 relative group"
+              style={bg}
+              title={cell.inMonth ? cellTooltip(rec, cell.date) : undefined}
+            >
+              {/* Day number */}
+              <span
+                className="text-[11px] font-bold leading-none self-end"
+                style={{ opacity: isWorked ? 0.7 : 0.4 }}
+              >
+                {cell.day}
+              </span>
+
+              {/* Hours worked */}
+              {isWorked && (
+                <span className="text-[10px] font-extrabold leading-none">
+                  {rec!.hours > 0 ? `${rec!.hours.toFixed(1)}h` : ''}
+                </span>
+              )}
+
+              {/* Status dot for flags */}
+              {isWorked && (rec?.isLate || rec?.isEarlyDeparture || rec?.isOvertime) && (
+                <div className="absolute top-1 left-1 flex gap-0.5">
+                  {(rec?.isLate || rec?.isEarlyDeparture) && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/60" />
+                  )}
+                  {rec?.isOvertime && !rec?.isLate && !rec?.isEarlyDeparture && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                  )}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="h-14 flex items-center justify-center">
-          <span className="text-[10px] text-on-surface-variant">No data</span>
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-4 flex-wrap pt-1">
         {[
-          { label: 'Absent', style: { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 8%, transparent)' } },
+          { label: 'Off',     style: { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 10%, transparent)' } },
           { label: 'Present', style: { backgroundColor: 'color-mix(in srgb, var(--color-tertiary) 70%, transparent)' } },
-          { label: 'Late', style: { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 75%, transparent)' } },
-          { label: 'OT', style: { backgroundColor: 'var(--color-tertiary)' } },
+          { label: 'Late',    style: { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 80%, transparent)' } },
+          { label: 'OT',      style: { backgroundColor: 'var(--color-tertiary)' } },
         ].map(({ label, style }) => (
-          <div key={label} className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-[1px]" style={style} />
-            <span className="text-[9px] text-on-surface-variant font-medium">{label}</span>
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-[3px]" style={style} />
+            <span className="text-[10px] text-on-surface-variant font-medium">{label}</span>
           </div>
         ))}
       </div>

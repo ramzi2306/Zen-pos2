@@ -7,7 +7,7 @@
  *   const unsubReconnect = zenWs.onReconnect(() => refetch());
  *   zenWs.disconnect(); // on logout
  */
-import { getAccessToken } from './client';
+import { getAccessToken, getValidToken } from './client';
 
 export type WsEventType =
   | 'new_order'
@@ -57,12 +57,13 @@ class ZenWebSocket {
   private reconnectHandlers: Set<ReconnectHandler> = new Set();
   private statusHandlers: Set<(connected: boolean) => void> = new Set();
   private reconnectDelay = 1_000; // ms
-  private readonly maxDelay = 15_000; // reduced from 30s for faster recovery
+  private readonly maxDelay = 30_000;
   private shouldReconnect = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private activeToken = '';
   private everConnected = false; // tracks if we've had at least one successful connection
+  private failCount = 0; // consecutive failed connect attempts
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ class ZenWebSocket {
     this.activeToken = token;
     this.shouldReconnect = true;
     this.reconnectDelay = 1_000;
+    this.failCount = 0;
     this.everConnected = false;
     this._connect(token);
     document.addEventListener('visibilitychange', this._onVisibilityChange);
@@ -127,15 +129,18 @@ class ZenWebSocket {
     this.statusHandlers.forEach(h => h(connected));
   }
 
-  private _onVisibilityChange = (): void => {
+  private _onVisibilityChange = async (): Promise<void> => {
     if (document.visibilityState === 'visible' && this.shouldReconnect && !this.isConnected) {
-      // Tab came back into focus — reconnect immediately instead of waiting for backoff
       if (this.reconnectTimer) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
       }
-      const token = this.activeToken || getAccessToken();
-      if (token) this._connect(token);
+      // Always refresh token on tab focus — user may have been idle for hours
+      const token = await getValidToken() || this.activeToken;
+      if (token) {
+        this.activeToken = token;
+        this._connect(token);
+      }
     }
   };
 
@@ -158,6 +163,7 @@ class ZenWebSocket {
 
     this.ws.onopen = () => {
       this.reconnectDelay = 1_000; // reset backoff on success
+      this.failCount = 0;
       this._startHeartbeat();
       this._notifyStatusChange(true);
       // If this is a re-connection (not the initial connect), notify subscribers
@@ -179,11 +185,14 @@ class ZenWebSocket {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (e: CloseEvent) => {
       this._stopHeartbeat();
       this._notifyStatusChange(false);
       if (!this.shouldReconnect) return;
-      this._scheduleReconnect();
+      this.failCount++;
+      // Code 4001/4003 = server-side auth rejection — no point retrying without a new token
+      const isAuthClose = e.code === 4001 || e.code === 4003;
+      this._scheduleReconnect(isAuthClose || this.failCount >= 2);
     };
 
     this.ws.onerror = () => {
@@ -208,13 +217,23 @@ class ZenWebSocket {
     }
   }
 
-  private _scheduleReconnect(): void {
+  private _scheduleReconnect(refreshFirst = false): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     const delay = this.reconnectDelay;
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxDelay);
-    this.reconnectTimer = setTimeout(() => {
-      const token = this.activeToken || getAccessToken();
-      if (token) this._connect(token);
+    this.reconnectTimer = setTimeout(async () => {
+      if (!this.shouldReconnect) return;
+      // After repeated failures or auth close, refresh the token before trying again
+      let token: string | null = null;
+      if (refreshFirst) {
+        token = await getValidToken();
+      } else {
+        token = this.activeToken || getAccessToken();
+      }
+      if (token) {
+        this.activeToken = token; // keep activeToken up to date
+        this._connect(token);
+      }
     }, delay);
   }
 }
