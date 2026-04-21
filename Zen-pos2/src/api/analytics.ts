@@ -41,3 +41,9 @@ export async function getSalesSummary(): Promise<SalesSummary> {
     revenueThisMonth: raw.revenue_this_month,
   };
 }
+
+export async function getDailySales(start: string, end: string): Promise<{ date: string; income: number; order_count: number; avg_prep_time_minutes: number }[]> {
+  return apiRequest<{ date: string; income: number; order_count: number; avg_prep_time_minutes: number }[]>(
+    `/analytics/daily?start_date=${start}&end_date=${end}`
+  );
+}

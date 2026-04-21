@@ -3912,6 +3912,7 @@ const SalesView = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [registerReports, setRegisterReports] = useState<RegisterReport[]>([]);
+  const [dailyData, setDailyData] = useState<{ date: string; income: number; order_count: number; avg_prep_time_minutes: number }[]>([]);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
     const now = new Date();
@@ -3944,16 +3945,18 @@ const SalesView = () => {
   const fetchData = useCallback(() => {
     setLoading(true);
     Promise.allSettled([
-      api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u, undefined, undefined, dateFilter.start, dateFilter.end)),
+      api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u, undefined, undefined, dateFilter.start, dateFilter.end, 100)),
       api.analytics.getBestsellers(5),
       api.analytics.getLeaderboard(),
       api.analytics.getSalesSummary(),
+      api.analytics.getDailySales(dateFilter.start, dateFilter.end),
       api.register.listRegisterReports(),
-    ]).then(([ords, bs, lb, sum, rawReports]) => {
+    ]).then(([ords, bs, lb, sum, daily, rawReports]) => {
       if (ords.status === 'fulfilled') setOrders(ords.value);
       if (bs.status === 'fulfilled') setBestsellers(bs.value);
       if (lb.status === 'fulfilled') setLeaderboard(lb.value);
       if (sum.status === 'fulfilled') setSummary(sum.value);
+      if (daily.status === 'fulfilled') setDailyData(daily.value);
       if (rawReports.status === 'fulfilled') setRegisterReports(rawReports.value.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
     }).catch(console.error).finally(() => setLoading(false));
   }, [dateFilter.start, dateFilter.end]);
@@ -3995,48 +3998,13 @@ const SalesView = () => {
     return matchStatus && matchSearch;
   });
 
-  const dailyStats = useMemo(() => {
-    const stats: Record<string, { date: string; fullDate: string; income: number; orderCount: number; totalPrepTime: number; prepCount: number }> = {};
-    
-    // Generate all dates in period to ensure one bar per day
-    const startObj = new Date(dateFilter.start);
-    const endObj = new Date(dateFilter.end);
-    let current = new Date(startObj);
-    
-    while (current <= endObj) {
-      const key = current.toISOString().split('T')[0];
-      stats[key] = { 
-        date: current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-        fullDate: current.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        income: 0, 
-        orderCount: 0, 
-        totalPrepTime: 0, 
-        prepCount: 0 
-      };
-      current.setDate(current.getDate() + 1);
-    }
-
-    orders.forEach(o => {
-      if (o.status === 'Cancelled' || o.paymentStatus !== 'Paid') return;
-      const date = new Date(o.createdAt || 0);
-      const key = date.toISOString().split('T')[0];
-      
-      if (stats[key]) {
-        stats[key].income += o.total;
-        stats[key].orderCount += 1;
-        
-        if (o.startTime && o.endTime) {
-          stats[key].totalPrepTime += (o.endTime - o.startTime);
-          stats[key].prepCount += 1;
-        }
-      }
-    });
-    
-    return Object.values(stats).map(s => ({
-      ...s,
-      avgPrepTimeMinutes: s.prepCount > 0 ? Math.round(s.totalPrepTime / s.prepCount / 60000) : 0
+  const chartData = useMemo(() => {
+    return dailyData.map(d => ({
+      ...d,
+      dateLabel: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      fullDate: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     }));
-  }, [orders, dateFilter.start, dateFilter.end]);
+  }, [dailyData]);
 
   if (loading) return <div className="flex-1 flex items-center justify-center font-headline text-on-surface/50 animate-pulse uppercase tracking-widest text-sm">Synchronizing Intelligence...</div>;
 
@@ -4144,10 +4112,10 @@ const SalesView = () => {
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyStats} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
                 <XAxis 
-                  dataKey="date" 
+                  dataKey="dateLabel" 
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
@@ -4174,11 +4142,11 @@ const SalesView = () => {
                             </div>
                             <div className="flex justify-between items-center px-2">
                               <span className="text-[10px] font-bold text-white/60 uppercase">Volume</span>
-                              <span className="text-sm font-bold text-white">{data.orderCount} Orders</span>
+                              <span className="text-sm font-bold text-white">{data.order_count} Orders</span>
                             </div>
                             <div className="flex justify-between items-center px-2">
                               <span className="text-[10px] font-bold text-white/60 uppercase">Efficiency</span>
-                              <span className="text-sm font-bold text-white">{data.avgPrepTimeMinutes}m avg prep</span>
+                              <span className="text-sm font-bold text-white">{data.avg_prep_time_minutes}m avg prep</span>
                             </div>
                           </div>
                         </div>

@@ -41,22 +41,27 @@ function cellBg(rec: ContributionDayRecord | undefined, isWeekend: boolean, isTo
   if (!rec?.checkIn) {
     return {
       ...baseStyle,
-      backgroundColor: isWeekend
-        ? 'color-mix(in srgb, var(--color-on-surface) 8%, transparent)'
-        : 'color-mix(in srgb, var(--color-on-surface) 15%, transparent)',
+      backgroundColor: isToday 
+        ? 'color-mix(in srgb, var(--color-primary) 15%, #0A0A0A)'
+        : (isWeekend
+            ? 'color-mix(in srgb, var(--color-on-surface) 5%, #0A0A0A)'
+            : 'color-mix(in srgb, var(--color-on-surface) 10%, #0A0A0A)'),
       color: isToday ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
     };
   }
 
+  // Bonus cases: Overtime or Early Arrival (without issues)
   if ((rec.isOvertime || rec.isEarlyArrival) && !rec.isLate && !rec.isEarlyDeparture) {
-    return { ...baseStyle, backgroundColor: 'var(--color-tertiary)' };
+    return { ...baseStyle, backgroundColor: 'color-mix(in srgb, var(--color-tertiary) 80%, black)' };
   }
 
+  // Issue cases: Late or Early Departure
   if (rec.isLate || rec.isEarlyDeparture) {
-    return { ...baseStyle, backgroundColor: 'color-mix(in srgb, var(--color-secondary) 95%, black)' };
+    return { ...baseStyle, backgroundColor: 'color-mix(in srgb, var(--color-secondary) 75%, black)' };
   }
 
-  const intensity = Math.min(100, Math.round((0.6 + (rec.hours / 8) * 0.4) * 100));
+  // Standard present: Intensity based on hours, capped to keep it dark
+  const intensity = Math.min(85, Math.round((0.5 + (rec.hours / 8) * 0.35) * 100));
   return { ...baseStyle, backgroundColor: `color-mix(in srgb, var(--color-tertiary) ${intensity}%, black)` };
 }
 

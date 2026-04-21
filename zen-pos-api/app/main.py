@@ -21,6 +21,7 @@ from app.routers import ws as ws_router
 from app.routers import public as public_router
 from app.routers import register as register_router
 from app.routers import delivery as delivery_router
+from app.core.tasks import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
@@ -33,7 +34,9 @@ async def lifespan(app: FastAPI):
     await connect_db()
     await seed_system_roles()
     await seed_settings()
+    start_scheduler()
     yield
+    stop_scheduler()
     await disconnect_db()
 
 

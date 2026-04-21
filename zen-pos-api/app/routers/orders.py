@@ -22,6 +22,8 @@ async def list_orders(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     location_id: Optional[str] = Query(None, description="Override location filter (admin only)"),
+    limit: int = Query(100, ge=1, le=1000),
+    skip: int = Query(0, ge=0),
     current_user: UserDocument = Depends(require_permission("view_orders")),
 ):
     from datetime import timezone, datetime
@@ -61,7 +63,7 @@ async def list_orders(
             e_date = datetime.fromisoformat(end_date)
             range_end = e_date.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=tz).astimezone(timezone.utc)
             query = query.find(OrderDocument.created_at <= range_end)
-    orders = await query.sort("-created_at").to_list()
+    orders = await query.sort("-created_at").skip(skip).limit(limit).to_list()
     return [_to_out(o) for o in orders]
 
 

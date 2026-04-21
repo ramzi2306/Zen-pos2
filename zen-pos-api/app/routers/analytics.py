@@ -40,6 +40,12 @@ class SalesSummary(BaseModel):
     orders_this_month: int
     revenue_this_month: float
 
+class DailySalesItem(BaseModel):
+    date: str
+    income: float
+    order_count: int
+    avg_prep_time_minutes: int
+
 
 @router.get("/bestsellers", response_model=List[BestsellerItem],
             dependencies=[Depends(require_permission("view_orders"))])
@@ -151,3 +157,19 @@ async def sales_summary():
         orders_this_month=r.get("month_orders", 0),
         revenue_this_month=round(float(r.get("month_revenue", 0.0)), 2),
     )
+
+
+@router.get("/daily", response_model=List[DailySalesItem],
+            dependencies=[Depends(require_permission("view_orders"))])
+async def daily_sales(start_date: str, end_date: str):
+    from app.services.analytics_service import AnalyticsService
+    summaries = await AnalyticsService.get_daily_summaries(start_date, end_date)
+    return [
+        DailySalesItem(
+            date=s.date,
+            income=s.total_revenue,
+            order_count=s.order_count,
+            avg_prep_time_minutes=round(s.total_prep_time_ms / s.prep_count / 60000) if s.prep_count > 0 else 0
+        )
+        for s in summaries
+    ]
