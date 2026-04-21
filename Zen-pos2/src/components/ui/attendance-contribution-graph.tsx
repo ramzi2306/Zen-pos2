@@ -20,6 +20,13 @@ interface AttendanceContributionGraphProps {
   className?: string;
 }
 
+function toHHMM(t?: string): string {
+  if (!t) return '';
+  // Handle "2026-04-13T09:15:00", "2026-04-13 09:15:00", "09:15:30", "09:15"
+  const timePart = t.includes('T') ? t.split('T')[1] : t.includes(' ') ? t.split(' ')[1] : t;
+  return timePart.slice(0, 5);
+}
+
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const WEEKEND = new Set([6, 0]); // Saturday = 6, Sunday = 0 (getDay)
@@ -45,7 +52,7 @@ function cellTooltip(rec: ContributionDayRecord | undefined, date: string): stri
   const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   if (!rec?.checkIn) return `${label} — Off`;
   const flags = [rec.isLate && 'Late', rec.isEarlyDeparture && 'Early out', rec.isOvertime && 'Overtime'].filter(Boolean).join(' · ');
-  const range = rec.checkOut ? `${rec.checkIn.slice(0, 5)} → ${rec.checkOut.slice(0, 5)}` : `In: ${rec.checkIn.slice(0, 5)}`;
+  const range = rec.checkOut ? `${toHHMM(rec.checkIn)} → ${toHHMM(rec.checkOut)}` : `In: ${toHHMM(rec.checkIn)}`;
   return `${label}\n${rec.hours.toFixed(1)}h  ${range}${flags ? `\n${flags}` : ''}`;
 }
 
@@ -194,7 +201,7 @@ export const AttendanceContributionGraph = ({
                   )}
                   {rec!.checkIn && (
                     <span className="text-[9px] leading-none" style={{ opacity: 0.75 }}>
-                      {rec!.checkIn.slice(0, 5)}{rec!.checkOut ? ` → ${rec!.checkOut.slice(0, 5)}` : ''}
+                      {toHHMM(rec!.checkIn)}{rec!.checkOut ? ` → ${toHHMM(rec!.checkOut)}` : ''}
                     </span>
                   )}
                 </div>
