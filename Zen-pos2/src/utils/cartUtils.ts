@@ -21,5 +21,8 @@ export function formatCartItemModifiers(item: CartItem): string {
 }
 
 export function getSubtotal(cart: CartItem[]): number {
-  return cart.reduce((sum, item) => sum + getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100), 0);
+  return cart.reduce((sum, item) => {
+    const lineTotal = Math.round(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
+    return Math.round((sum + lineTotal) * 100) / 100;
+  }, 0);
 }

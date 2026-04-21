@@ -106,7 +106,7 @@ export const SwipeableCartItem = ({
               {item.discount ? (
                 <div className="flex flex-col items-end">
                   <span className="font-bold text-sm text-primary">
-                    {formatCurrency((getCartItemPrice(item) - (item.discount || 0)) * item.quantity)}
+                    {formatCurrency(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100))}
                   </span>
                   <span className="text-[10px] text-on-surface-variant line-through">
                     {formatCurrency(getCartItemPrice(item) * item.quantity)}
@@ -252,13 +252,19 @@ export const SwipeableCartItem = ({
                         </div>
                       </div>
                       <div className="border border-outline-variant/20 rounded-lg p-2.5 flex flex-col bg-surface-container">
-                        <span className="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Discount</span>
+                        <span className="text-[10px] text-on-surface-variant mb-1 uppercase tracking-wider font-bold">Discount (%)</span>
                         <input
                           type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
                           className="w-full bg-transparent border-none focus:outline-none text-sm font-bold text-on-surface"
                           value={item.discount || ''}
-                          placeholder="0.00"
-                          onChange={(e) => updateCartItem(item.cartItemId, { discount: parseFloat(e.target.value) || 0 })}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+                            updateCartItem(item.cartItemId, { discount: val });
+                          }}
                         />
                       </div>
                       <div className="border border-outline-variant/20 rounded-lg p-2.5 flex flex-col bg-surface-container">

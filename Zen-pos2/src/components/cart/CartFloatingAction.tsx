@@ -1,6 +1,7 @@
 import React from 'react';
 import { CartItem } from '../../data';
 import { useLocalization } from '../../context/LocalizationContext';
+import { getSubtotal } from '../../utils/cartUtils';
 
 /**
  * CartFloatingAction — mobile-only floating bar pinned above MobileNav.
@@ -19,13 +20,7 @@ export const CartFloatingAction = ({
   onOpen: () => void;
 }) => {
   const { formatCurrency } = useLocalization();
-  const subtotal = cart.reduce((sum, item) => {
-    const variationsPrice = Object.values(item.selectedVariations || {}).reduce(
-      (vSum: number, opt: any) => vSum + (opt.priceAdjustment || 0), 0
-    );
-    const itemPrice = item.price + variationsPrice - (item.discount || 0);
-    return sum + itemPrice * item.quantity;
-  }, 0);
+  const subtotal = getSubtotal(cart);
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 

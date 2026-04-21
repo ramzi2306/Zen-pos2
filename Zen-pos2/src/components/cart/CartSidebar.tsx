@@ -155,7 +155,7 @@ export const CartSidebar = ({
   const _buildCartReceiptItems = (): ReceiptItem[] =>
     cart.map(item => {
       const itemPrice = getCartItemPrice(item);
-      const lineTotal = itemPrice * item.quantity * (1 - (item.discount || 0) / 100);
+      const lineTotal = Math.round(itemPrice * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
       const variations = Object.values(item.selectedVariations || {}).map(v => v.name);
       const supplements = Object.values(item.selectedSupplements || {}).map(s => s.name);
       const modifiers = [...variations, ...supplements].filter(Boolean).join(', ');
@@ -597,7 +597,7 @@ export const CartSidebar = ({
                     <div className="px-4 py-1 space-y-2">
                       {cart.map(item => {
                         const itemPrice = getCartItemPrice(item);
-                        const lineTotal = itemPrice * item.quantity * (1 - (item.discount || 0) / 100);
+                        const lineTotal = Math.round(itemPrice * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
                         const variations = Object.values(item.selectedVariations || {}).map(v => v.name);
                         const supplements = Object.values(item.selectedSupplements || {}).map(s => s.name);
                         const modifiers = [...variations, ...supplements].filter(Boolean).join(', ');
@@ -1124,12 +1124,10 @@ export const CartSidebar = ({
                       {/* Items */}
                       <div className="px-4 py-1 space-y-2">
                         {cart.map(item => {
-                          const variations = Object.values(item.selectedVariations || {}) as any[];
-                          const varAdj = variations.reduce((s: number, o: any) => s + (o.price || 0), 0);
-                          const supps = Object.values(item.selectedSupplements || {}) as any[];
-                          const suppAdj = supps.reduce((s: number, o: any) => s + (o.priceAdjustment || 0), 0);
-                          const lineTotal = (item.price + varAdj + suppAdj) * item.quantity * (1 - (item.discount || 0) / 100);
-                          const modifiers = [...variations.map((o: any) => o.name), ...supps.map((o: any) => o.name)].filter(Boolean).join(', ');
+                          const lineTotal = Math.round(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
+                          const _variations = Object.values(item.selectedVariations || {}) as any[];
+                          const _supps = Object.values(item.selectedSupplements || {}) as any[];
+                          const modifiers = [..._variations.map((o: any) => o.name), ..._supps.map((o: any) => o.name)].filter(Boolean).join(', ');
                           const noteStr = [modifiers, item.notes].filter(Boolean).join(' | ');
                           return (
                             <div key={item.cartItemId}>
