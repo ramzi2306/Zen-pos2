@@ -77,40 +77,64 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   const [isPrinting, setIsPrinting] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [isNumpadOpen, setIsNumpadOpen] = useState(false);
-  const [summary, setSummary] = useState<import('../api/payroll').PayrollSummary | null>(null);
   const [performanceLogs, setPerformanceLogs] = useState<import('../api/payroll').PerformanceLogEntry[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState<import('../api/attendance').AttendanceReportSummary | null>(null);
+  const [withdrawals, setWithdrawals] = useState<import('../api/payroll').WithdrawalLog[]>([]);
 
   useEffect(() => {
-    api.payroll.getSummary(user.id).then(setSummary).catch(console.error);
     api.payroll.getPerformanceLogs(user.id).then(setPerformanceLogs).catch(console.error);
-  }, [user.id]);
+    api.payroll.getWithdrawals(user.id).then(setWithdrawals).catch(console.error);
+    if (dateRange) {
+      api.attendance.getReport(dateRange.start, dateRange.end, user.id)
+        .then(r => setAttendanceSummary(r.summaries[0] ?? null))
+        .catch(console.error);
+    }
+  }, [user.id, dateRange]);
 
-  const filteredAttendance = user.monthlyAttendance.filter(a => {
-    if (!dateRange) return true;
-    const startDay = new Date(dateRange.start).getDate();
-    const endDay = new Date(dateRange.end).getDate();
-    const dayNum = parseInt(a.day);
-    return dayNum >= startDay && dayNum <= endDay;
+  // Real attendance records for this period
+  const records = attendanceSummary?.records ?? [];
+  const workedRecords = records.filter(r => r.checkIn);
+  const workedDays = workedRecords.length;
+
+  const hourlyRate = user.baseSalary / (22 * 8);
+
+  // Compute deductions/bonuses from actual hours (same formula as HR cards)
+  let computedLateDeduction = 0;
+  let computedEarlyDeduction = 0;
+  let computedOvertimeBonus = 0;
+  workedRecords.forEach(r => {
+    const hours = r.hours || 0;
+    const shortfall = 8 - hours;
+    if (r.isLate && shortfall > 0) computedLateDeduction += shortfall * hourlyRate;
+    if (r.isEarlyDeparture && shortfall > 0) computedEarlyDeduction += shortfall * hourlyRate;
+    if (r.isOvertime && hours > 8) computedOvertimeBonus += (hours - 8) * hourlyRate;
   });
+  computedLateDeduction = Math.round(computedLateDeduction * 100) / 100;
+  computedEarlyDeduction = Math.round(computedEarlyDeduction * 100) / 100;
+  computedOvertimeBonus = Math.round(computedOvertimeBonus * 100) / 100;
 
-  const lateIncidents = filteredAttendance.filter(a => a.isLate && a.checkIn);
-  const earlyIncidents = filteredAttendance.filter(a => a.isEarlyDeparture && a.checkOut);
-  const overtimeIncidents = filteredAttendance.filter(a => a.isOvertime);
+  const rewardBonus      = Math.round(performanceLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
+  const sanctionDeduction = Math.round(performanceLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
 
-  const getFullDate = (dayNum: string) => {
-    if (!dateRange) return `Day ${dayNum}`;
-    const date = new Date(dateRange.start);
-    date.setDate(parseInt(dayNum));
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Pro-rated earned-to-date: baseSalary × (daysWorked / 22) + bonuses - deductions
+  const earnedBase = Math.round(user.baseSalary * (workedDays / 22) * 100) / 100;
+  const netEarnedToDate = Math.round((earnedBase + rewardBonus + computedOvertimeBonus - sanctionDeduction - computedLateDeduction - computedEarlyDeduction) * 100) / 100;
+
+  // Already withdrawn this month
+  const monthPrefix = dateRange?.start.slice(0, 7) ?? '';
+  const alreadyWithdrawn = Math.round(withdrawals.filter(w => w.date.startsWith(monthPrefix)).reduce((s, w) => s + w.amount, 0) * 100) / 100;
+
+  const availableToWithdraw = Math.max(0, netEarnedToDate - alreadyWithdrawn);
+
+  const lateIncidents  = workedRecords.filter(r => r.isLate);
+  const earlyIncidents = workedRecords.filter(r => r.isEarlyDeparture);
+  const otIncidents    = workedRecords.filter(r => r.isOvertime && (r.hours || 0) > 8);
+
+  const fmtTime = (t?: string) => {
+    if (!t) return '';
+    const p = t.includes('T') ? t.split('T')[1] : t.includes(' ') ? t.split(' ')[1] : t;
+    return p.slice(0, 5);
   };
-
-  // Use backend-computed figures; fall back to simple incident-count estimates while loading
-  const totalLateFees     = summary?.lateDeduction             ?? lateIncidents.length * 20;
-  const totalEarlyFees    = summary?.earlyDepartureDeduction   ?? earlyIncidents.length * 20;
-  const totalOvertimeBonus = summary?.overtimeBonus            ?? overtimeIncidents.reduce((s, a) => s + (a.hours - 8) * 30, 0);
-  const rewardBonus       = summary?.rewardBonus               ?? user.rewards;
-  const sanctionDeduction = summary?.sanctionDeduction         ?? user.sanctions;
-  const maxAmount         = summary?.netPayable                ?? (user.baseSalary + user.rewards - user.sanctions);
 
   const handleNumClick = (num: string) => {
     if (num === '.' && amount.includes('.')) return;
@@ -181,37 +205,39 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                 </div>
                 
                 <div className="space-y-1">
-                  <div className="flex justify-between"><span>Base Salary:</span><span>{formatCurrency(user.baseSalary)}</span></div>
-                  <div className="flex justify-between text-tertiary font-bold"><span>Rewards:</span><span>+{formatCurrency(rewardBonus)}</span></div>
-                  <div className="flex justify-between text-error font-bold"><span>Sanctions:</span><span>-{formatCurrency(sanctionDeduction)}</span></div>
-                  <div className="flex justify-between text-tertiary"><span>Overtime Bonus:</span><span>+{formatCurrency(totalOvertimeBonus)}</span></div>
-                  <div className="flex justify-between text-error"><span>Late Fees:</span><span>-{formatCurrency(totalLateFees)}</span></div>
-                  <div className="flex justify-between text-error"><span>Early Leave Fees:</span><span>-{formatCurrency(totalEarlyFees)}</span></div>
+                  <div className="flex justify-between"><span>Base (pro-rated {workedDays}/22d):</span><span>{formatCurrency(earnedBase)}</span></div>
+                  {rewardBonus > 0 && <div className="flex justify-between font-bold"><span>Rewards:</span><span>+{formatCurrency(rewardBonus)}</span></div>}
+                  {computedOvertimeBonus > 0 && <div className="flex justify-between"><span>Overtime:</span><span>+{formatCurrency(computedOvertimeBonus)}</span></div>}
+                  {sanctionDeduction > 0 && <div className="flex justify-between"><span>Sanctions:</span><span>-{formatCurrency(sanctionDeduction)}</span></div>}
+                  {(computedLateDeduction + computedEarlyDeduction) > 0 && <div className="flex justify-between"><span>Attendance Penalties:</span><span>-{formatCurrency(computedLateDeduction + computedEarlyDeduction)}</span></div>}
+                  {alreadyWithdrawn > 0 && <div className="flex justify-between"><span>Previous Withdrawals:</span><span>-{formatCurrency(alreadyWithdrawn)}</span></div>}
                 </div>
 
-                {/* Detailed Logs Section */}
-                <div className="pt-4 border-t-2 border-dashed border-black/10 space-y-3">
-                  <p className="font-bold uppercase text-[9px] mb-2">Detailed Incident Log:</p>
-                  
-                  {/* Rewards & Sanctions from Performance Logs */}
+                {/* Detailed Incident Log */}
+                <div className="pt-4 border-t-2 border-dashed border-black/10 space-y-2">
+                  <p className="font-bold uppercase text-[9px] mb-2">Incident Log:</p>
+                  {lateIncidents.map((r, i) => (
+                    <div key={`late-${i}`} className="flex justify-between gap-2">
+                      <span className="opacity-60 shrink-0">{r.date}</span>
+                      <span className="flex-1 text-right">Late {fmtTime(r.checkIn)}→{fmtTime(r.checkOut)} ({(r.hours||0).toFixed(1)}h)</span>
+                    </div>
+                  ))}
+                  {earlyIncidents.map((r, i) => (
+                    <div key={`early-${i}`} className="flex justify-between gap-2">
+                      <span className="opacity-60 shrink-0">{r.date}</span>
+                      <span className="flex-1 text-right">Early out {fmtTime(r.checkIn)}→{fmtTime(r.checkOut)} ({(r.hours||0).toFixed(1)}h)</span>
+                    </div>
+                  ))}
+                  {otIncidents.map((r, i) => (
+                    <div key={`ot-${i}`} className="flex justify-between gap-2">
+                      <span className="opacity-60 shrink-0">{r.date}</span>
+                      <span className="flex-1 text-right">OT +{((r.hours||0)-8).toFixed(1)}h</span>
+                    </div>
+                  ))}
                   {performanceLogs.map((log, i) => (
-                    <div key={`log-${i}`} className="flex justify-between items-start gap-4">
+                    <div key={`log-${i}`} className="flex justify-between gap-2">
                       <span className="opacity-60 shrink-0">{log.date}</span>
                       <span className="flex-1 text-right italic">{log.title} ({log.type})</span>
-                    </div>
-                  ))}
-
-                  {/* Attendance Incidents */}
-                  {lateIncidents.map((a, i) => (
-                    <div key={`late-rec-${i}`} className="flex justify-between items-start gap-4">
-                      <span className="opacity-60 shrink-0">Day {a.day}</span>
-                      <span className="flex-1 text-right text-error font-bold">LATE ARRIVAL ({a.checkIn})</span>
-                    </div>
-                  ))}
-                  {earlyIncidents.map((a, i) => (
-                    <div key={`early-rec-${i}`} className="flex justify-between items-start gap-4">
-                      <span className="opacity-60 shrink-0">Day {a.day}</span>
-                      <span className="flex-1 text-right text-error font-bold">EARLY DEPARTURE ({a.checkOut})</span>
                     </div>
                   ))}
                 </div>
@@ -283,71 +309,110 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 <div className="p-8 bg-surface-container rounded-[2rem] border border-outline-variant/10 shadow-sm">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-6">Payroll Breakdown</p>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <p className="text-xs text-on-surface-variant">Base Salary</p>
+                      <p className="text-xs text-on-surface-variant">Base Salary (full month)</p>
                       <p className="text-sm font-headline font-bold text-on-surface">{formatCurrency(user.baseSalary)}</p>
                     </div>
                     <div className="flex justify-between items-center">
-                      <p className="text-xs text-on-surface-variant">Rewards & Bonuses</p>
-                      <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(rewardBonus)}</p>
+                      <p className="text-xs text-on-surface-variant">Days Worked</p>
+                      <p className="text-xs font-bold text-on-surface-variant">{workedDays} / 22</p>
                     </div>
-                    {totalOvertimeBonus > 0 && (
+                    {rewardBonus > 0 && (
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-on-surface-variant">Rewards</p>
+                        <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(rewardBonus)}</p>
+                      </div>
+                    )}
+                    {computedOvertimeBonus > 0 && (
                       <div className="flex justify-between items-center">
                         <p className="text-xs text-on-surface-variant">Overtime Bonus</p>
-                        <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(totalOvertimeBonus)}</p>
+                        <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(computedOvertimeBonus)}</p>
                       </div>
                     )}
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs text-on-surface-variant">Sanctions & Deductions</p>
-                      <p className="text-sm font-headline font-bold text-error">-{formatCurrency(sanctionDeduction)}</p>
-                    </div>
-                    {(totalLateFees > 0 || totalEarlyFees > 0) && (
+                    {sanctionDeduction > 0 && (
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-on-surface-variant">Sanctions</p>
+                        <p className="text-sm font-headline font-bold text-error">-{formatCurrency(sanctionDeduction)}</p>
+                      </div>
+                    )}
+                    {(computedLateDeduction + computedEarlyDeduction) > 0 && (
                       <div className="flex justify-between items-center">
                         <p className="text-xs text-on-surface-variant">Attendance Penalties</p>
-                        <p className="text-sm font-headline font-bold text-error">-{formatCurrency(totalLateFees + totalEarlyFees)}</p>
+                        <p className="text-sm font-headline font-bold text-error">-{formatCurrency(computedLateDeduction + computedEarlyDeduction)}</p>
                       </div>
                     )}
-                    <div className="h-px bg-outline-variant/10 my-2" />
+                    <div className="h-px bg-outline-variant/10 my-1" />
                     <div className="flex justify-between items-center">
-                      <p className="text-xs font-bold text-on-surface">Net Payable</p>
-                      <p className="text-xl font-headline font-extrabold text-primary">{formatCurrency(maxAmount)}</p>
+                      <p className="text-xs font-bold text-on-surface">Earned to Date</p>
+                      <p className="text-xl font-headline font-extrabold text-primary">{formatCurrency(netEarnedToDate)}</p>
+                    </div>
+                    {alreadyWithdrawn > 0 && (
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-on-surface-variant">Already Withdrawn</p>
+                        <p className="text-sm font-headline font-bold text-error">-{formatCurrency(alreadyWithdrawn)}</p>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center bg-primary/10 rounded-xl px-3 py-2">
+                      <p className="text-xs font-bold text-primary uppercase tracking-widest">Available to Withdraw</p>
+                      <p className="text-lg font-headline font-extrabold text-primary">{formatCurrency(availableToWithdraw)}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="p-8 bg-surface-container rounded-[2rem] border border-outline-variant/10 shadow-sm">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-secondary border-b border-outline-variant/10 pb-2 mb-4">Incident Detail Log</h3>
-                  <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2">
-                    {lateIncidents.map((a, i) => (
-                      <div key={i} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-error uppercase">Late Check-in ({a.checkIn})</span>
-                          <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto pr-2">
+                    {lateIncidents.map((r, i) => {
+                      const shortfall = Math.max(0, 8 - (r.hours || 0));
+                      const fee = Math.round(shortfall * hourlyRate * 100) / 100;
+                      return (
+                        <div key={`late-${i}`} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-error uppercase">Late — {fmtTime(r.checkIn)}{r.checkOut ? ` → ${fmtTime(r.checkOut)}` : ''}</span>
+                            <span className="text-[10px] text-error/70 uppercase">{r.date} · {(r.hours || 0).toFixed(1)}h worked · {shortfall.toFixed(1)}h short</span>
+                          </div>
+                          <span className="text-xs font-bold text-error shrink-0 ml-2">-{formatCurrency(fee)}</span>
                         </div>
-                        <span className="text-xs font-bold text-error">-{formatCurrency(20)}</span>
+                      );
+                    })}
+                    {earlyIncidents.map((r, i) => {
+                      const shortfall = Math.max(0, 8 - (r.hours || 0));
+                      const fee = Math.round(shortfall * hourlyRate * 100) / 100;
+                      return (
+                        <div key={`early-${i}`} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-error uppercase">Early Out — {fmtTime(r.checkIn)}{r.checkOut ? ` → ${fmtTime(r.checkOut)}` : ''}</span>
+                            <span className="text-[10px] text-error/70 uppercase">{r.date} · {(r.hours || 0).toFixed(1)}h worked · {shortfall.toFixed(1)}h short</span>
+                          </div>
+                          <span className="text-xs font-bold text-error shrink-0 ml-2">-{formatCurrency(fee)}</span>
+                        </div>
+                      );
+                    })}
+                    {otIncidents.map((r, i) => {
+                      const extra = Math.max(0, (r.hours || 0) - 8);
+                      const bonus = Math.round(extra * hourlyRate * 100) / 100;
+                      return (
+                        <div key={`ot-${i}`} className="flex justify-between items-center p-3 bg-tertiary/5 rounded-lg border border-tertiary/10">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-tertiary uppercase">Overtime — {fmtTime(r.checkIn)}{r.checkOut ? ` → ${fmtTime(r.checkOut)}` : ''}</span>
+                            <span className="text-[10px] text-tertiary/70 uppercase">{r.date} · {(r.hours || 0).toFixed(1)}h worked · +{extra.toFixed(1)}h OT</span>
+                          </div>
+                          <span className="text-xs font-bold text-tertiary shrink-0 ml-2">+{formatCurrency(bonus)}</span>
+                        </div>
+                      );
+                    })}
+                    {performanceLogs.map((log, i) => (
+                      <div key={`log-${i}`} className="flex justify-between items-center p-3 rounded-lg border" style={{ backgroundColor: log.type === 'Reward' ? 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)' : 'color-mix(in srgb, var(--color-error) 8%, transparent)', borderColor: log.type === 'Reward' ? 'color-mix(in srgb, var(--color-tertiary) 20%, transparent)' : 'color-mix(in srgb, var(--color-error) 20%, transparent)' }}>
+                        <div className="flex flex-col">
+                          <span className={`text-xs font-bold uppercase ${log.type === 'Reward' ? 'text-tertiary' : 'text-error'}`}>{log.type} — {log.title}</span>
+                          <span className={`text-[10px] uppercase ${log.type === 'Reward' ? 'text-tertiary/70' : 'text-error/70'}`}>{log.date}</span>
+                        </div>
+                        <span className={`text-xs font-bold shrink-0 ml-2 ${log.type === 'Reward' ? 'text-tertiary' : 'text-error'}`}>{log.type === 'Reward' ? '+' : '-'}{formatCurrency(parseFloat(log.impact) || 0)}</span>
                       </div>
                     ))}
-                    {earlyIncidents.map((a, i) => (
-                      <div key={i} className="flex justify-between items-center p-3 bg-error/5 rounded-lg border border-error/10">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-error uppercase">Early Departure ({a.checkOut})</span>
-                          <span className="text-[10px] font-medium text-error/70 uppercase">{getFullDate(a.day)}</span>
-                        </div>
-                        <span className="text-xs font-bold text-error">-{formatCurrency(20)}</span>
-                      </div>
-                    ))}
-                    {overtimeIncidents.map((a, i) => (
-                      <div key={i} className="flex justify-between items-center p-3 bg-tertiary/5 rounded-lg border border-tertiary/10">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-tertiary uppercase">Overtime (+{a.hours - 8}h)</span>
-                          <span className="text-[10px] font-medium text-tertiary/70 uppercase">{getFullDate(a.day)}</span>
-                        </div>
-                        <span className="text-xs font-bold text-tertiary">+{formatCurrency((a.hours - 8) * 30)}</span>
-                      </div>
-                    ))}
-                    {lateIncidents.length === 0 && earlyIncidents.length === 0 && overtimeIncidents.length === 0 && (
-                      <p className="text-xs text-on-surface-variant/40 italic text-center py-4">No attendance incidents recorded this period</p>
+                    {lateIncidents.length === 0 && earlyIncidents.length === 0 && otIncidents.length === 0 && performanceLogs.length === 0 && (
+                      <p className="text-xs text-on-surface-variant/40 italic text-center py-4">{attendanceSummary === null ? 'Loading...' : 'No incidents recorded this period'}</p>
                     )}
                   </div>
                 </div>
@@ -445,14 +510,14 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                   )}
                 </AnimatePresence>
 
-                {parseFloat(amount) > maxAmount && (
-                  <p className="text-[10px] font-bold text-error uppercase tracking-widest mt-2 text-center animate-pulse">Exceeds net payable amount</p>
+                {parseFloat(amount) > availableToWithdraw && (
+                  <p className="text-[10px] font-bold text-error uppercase tracking-widest mt-2 text-center animate-pulse">Exceeds available amount ({formatCurrency(availableToWithdraw)})</p>
                 )}
 
                 <div className="mt-12 w-full max-w-md">
                   <button 
                     onClick={handleProcess}
-                    disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > maxAmount || isPrinting}
+                    disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > availableToWithdraw || isPrinting}
                     className="w-full py-5 bg-primary text-on-primary rounded-2xl text-sm font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-xl flex items-center justify-center gap-3"
                   >
                     {isPrinting ? (

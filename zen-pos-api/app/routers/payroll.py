@@ -99,6 +99,32 @@ async def create_performance_log(body: PerformanceLogCreate):
     return _log_to_out(log, body.user_id)
 
 
+@router.delete("/performance-logs/{log_id}", status_code=204,
+               dependencies=[Depends(require_permission("view_hr"))])
+async def delete_performance_log(log_id: str):
+    log = await PerformanceLogDocument.get(log_id)
+    if not log:
+        raise NotFoundError("Performance log not found")
+
+    # Reverse the impact on the user's aggregate totals
+    impact_val = 0.0
+    try:
+        impact_val = float(str(log.impact).replace("$", "").replace("+", ""))
+    except ValueError:
+        pass
+
+    if impact_val > 0:
+        user = await UserDocument.get(log.user.ref.id if hasattr(log.user, "ref") else str(log.user.id))
+        if user:
+            if log.type == "Reward":
+                user.rewards = max(0, user.rewards - int(impact_val))
+            elif log.type == "Sanction":
+                user.sanctions = max(0, user.sanctions - int(impact_val))
+            await user.save()
+
+    await log.delete()
+
+
 def _log_to_out(l: PerformanceLogDocument, user_id: str) -> PerformanceLogOut:
     uid = str(l.user.ref.id) if hasattr(l.user, "ref") else user_id
     return PerformanceLogOut(
