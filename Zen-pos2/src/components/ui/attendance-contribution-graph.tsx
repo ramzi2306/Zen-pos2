@@ -45,7 +45,7 @@ function cellTooltip(rec: ContributionDayRecord | undefined, date: string): stri
   const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   if (!rec?.checkIn) return `${label} — Off`;
   const flags = [rec.isLate && 'Late', rec.isEarlyDeparture && 'Early out', rec.isOvertime && 'Overtime'].filter(Boolean).join(' · ');
-  const range = rec.checkOut ? `${rec.checkIn} → ${rec.checkOut}` : `In: ${rec.checkIn}`;
+  const range = rec.checkOut ? `${rec.checkIn.slice(0, 5)} → ${rec.checkOut.slice(0, 5)}` : `In: ${rec.checkIn.slice(0, 5)}`;
   return `${label}\n${rec.hours.toFixed(1)}h  ${range}${flags ? `\n${flags}` : ''}`;
 }
 
@@ -194,7 +194,7 @@ export const AttendanceContributionGraph = ({
                   )}
                   {rec!.checkIn && (
                     <span className="text-[9px] leading-none" style={{ opacity: 0.75 }}>
-                      {rec!.checkIn}{rec!.checkOut ? ` → ${rec!.checkOut}` : ''}
+                      {rec!.checkIn.slice(0, 5)}{rec!.checkOut ? ` → ${rec!.checkOut.slice(0, 5)}` : ''}
                     </span>
                   )}
                 </div>

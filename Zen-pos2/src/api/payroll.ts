@@ -139,6 +139,10 @@ export async function getPerformanceLogs(userId?: string): Promise<PerformanceLo
   return raw.map(mapPerformanceLog);
 }
 
+export async function deletePerformanceLog(logId: string): Promise<void> {
+  await apiRequest<void>(`/payroll/performance-logs/${encodeURIComponent(logId)}`, { method: 'DELETE' });
+}
+
 export async function createPerformanceLog(
   userId: string,
   type: 'Reward' | 'Sanction',

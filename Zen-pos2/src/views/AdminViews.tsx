@@ -503,16 +503,14 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const totalSalary = user.baseSalary + user.rewards - user.sanctions;
   const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+  const [performanceLogs, setPerformanceLogs] = useState<PerformanceLog[]>([]);
+  const [isAddingLog, setIsAddingLog] = useState(!!initialAddingLog);
+  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; amount: number | '' }>({ type: initialAddingLog || 'Reward', title: '', amount: '' });
 
   useEffect(() => {
     api.users.listRoles().then(setAvailableRoles).catch(console.error);
   }, []);
-
-  const [performanceLogs, setPerformanceLogs] = useState<PerformanceLog[]>([]);
-  const [isAddingLog, setIsAddingLog] = useState(!!initialAddingLog);
-  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; amount: number | '' }>({ type: initialAddingLog || 'Reward', title: '', amount: '' });
 
   useEffect(() => {
     api.payroll.getPerformanceLogs(user.id).then(logs => {
@@ -528,6 +526,10 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
     }).catch(console.error);
   }, [user.id]);
 
+  const computedRewards = performanceLogs.filter(l => l.type === 'Reward').reduce((sum, l) => sum + (parseFloat(l.impact) || 0), 0);
+  const computedSanctions = performanceLogs.filter(l => l.type === 'Sanction').reduce((sum, l) => sum + (parseFloat(l.impact) || 0), 0);
+  const totalSalary = user.baseSalary + computedRewards - computedSanctions;
+
   const handleAddLog = async () => {
     if (!newLogForm.title.trim() || newLogForm.amount === '' || newLogForm.amount <= 0) return;
     const impactStr = String(newLogForm.amount);
@@ -538,6 +540,15 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
       setIsAddingLog(false);
     } catch (err: any) {
       console.error('Failed to add log:', err.message);
+    }
+  };
+
+  const handleDeleteLog = async (logId: string) => {
+    try {
+      await api.payroll.deletePerformanceLog(logId);
+      setPerformanceLogs(prev => prev.filter(l => l.id !== logId));
+    } catch (err: any) {
+      console.error('Failed to delete log:', err.message);
     }
   };
 
@@ -1050,11 +1061,11 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                   </div>
                   <div className="border border-black p-2">
                     <p className="text-[10px] uppercase font-bold">Rewards</p>
-                    <p className="text-xl font-bold">+{formatCurrency(user.rewards)}</p>
+                    <p className="text-xl font-bold">+{formatCurrency(computedRewards)}</p>
                   </div>
                   <div className="border border-black p-2">
                     <p className="text-[10px] uppercase font-bold">Sanctions</p>
-                    <p className="text-xl font-bold">-{formatCurrency(user.sanctions)}</p>
+                    <p className="text-xl font-bold">-{formatCurrency(computedSanctions)}</p>
                   </div>
                 </div>
               </section>
@@ -1234,11 +1245,11 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                 </div>
                 <div className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 text-center">
                   <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Rewards</p>
-                  <p className="text-3xl font-headline font-extrabold text-tertiary">+{formatCurrency(user.rewards)}</p>
+                  <p className="text-3xl font-headline font-extrabold text-tertiary">+{formatCurrency(computedRewards)}</p>
                 </div>
                 <div className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 text-center">
                   <p className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Sanctions</p>
-                  <p className="text-3xl font-headline font-extrabold text-error">-{formatCurrency(user.sanctions)}</p>
+                  <p className="text-3xl font-headline font-extrabold text-error">-{formatCurrency(computedSanctions)}</p>
                 </div>
               </div>
 
@@ -1256,19 +1267,28 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                 </div>
                 <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto">
                   {performanceLogs.map(log => (
-                    <div key={log.id} className="p-4 bg-surface-container rounded-xl border border-outline-variant/5 flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded flex items-center justify-center ${log.type === 'Reward' ? 'bg-tertiary/10 text-tertiary' : 'bg-error/10 text-error'}`}>
+                    <div key={log.id} className="p-4 bg-surface-container rounded-xl border border-outline-variant/5 flex items-center gap-4 group">
+                      <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 ${log.type === 'Reward' ? 'bg-tertiary/10 text-tertiary' : 'bg-error/10 text-error'}`}>
                         <span className="material-symbols-outlined text-xl">
                           {log.type === 'Reward' ? 'workspace_premium' : 'report_problem'}
                         </span>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1">
-                          <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider">{log.title}</h4>
-                          <span className="text-[8px] font-bold text-on-surface-variant uppercase tracking-widest">{log.date}</span>
+                          <h4 className="text-xs font-bold text-on-surface uppercase tracking-wider truncate">{log.title}</h4>
+                          <span className="text-[8px] font-bold text-on-surface-variant uppercase tracking-widest shrink-0 ml-2">{log.date}</span>
                         </div>
-                        <p className="text-[9px] text-on-surface-variant uppercase tracking-widest">Impact: <span className="text-on-surface">{log.impact}</span></p>
+                        <p className="text-[9px] text-on-surface-variant uppercase tracking-widest">
+                          {log.type === 'Reward' ? '+' : '-'}{formatCurrency(parseFloat(log.impact) || 0)}
+                        </p>
                       </div>
+                      <button
+                        onClick={() => handleDeleteLog(log.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity w-8 h-8 rounded-lg bg-error/10 text-error flex items-center justify-center hover:bg-error/20 shrink-0"
+                        title="Remove entry"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
                     </div>
                   ))}
                   {/* Also show attendance events */}
@@ -1364,7 +1384,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                     Amount ({newLogForm.type === 'Reward' ? 'bonus' : 'deduction'})
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-on-surface-variant pointer-events-none">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant pointer-events-none bg-surface-container-highest px-1 rounded">
                       {CURRENCY_SYMBOLS[localization.currency] || localization.currency}
                     </span>
                     <input
@@ -1374,7 +1394,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                       value={newLogForm.amount}
                       onChange={e => setNewLogForm(f => ({ ...f, amount: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value)) }))}
                       placeholder="0.00"
-                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl pl-10 pr-5 py-3 text-on-surface text-lg font-bold focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl pl-14 pr-5 py-3 text-on-surface text-lg font-bold focus:outline-none focus:ring-2 focus:ring-secondary/30"
                     />
                   </div>
                   {newLogForm.amount !== '' && newLogForm.amount > 0 && (
@@ -5915,6 +5935,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
   const [attendanceReport, setAttendanceReport] = useState<import('../api/attendance').AttendanceReport | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<import('../api/attendance').AttendanceRecord[]>([]);
+  const [allPerformanceLogs, setAllPerformanceLogs] = useState<import('../api/payroll').PerformanceLogEntry[]>([]);
   // Tick every 60 s so "Online since Xm" labels stay current without a full re-fetch
   const [, setAttendanceTick] = useState(0);
 
@@ -5924,6 +5945,11 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       .then(setAttendanceReport)
       .catch(console.error);
   }, [currentSetting, hrDateRange]);
+
+  useEffect(() => {
+    if (currentSetting !== 'hr') return;
+    api.payroll.getPerformanceLogs().then(setAllPerformanceLogs).catch(console.error);
+  }, [currentSetting]);
 
   // Fetch live check-in status and refresh every 30 s while HR section is open
   useEffect(() => {
@@ -6014,6 +6040,14 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   const hrUserData = useMemo(() => {
     const startDt = new Date(hrDateRange.start + 'T00:00:00');
     const endDt = new Date(hrDateRange.end + 'T00:00:00');
+
+    // Group all performance logs by userId for O(1) lookup
+    const logsByUser = new Map<string, import('../api/payroll').PerformanceLogEntry[]>();
+    allPerformanceLogs.forEach(l => {
+      if (!logsByUser.has(l.userId)) logsByUser.set(l.userId, []);
+      logsByUser.get(l.userId)!.push(l);
+    });
+
     return nonSystemUsers.map(user => {
       const reportSummary = attendanceReport?.summaries.find(s => s.userId === user.id);
       const reportRecordMap = new Map<string, NonNullable<typeof reportSummary>['records'][0]>();
@@ -6060,7 +6094,11 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       deduction = Math.round(deduction * 100) / 100;
       overtimeBonus = Math.round(overtimeBonus * 100) / 100;
       const attendanceAdjustments = Math.round((overtimeBonus - deduction) * 100) / 100;
-      const totalSalary = Math.round((user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments) * 100) / 100;
+
+      const userLogs = logsByUser.get(user.id) || [];
+      const userRewards = Math.round(userLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
+      const userSanctions = Math.round(userLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
+      const totalSalary = Math.round((user.baseSalary + userRewards - userSanctions + attendanceAdjustments) * 100) / 100;
 
       const liveScore = workedDays > 0
         ? Math.round((contributionRecords.filter(r => r.checkIn && !r.isLate && !r.isEarlyDeparture).length / workedDays) * 100)
@@ -6072,9 +6110,10 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         workedDays, liveScore, totalHours, hourlyRate,
         deduction, overtimeBonus,
         attendanceAdjustments, totalSalary,
+        userRewards, userSanctions,
       };
     });
-  }, [nonSystemUsers, attendanceReport, hrDateRange]);
+  }, [nonSystemUsers, attendanceReport, hrDateRange, allPerformanceLogs]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -6911,7 +6950,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             )}
 
             <div className={`grid grid-cols-1 gap-8 ${!attendanceReport && nonSystemUsers.length > 0 ? 'hidden' : ''}`}>
-              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, attendanceAdjustments, totalSalary }) => {
+              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, attendanceAdjustments, totalSalary, userRewards, userSanctions }) => {
                 const todayRec = !user.excludeFromAttendance
                   ? todayAttendance.find(r => r.userId === user.id)
                   : undefined;
@@ -6997,7 +7036,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                             <div className="flex justify-between items-start">
                               <div>
                                 <p className="text-[9px] font-bold text-tertiary uppercase tracking-widest mb-1 group-hover:text-tertiary/80">REWARDS</p>
-                                <p className="text-lg font-headline font-extrabold text-on-surface">+{formatCurrency(user.rewards)}</p>
+                                <p className="text-lg font-headline font-extrabold text-on-surface">+{formatCurrency(userRewards)}</p>
                               </div>
                               <span className="material-symbols-outlined text-sm text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
                             </div>
@@ -7009,7 +7048,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                             <div className="flex justify-between items-start">
                               <div>
                                 <p className="text-[9px] font-bold text-error uppercase tracking-widest mb-1 group-hover:text-error/80">SANCTIONS</p>
-                                <p className="text-lg font-headline font-extrabold text-on-surface">-{formatCurrency(user.sanctions)}</p>
+                                <p className="text-lg font-headline font-extrabold text-on-surface">-{formatCurrency(userSanctions)}</p>
                               </div>
                               <span className="material-symbols-outlined text-sm text-error opacity-0 group-hover:opacity-100 transition-opacity">add_circle</span>
                             </div>
@@ -7041,11 +7080,11 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                               <span className="text-xs font-bold text-tertiary">+{formatCurrency(overtimeBonus)}</span>
                             </div>
                           )}
-                          {(user.rewards > 0 || user.sanctions > 0) && (
+                          {(userRewards > 0 || userSanctions > 0) && (
                             <div className="flex justify-between items-center">
                               <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">REWARDS / SANCTIONS</span>
-                              <span className={`text-xs font-bold ${user.rewards - user.sanctions >= 0 ? 'text-tertiary' : 'text-error'}`}>
-                                {user.rewards - user.sanctions >= 0 ? '+' : ''}{formatCurrency(user.rewards - user.sanctions)}
+                              <span className={`text-xs font-bold ${userRewards - userSanctions >= 0 ? 'text-tertiary' : 'text-error'}`}>
+                                {userRewards - userSanctions >= 0 ? '+' : ''}{formatCurrency(userRewards - userSanctions)}
                               </span>
                             </div>
                           )}
