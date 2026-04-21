@@ -13,7 +13,7 @@ import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
 import type { SoundConfig } from '../utils/sounds';
 import { useLocalization, CURRENCY_SYMBOLS } from '../context/LocalizationContext';
 import { TimeRangeSlider } from '../components/ui/TimeRangeSlider';
-import { ActivityChartCard } from '../components/ui/activity-chart-card';
+import { AttendanceContributionGraph, type ContributionDayRecord } from '../components/ui/attendance-contribution-graph';
 
 const CurrencySymbol = ({ prefix = '' }: { prefix?: string }) => {
   const { localization } = useLocalization();
@@ -5887,6 +5887,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     const tickInterval = setInterval(() => setAttendanceTick(t => t + 1), 60_000);
     return () => { clearInterval(fetchInterval); clearInterval(tickInterval); };
   }, [currentSetting]);
+
   const [branding, setBranding] = useState<BrandingData>(() => {
     // Prioritise prop from App (already fetched from API), then localStorage cache, then hardcoded defaults
     if (appBranding) return appBranding;
@@ -5961,6 +5962,57 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   };
 
   const nonSystemUsers = users.filter(u => !u.isSystem);
+
+  // Pre-compute per-user HR data — recomputes only when data/range changes, not on the 60s tick
+  const hrUserData = useMemo(() => {
+    const startDt = new Date(hrDateRange.start + 'T00:00:00');
+    const endDt = new Date(hrDateRange.end + 'T00:00:00');
+    return nonSystemUsers.map(user => {
+      const reportSummary = attendanceReport?.summaries.find(s => s.userId === user.id);
+      const reportRecordMap = new Map<string, NonNullable<typeof reportSummary>['records'][0]>();
+      reportSummary?.records.forEach(r => reportRecordMap.set(r.date, r));
+
+      const contributionRecords: ContributionDayRecord[] = [];
+      if (startDt.getTime() <= endDt.getTime()) {
+        for (let d = new Date(startDt); d <= endDt; d.setDate(d.getDate() + 1)) {
+          const iso = d.toISOString().split('T')[0];
+          if (reportSummary) {
+            const rec = reportRecordMap.get(iso);
+            contributionRecords.push(rec ? {
+              date: iso, hours: rec.hours || 0, isLate: rec.isLate,
+              isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
+              checkIn: rec.checkIn, checkOut: rec.checkOut,
+            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+          } else {
+            const rec = user.monthlyAttendance.find(a => a.day === iso);
+            contributionRecords.push(rec ? {
+              date: iso, hours: rec.hours || 0, isLate: rec.isLate,
+              isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
+              checkIn: rec.checkIn, checkOut: rec.checkOut,
+            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+          }
+        }
+      }
+
+      const workedDays = contributionRecords.filter(r => r.checkIn).length;
+      const lateDeduction = contributionRecords.filter(r => r.isLate).length * 20;
+      const earlyDeduction = contributionRecords.filter(r => r.isEarlyDeparture).length * 20;
+      const overtimeBonus = contributionRecords.reduce((acc, r) => acc + (r.isOvertime && r.hours > 8 ? r.hours - 8 : 0), 0) * 30;
+      const attendanceAdjustments = overtimeBonus - lateDeduction - earlyDeduction;
+      const totalSalary = user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments;
+      const liveScore = workedDays > 0
+        ? Math.round((contributionRecords.filter(r => r.checkIn && !r.isLate && !r.isEarlyDeparture).length / workedDays) * 100)
+        : 0;
+      const totalHours = contributionRecords.reduce((sum, r) => sum + (r.hours || 0), 0);
+
+      return {
+        user, reportSummary, contributionRecords,
+        workedDays, liveScore, totalHours,
+        lateDeduction, earlyDeduction, overtimeBonus,
+        attendanceAdjustments, totalSalary,
+      };
+    });
+  }, [nonSystemUsers, attendanceReport, hrDateRange]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -6710,21 +6762,41 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               </div>
               <div className="flex gap-3 items-center">
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     value={hrDateRange.start}
                     onChange={(e) => setHrDateRange(prev => ({ ...prev, start: e.target.value }))}
                     className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-xs text-on-surface focus:border-primary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                   />
                   <span className="text-on-surface-variant text-xs font-bold uppercase tracking-widest">to</span>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     value={hrDateRange.end}
                     onChange={(e) => setHrDateRange(prev => ({ ...prev, end: e.target.value }))}
                     className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-xs text-on-surface focus:border-primary outline-none transition-all [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                   />
                 </div>
-                <button className="px-6 py-3 bg-surface-container-highest text-on-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors">
+                <button
+                  onClick={() => {
+                    const header = 'Name,Role,Days Worked,Total Hours,Late,Early Out,Overtime,Base Salary,Adjustments,Total Salary';
+                    const rows = hrUserData.map(({ user, reportSummary, workedDays, totalHours, attendanceAdjustments, totalSalary }) => {
+                      const late = reportSummary?.lateCount ?? 0;
+                      const earlyOut = reportSummary?.earlyDepartureCount ?? 0;
+                      const ot = reportSummary?.overtimeCount ?? 0;
+                      return [user.name, user.role, workedDays, totalHours.toFixed(1), late, earlyOut, ot, user.baseSalary, attendanceAdjustments.toFixed(2), totalSalary.toFixed(2)].join(',');
+                    });
+                    const csv = [header, ...rows].join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `hr-report-${hrDateRange.start}-to-${hrDateRange.end}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-6 py-3 bg-surface-container-highest text-on-surface rounded text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-sm">download</span>
                   EXPORT REPORT
                 </button>
                 <button className="px-6 py-3 bg-secondary text-on-secondary rounded text-[10px] font-bold uppercase tracking-widest hover:bg-[#ffc4b8] transition-colors flex items-center gap-2">
@@ -6734,48 +6806,26 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-8">
-              {nonSystemUsers.map(user => {
-                let liveScore = 0;
-                let filteredAttendance: any[] = [];
-                const startDt = new Date(hrDateRange.start);
-                const endDt = new Date(hrDateRange.end);
-                const reportSummary = attendanceReport?.summaries.find(s => s.userId === user.id);
-                
-                if (startDt.getTime() <= endDt.getTime()) {
-                  // Pad all days in the range
-                  for (let d = new Date(startDt); d <= endDt; d.setDate(d.getDate() + 1)) {
-                    const lookupDate = d.toISOString().split('T')[0];
-                    const dayLabel = String(d.getDate());
-                    
-                    if (reportSummary) {
-                      const rec = reportSummary.records.find(r => r.date === lookupDate);
-                      filteredAttendance.push(rec ? {
-                        day: dayLabel, hours: rec.hours || 0, isLate: rec.isLate,
-                        isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
-                        checkIn: rec.checkIn, checkOut: rec.checkOut,
-                        rewardNote: undefined as string | undefined, sanctionNote: undefined as string | undefined
-                      } : { day: dayLabel, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
-                    } else {
-                      const rec = user.monthlyAttendance.find(a => a.day === lookupDate);
-                      filteredAttendance.push(rec ? { ...rec, day: dayLabel } : { day: dayLabel, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
-                    }
-                  }
-                }
-                
-                const lateDeduction = filteredAttendance.filter(a => a.isLate).length * 20;
-                const earlyDeduction = filteredAttendance.filter(a => a.isEarlyDeparture).length * 20;
-                const overtimeBonus = filteredAttendance.reduce((acc, a) => acc + (a.isOvertime && a.hours > 8 ? a.hours - 8 : 0), 0) * 30;
-                const attendanceAdjustments = overtimeBonus - lateDeduction - earlyDeduction;
-                const totalSalary = user.baseSalary + user.rewards - user.sanctions + attendanceAdjustments;
-                
-                const workedDays = filteredAttendance.filter(a => a.checkIn).length;
-                if (workedDays > 0) {
-                  const perfectDays = filteredAttendance.filter(a => a.checkIn && !a.isLate && !a.isEarlyDeparture).length;
-                  liveScore = Math.round((perfectDays / workedDays) * 100);
-                } else {
-                  liveScore = 0;
-                }
+            {/* Loading skeleton while report fetches */}
+            {!attendanceReport && nonSystemUsers.length > 0 && (
+              <div className="grid grid-cols-1 gap-8">
+                {nonSystemUsers.map(user => (
+                  <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden animate-pulse">
+                    <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
+                      <div className="w-14 h-14 rounded-xl bg-surface-container-highest" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-surface-container-highest rounded w-32" />
+                        <div className="h-3 bg-surface-container-highest rounded w-20" />
+                      </div>
+                    </div>
+                    <div className="p-6 h-40 bg-surface-container-high/20" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className={`grid grid-cols-1 gap-8 ${!attendanceReport && nonSystemUsers.length > 0 ? 'hidden' : ''}`}>
+              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, attendanceAdjustments, totalSalary }) => {
                 const todayRec = !user.excludeFromAttendance
                   ? todayAttendance.find(r => r.userId === user.id)
                   : undefined;
@@ -6837,16 +6887,14 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     )}
 
                     <div className="p-6 grid grid-cols-2 gap-8">
-                      {/* Attendance Chart */}
+                      {/* Attendance Contribution Graph */}
                       <div className="w-full min-w-0">
-                        <ActivityChartCard
-                          title="Hours worked"
-                          totalValue={`${filteredAttendance.reduce((sum, a) => sum + (a.hours || 0), 0).toFixed(1)} hrs`}
-                          data={filteredAttendance.map(d => ({ day: d.day, value: d.hours || 0 }))}
-                          trend={workedDays > 0 ? {
-                            value: Math.round((filteredAttendance.filter(a => a.isLate).length / workedDays) * 100) * -1,
-                            label: "lateness rate"
-                          } : undefined}
+                        <AttendanceContributionGraph
+                          records={contributionRecords}
+                          startDate={hrDateRange.start}
+                          endDate={hrDateRange.end}
+                          totalHours={totalHours}
+                          workedDays={workedDays}
                         />
                       </div>
 
@@ -6855,7 +6903,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">PERFORMANCE METRICS</p>
                           <div className="grid grid-cols-2 gap-4">
-                            <button 
+                            <button
                               onClick={() => setSelectedDossierUser({ user, edit: false, log: 'Reward' })}
                               className="text-left bg-surface-container-low p-3 rounded-lg border border-outline-variant/5 hover:bg-surface-container-high transition-colors cursor-pointer group"
                             >
@@ -6904,7 +6952,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         </div>
 
                         <div className="bg-surface-container-highest/20 p-4 rounded-xl border border-outline-variant/10">
-                          <button 
+                          <button
                             onClick={() => setSelectedWithdrawalUser(user)}
                             className="w-full py-2.5 bg-secondary text-on-secondary rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-[#ffc4b8] transition-all flex items-center justify-center gap-2 shadow-sm"
                           >
@@ -6916,7 +6964,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                     </div>
 
                     <div className="p-4 bg-surface-container-highest/30 flex justify-end items-center">
-                      <button 
+                      <button
                         onClick={() => setSelectedDossierUser({ user, edit: false })}
                         className="text-[10px] font-bold text-secondary uppercase tracking-widest hover:underline"
                       >
