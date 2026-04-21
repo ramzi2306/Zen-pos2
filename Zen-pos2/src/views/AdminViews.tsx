@@ -512,7 +512,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
 
   const [performanceLogs, setPerformanceLogs] = useState<PerformanceLog[]>([]);
   const [isAddingLog, setIsAddingLog] = useState(!!initialAddingLog);
-  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; impact: string }>({ type: initialAddingLog || 'Reward', title: '', impact: '' });
+  const [newLogForm, setNewLogForm] = useState<{ type: 'Reward' | 'Sanction'; title: string; amount: number | '' }>({ type: initialAddingLog || 'Reward', title: '', amount: '' });
 
   useEffect(() => {
     api.payroll.getPerformanceLogs(user.id).then(logs => {
@@ -529,11 +529,12 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
   }, [user.id]);
 
   const handleAddLog = async () => {
-    if (!newLogForm.title.trim()) return;
+    if (!newLogForm.title.trim() || newLogForm.amount === '' || newLogForm.amount <= 0) return;
+    const impactStr = String(newLogForm.amount);
     try {
-      const log = await api.payroll.createPerformanceLog(user.id, newLogForm.type, newLogForm.title, newLogForm.impact);
+      const log = await api.payroll.createPerformanceLog(user.id, newLogForm.type, newLogForm.title, impactStr);
       setPerformanceLogs(prev => [...prev, { id: log.id, userId: log.userId, type: log.type, title: log.title, asset: '', impact: log.impact, date: log.date }]);
-      setNewLogForm({ type: 'Reward', title: '', impact: '' });
+      setNewLogForm({ type: 'Reward', title: '', amount: '' });
       setIsAddingLog(false);
     } catch (err: any) {
       console.error('Failed to add log:', err.message);
@@ -1359,12 +1360,43 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
                   <input type="text" value={newLogForm.title} onChange={e => setNewLogForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Excellent service quality" className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-5 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-2">Impact / Notes</label>
-                  <input type="text" value={newLogForm.impact} onChange={e => setNewLogForm(f => ({ ...f, impact: e.target.value }))} placeholder={`e.g. +${CURRENCY_SYMBOLS[localization.currency] || localization.currency}50 bonus`} className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-5 py-3 text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/30" />
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant ml-2">
+                    Amount ({newLogForm.type === 'Reward' ? 'bonus' : 'deduction'})
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-on-surface-variant pointer-events-none">
+                      {CURRENCY_SYMBOLS[localization.currency] || localization.currency}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newLogForm.amount}
+                      onChange={e => setNewLogForm(f => ({ ...f, amount: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value)) }))}
+                      placeholder="0.00"
+                      className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl pl-10 pr-5 py-3 text-on-surface text-lg font-bold focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                    />
+                  </div>
+                  {newLogForm.amount !== '' && newLogForm.amount > 0 && (
+                    <p className={`text-xs font-semibold ml-2 ${newLogForm.type === 'Reward' ? 'text-tertiary' : 'text-error'}`}>
+                      {newLogForm.type === 'Reward' ? '+' : '-'}{formatCurrency(Number(newLogForm.amount))} will be added to {newLogForm.type === 'Reward' ? 'rewards' : 'sanctions'}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button onClick={() => setIsAddingLog(false)} className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors">Cancel</button>
-                  <button onClick={handleAddLog} className="flex-1 py-3 bg-secondary text-on-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-colors">Save Entry</button>
+                  <button
+                    onClick={() => setIsAddingLog(false)}
+                    className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddLog}
+                    disabled={!newLogForm.title.trim() || newLogForm.amount === '' || Number(newLogForm.amount) <= 0}
+                    className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${newLogForm.type === 'Reward' ? 'bg-tertiary text-on-tertiary hover:opacity-90' : 'bg-error text-on-error hover:opacity-90'}`}
+                  >
+                    Save {newLogForm.type}
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -5855,16 +5887,31 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     setSelectedDossierUser(null);
     setSelectedWithdrawalUser(null);
   }, [currentSetting]);
-  const [hrDateRange, setHrDateRange] = useState(() => {
+  const [hrSelectedMonth, setHrSelectedMonth] = useState(() => {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-    return {
-      start: `${y}-${m}-01`,
-      end: `${y}-${m}-${lastDay}`
-    };
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  // Derived from hrSelectedMonth — single source of truth
+  const hrDateRange = useMemo(() => {
+    const [y, m] = hrSelectedMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const mm = String(m).padStart(2, '0');
+    return { start: `${y}-${mm}-01`, end: `${y}-${mm}-${lastDay}` };
+  }, [hrSelectedMonth]);
+
+  // Build the list of selectable months (current month + 23 months back)
+  const hrMonthOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const now = new Date();
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      opts.push({ value, label });
+    }
+    return opts;
+  }, []);
 
   const [attendanceReport, setAttendanceReport] = useState<import('../api/attendance').AttendanceReport | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<import('../api/attendance').AttendanceRecord[]>([]);
@@ -6776,6 +6823,45 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                 <p className="text-on-surface-variant text-sm mt-2">Comprehensive analysis of personnel attendance, performance, and financial distribution.</p>
               </div>
               <div className="flex gap-3 items-center">
+                {/* Month selector */}
+                <div className="flex items-center gap-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => {
+                      const idx = hrMonthOptions.findIndex(o => o.value === hrSelectedMonth);
+                      if (idx < hrMonthOptions.length - 1) {
+                        setHrSelectedMonth(hrMonthOptions[idx + 1].value);
+                        setAttendanceReport(null);
+                      }
+                    }}
+                    className="px-3 py-2 hover:bg-surface-variant transition-colors text-on-surface-variant hover:text-on-surface"
+                    title="Previous month"
+                  >
+                    <span className="material-symbols-outlined text-sm">chevron_left</span>
+                  </button>
+                  <select
+                    value={hrSelectedMonth}
+                    onChange={e => { setHrSelectedMonth(e.target.value); setAttendanceReport(null); }}
+                    className="bg-transparent text-xs font-bold text-on-surface focus:outline-none cursor-pointer py-2 px-1 min-w-[140px] text-center appearance-none"
+                  >
+                    {hrMonthOptions.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      const idx = hrMonthOptions.findIndex(o => o.value === hrSelectedMonth);
+                      if (idx > 0) {
+                        setHrSelectedMonth(hrMonthOptions[idx - 1].value);
+                        setAttendanceReport(null);
+                      }
+                    }}
+                    disabled={hrMonthOptions[0]?.value === hrSelectedMonth}
+                    className="px-3 py-2 hover:bg-surface-variant transition-colors text-on-surface-variant hover:text-on-surface disabled:opacity-30"
+                    title="Next month"
+                  >
+                    <span className="material-symbols-outlined text-sm">chevron_right</span>
+                  </button>
+                </div>
                 <button
                   onClick={() => {
                     const header = 'Name,Role,Days Worked,Total Hours,Late,Early Out,Overtime,Hourly Rate,Deduction,OT Bonus,Base Salary,Adjustments,Total Salary';

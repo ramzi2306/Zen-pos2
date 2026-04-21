@@ -162,35 +162,44 @@ export const AttendanceContributionGraph = ({
           return (
             <div
               key={i}
-              className="min-h-[56px] rounded-lg p-1.5 flex flex-col justify-between cursor-default transition-opacity hover:opacity-80 relative group"
+              className="min-h-[76px] rounded-lg p-2 flex flex-col justify-between cursor-default transition-opacity hover:opacity-85 relative"
               style={bg}
               title={cell.inMonth ? cellTooltip(rec, cell.date) : undefined}
             >
-              {/* Day number */}
-              <span
-                className="text-[11px] font-bold leading-none self-end"
-                style={{ opacity: isWorked ? 0.7 : 0.4 }}
-              >
-                {cell.day}
-              </span>
-
-              {/* Hours worked */}
-              {isWorked && (
-                <span className="text-[10px] font-extrabold leading-none">
-                  {rec!.hours > 0 ? `${rec!.hours.toFixed(1)}h` : ''}
-                </span>
-              )}
-
-              {/* Status dot for flags */}
-              {isWorked && (rec?.isLate || rec?.isEarlyDeparture || rec?.isOvertime) && (
-                <div className="absolute top-1 left-1 flex gap-0.5">
-                  {(rec?.isLate || rec?.isEarlyDeparture) && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/60" />
+              {/* Top row: status dot + day number */}
+              <div className="flex items-start justify-between">
+                <div className="flex gap-0.5 mt-0.5">
+                  {isWorked && (rec?.isLate || rec?.isEarlyDeparture) && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />
                   )}
-                  {rec?.isOvertime && !rec?.isLate && !rec?.isEarlyDeparture && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                  {isWorked && rec?.isOvertime && !rec?.isLate && !rec?.isEarlyDeparture && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/90 shrink-0" />
                   )}
                 </div>
+                <span
+                  className="text-[11px] font-bold leading-none"
+                  style={{ opacity: isWorked ? 0.65 : 0.35 }}
+                >
+                  {cell.day}
+                </span>
+              </div>
+
+              {/* Bottom: hours + times */}
+              {isWorked ? (
+                <div className="flex flex-col gap-0.5 mt-1">
+                  {rec!.hours > 0 && (
+                    <span className="text-[11px] font-extrabold leading-none">
+                      {rec!.hours.toFixed(1)}h
+                    </span>
+                  )}
+                  {rec!.checkIn && (
+                    <span className="text-[9px] leading-none" style={{ opacity: 0.75 }}>
+                      {rec!.checkIn}{rec!.checkOut ? ` → ${rec!.checkOut}` : ''}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div />
               )}
             </div>
           );
