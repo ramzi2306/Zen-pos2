@@ -11,9 +11,11 @@ class PayrollSummary(BaseModel):
     overtime_bonus: float
     late_deduction: float
     early_departure_deduction: float
+    early_arrival_bonus: float
     net_payable: float
     late_count: int
     early_departure_count: int
+    early_arrival_count: int
     overtime_hours: float
 
 

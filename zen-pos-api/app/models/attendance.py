@@ -16,6 +16,7 @@ class AttendanceRecordDocument(Document):
     hours: float = 0
     is_late: bool = False
     is_early_departure: bool = False
+    is_early_arrival: bool = False
     is_overtime: bool = False
     notes: str = ""
     location_id: Optional[str] = None        # auto-set from user's location at check-in

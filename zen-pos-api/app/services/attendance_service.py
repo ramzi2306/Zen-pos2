@@ -10,6 +10,8 @@ from app.models.user import UserDocument
 LATE_GRACE_MINUTES = 5
 # Threshold before a check-out is considered "early departure" (minutes)
 EARLY_GRACE_MINUTES = 5
+# Minutes before expected check-in that counts as early arrival
+EARLY_ARRIVAL_THRESHOLD_MINUTES = 15
 # Minutes past expected check-out that counts as overtime
 OVERTIME_THRESHOLD_MINUTES = 30
 
@@ -56,13 +58,15 @@ async def check_in(user_id: str, pin: str) -> AttendanceRecordDocument:
     if existing and existing.status == "active":
         raise BadRequestError("Already checked in today")
 
-    # Determine is_late from shift schedule
+    # Determine is_late and is_early_arrival from shift schedule
     is_late = False
+    is_early_arrival = False
     expected_ci, _ = _parse_shift(user.shifts.get(weekday, ""))
     if expected_ci:
         actual_hhmm = now.strftime("%H:%M")
         diff = _minutes_diff(actual_hhmm, expected_ci)
         is_late = diff > LATE_GRACE_MINUTES
+        is_early_arrival = diff < -EARLY_ARRIVAL_THRESHOLD_MINUTES
 
     record = AttendanceRecordDocument(
         user=user,
@@ -70,6 +74,7 @@ async def check_in(user_id: str, pin: str) -> AttendanceRecordDocument:
         check_in=now.isoformat(),
         status="active",
         is_late=is_late,
+        is_early_arrival=is_early_arrival,
         location_id=user.location_id,   # inherit user's location at time of check-in
     )
     await record.insert()
@@ -81,6 +86,7 @@ async def check_in(user_id: str, pin: str) -> AttendanceRecordDocument:
         hours=0,
         is_late=record.is_late,
         is_early_departure=False,
+        is_early_arrival=record.is_early_arrival,
         is_overtime=False,
         check_in=record.check_in,
         check_out=None,
@@ -143,7 +149,7 @@ async def check_out(user_id: str, pin: str) -> AttendanceRecordDocument:
         actual_hhmm = now.strftime("%H:%M")
         diff = _minutes_diff(actual_hhmm, expected_co)  # positive = checked out later
         record.is_early_departure = diff < -EARLY_GRACE_MINUTES
-        record.is_overtime = diff > OVERTIME_THRESHOLD_MINUTES
+        record.is_overtime = (diff > OVERTIME_THRESHOLD_MINUTES) or (record.hours > 8.0)
 
     await record.save()
 
@@ -154,6 +160,7 @@ async def check_out(user_id: str, pin: str) -> AttendanceRecordDocument:
         hours=record.hours,
         is_late=record.is_late,
         is_early_departure=record.is_early_departure,
+        is_early_arrival=record.is_early_arrival,
         is_overtime=record.is_overtime,
         check_in=record.check_in,
         check_out=record.check_out,
@@ -223,6 +230,7 @@ async def force_check_out(user_id: str) -> Optional[AttendanceRecordDocument]:
         hours=record.hours,
         is_late=record.is_late,
         is_early_departure=record.is_early_departure,
+        is_early_arrival=record.is_early_arrival,
         is_overtime=record.is_overtime,
         check_in=record.check_in,
         check_out=record.check_out,

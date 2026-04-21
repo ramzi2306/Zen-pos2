@@ -13,6 +13,7 @@ class AttendanceDay(BaseModel):
     hours: float = 0
     is_late: bool = False
     is_early_departure: bool = False
+    is_early_arrival: bool = False
     is_overtime: bool = False
     check_in: Optional[str] = None
     check_out: Optional[str] = None

@@ -7,7 +7,8 @@ from app.schemas.payroll import PayrollSummary, WithdrawalRequest
 
 # Deduction / bonus rates (per incident)
 LATE_FEE_PER_INCIDENT = 20.0          # $20 per late arrival
-EARLY_DEPARTURE_FEE = 20.0            # $20 per early departure
+EARLY_DEPARTURE_FEE = 25.0            # $25 per early departure (increased)
+EARLY_ARRIVAL_BONUS = 15.0            # $15 per early arrival
 OVERTIME_BONUS_PER_HOUR = 30.0        # $30 per overtime hour
 
 
@@ -18,12 +19,14 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
 
     late_count = sum(1 for d in user.monthly_attendance if d.is_late)
     early_count = sum(1 for d in user.monthly_attendance if d.is_early_departure)
+    early_arrival_count = sum(1 for d in user.monthly_attendance if d.is_early_arrival)
     overtime_hours = sum(
         d.hours - 8 for d in user.monthly_attendance if d.is_overtime and d.hours > 8
     )
 
     late_deduction = late_count * LATE_FEE_PER_INCIDENT
     early_deduction = early_count * EARLY_DEPARTURE_FEE
+    early_arrival_bonus = early_arrival_count * EARLY_ARRIVAL_BONUS
     overtime_bonus = round(overtime_hours * OVERTIME_BONUS_PER_HOUR, 2)
 
     # Performance adjustments from logs
@@ -37,6 +40,7 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
         user.base_salary
         + reward_bonus
         + overtime_bonus
+        + early_arrival_bonus
         - sanction_deduction
         - late_deduction
         - early_deduction
@@ -49,11 +53,13 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
         reward_bonus=reward_bonus,
         sanction_deduction=sanction_deduction,
         overtime_bonus=overtime_bonus,
+        early_arrival_bonus=early_arrival_bonus,
         late_deduction=late_deduction,
         early_departure_deduction=early_deduction,
         net_payable=round(net, 2),
         late_count=late_count,
         early_departure_count=early_count,
+        early_arrival_count=early_arrival_count,
         overtime_hours=round(overtime_hours, 2),
     )
 

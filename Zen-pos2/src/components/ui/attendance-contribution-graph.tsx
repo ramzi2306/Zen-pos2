@@ -6,6 +6,7 @@ export interface ContributionDayRecord {
   hours: number;
   isLate: boolean;
   isEarlyDeparture: boolean;
+  isEarlyArrival: boolean;
   isOvertime: boolean;
   checkIn?: string;
   checkOut?: string;
@@ -31,27 +32,39 @@ const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const WEEKEND = new Set([6, 0]); // Saturday = 6, Sunday = 0 (getDay)
 
-function cellBg(rec: ContributionDayRecord | undefined, isWeekend: boolean): React.CSSProperties {
+function cellBg(rec: ContributionDayRecord | undefined, isWeekend: boolean, isToday: boolean): React.CSSProperties {
+  const baseStyle: React.CSSProperties = {
+    color: 'white',
+    border: isToday ? '2px solid var(--color-primary)' : '1px solid transparent',
+  };
+
   if (!rec?.checkIn) {
-    return isWeekend
-      ? { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 4%, transparent)' }
-      : { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 10%, transparent)' };
+    return {
+      ...baseStyle,
+      backgroundColor: isWeekend
+        ? 'color-mix(in srgb, var(--color-on-surface) 8%, transparent)'
+        : 'color-mix(in srgb, var(--color-on-surface) 15%, transparent)',
+      color: isToday ? 'var(--color-primary)' : 'var(--color-on-surface-variant)',
+    };
   }
-  if (rec.isOvertime && !rec.isLate && !rec.isEarlyDeparture) {
-    return { backgroundColor: 'var(--color-tertiary)', color: 'var(--color-on-tertiary)' };
+
+  if ((rec.isOvertime || rec.isEarlyArrival) && !rec.isLate && !rec.isEarlyDeparture) {
+    return { ...baseStyle, backgroundColor: 'var(--color-tertiary)' };
   }
+
   if (rec.isLate || rec.isEarlyDeparture) {
-    return { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 80%, transparent)' };
+    return { ...baseStyle, backgroundColor: 'color-mix(in srgb, var(--color-secondary) 95%, black)' };
   }
-  const intensity = Math.min(100, Math.round((0.45 + (rec.hours / 8) * 0.55) * 100));
-  return { backgroundColor: `color-mix(in srgb, var(--color-tertiary) ${intensity}%, transparent)` };
+
+  const intensity = Math.min(100, Math.round((0.6 + (rec.hours / 8) * 0.4) * 100));
+  return { ...baseStyle, backgroundColor: `color-mix(in srgb, var(--color-tertiary) ${intensity}%, black)` };
 }
 
 function cellTooltip(rec: ContributionDayRecord | undefined, date: string): string {
   const d = new Date(date + 'T00:00:00');
   const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   if (!rec?.checkIn) return `${label} — Off`;
-  const flags = [rec.isLate && 'Late', rec.isEarlyDeparture && 'Early out', rec.isOvertime && 'Overtime'].filter(Boolean).join(' · ');
+  const flags = [rec.isLate && 'Late', rec.isEarlyDeparture && 'Early out', rec.isEarlyArrival && 'Early in', rec.isOvertime && 'Overtime'].filter(Boolean).join(' · ');
   const range = rec.checkOut ? `${toHHMM(rec.checkIn)} → ${toHHMM(rec.checkOut)}` : `In: ${toHHMM(rec.checkIn)}`;
   return `${label}\n${rec.hours.toFixed(1)}h  ${range}${flags ? `\n${flags}` : ''}`;
 }
@@ -162,14 +175,19 @@ export const AttendanceContributionGraph = ({
           }
           const d = new Date(y, mo - 1, cell.day);
           const isWeekend = WEEKEND.has(d.getDay());
+          const todayIso = new Date().toISOString().split('T')[0];
+          const isToday = cell.date === todayIso;
           const rec = recordMap.get(cell.date);
-          const bg = cellBg(rec, isWeekend);
+          const bg = cellBg(rec, isWeekend, isToday);
           const isWorked = !!rec?.checkIn;
 
           return (
             <div
               key={i}
-              className="min-h-[76px] rounded-lg p-2 flex flex-col justify-between cursor-default transition-opacity hover:opacity-85 relative"
+              className={cn(
+                "min-h-[76px] rounded-lg p-2 flex flex-col justify-between cursor-default transition-all relative",
+                isToday && "ring-2 ring-primary ring-inset z-10"
+              )}
               style={bg}
               title={cell.inMonth ? cellTooltip(rec, cell.date) : undefined}
             >
@@ -177,15 +195,17 @@ export const AttendanceContributionGraph = ({
               <div className="flex items-start justify-between">
                 <div className="flex gap-0.5 mt-0.5">
                   {isWorked && (rec?.isLate || rec?.isEarlyDeparture) && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/70 shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-white shrink-0 shadow-sm" />
                   )}
-                  {isWorked && rec?.isOvertime && !rec?.isLate && !rec?.isEarlyDeparture && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-white/90 shrink-0" />
+                  {isWorked && (rec?.isOvertime || rec?.isEarlyArrival) && !(rec?.isLate || rec?.isEarlyDeparture) && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-white shrink-0 shadow-sm" />
                   )}
                 </div>
                 <span
-                  className="text-[11px] font-bold leading-none"
-                  style={{ opacity: isWorked ? 0.65 : 0.35 }}
+                  className={cn(
+                    "text-[11px] font-black leading-none",
+                    isToday ? "text-primary scale-110" : "text-white/90"
+                  )}
                 >
                   {cell.day}
                 </span>
@@ -195,12 +215,12 @@ export const AttendanceContributionGraph = ({
               {isWorked ? (
                 <div className="flex flex-col gap-0.5 mt-1">
                   {rec!.hours > 0 && (
-                    <span className="text-[11px] font-extrabold leading-none">
+                    <span className="text-[11px] font-black leading-none text-white">
                       {rec!.hours.toFixed(1)}h
                     </span>
                   )}
                   {rec!.checkIn && (
-                    <span className="text-[9px] leading-none" style={{ opacity: 0.75 }}>
+                    <span className="text-[9px] font-bold leading-none text-white/80">
                       {toHHMM(rec!.checkIn)}{rec!.checkOut ? ` → ${toHHMM(rec!.checkOut)}` : ''}
                     </span>
                   )}
@@ -218,8 +238,8 @@ export const AttendanceContributionGraph = ({
         {[
           { label: 'Off',     style: { backgroundColor: 'color-mix(in srgb, var(--color-on-surface) 10%, transparent)' } },
           { label: 'Present', style: { backgroundColor: 'color-mix(in srgb, var(--color-tertiary) 70%, transparent)' } },
-          { label: 'Late',    style: { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 80%, transparent)' } },
-          { label: 'OT',      style: { backgroundColor: 'var(--color-tertiary)' } },
+          { label: 'Issue',   style: { backgroundColor: 'color-mix(in srgb, var(--color-secondary) 80%, transparent)' } },
+          { label: 'Bonus',   style: { backgroundColor: 'var(--color-tertiary)' } },
         ].map(({ label, style }) => (
           <div key={label} className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-[3px]" style={style} />
