@@ -313,10 +313,7 @@ export const OrdersView = ({
       ? `${window.location.origin}/track/${receiptModal.trackingToken}`
       : `${window.location.origin}/track/${receiptModal.orderNumber}`;
     const items = receiptModal.items.map(item => {
-      // item.price is unit_price from the backend — already the final per-unit price
-      // including any variation override. Do NOT use getCartItemPrice here; that helper
-      // is for live cart items where item.price is the base and variations are deltas.
-      const lineTotal = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+      const lineTotal = Math.round(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
       const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
       const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
       const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');
@@ -1709,7 +1706,7 @@ export const OrdersView = ({
                       {/* Items */}
                       <div className="px-4 py-1 space-y-2">
                         {receiptModal.items.map((item, i) => {
-                          const lineTotal = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+                          const lineTotal = Math.round(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
                           const varNames = Object.values(item.selectedVariations || {}).map((o: any) => o.name).join(', ');
                           const suppNames = Object.values(item.selectedSupplements || {}).map((o: any) => o.name).join(', ');
                           const modifiers = [varNames, suppNames].filter(Boolean).join(' | ');
@@ -1735,16 +1732,29 @@ export const OrdersView = ({
 
                       <div className="px-4"><Sep /></div>
 
-                      {/* Subtotals */}
-                      <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
-                        <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(receiptModal.subtotal)}</span></div>
-                        {receiptModal.tax > 0 && <div className="flex justify-between"><span>Tax{localization.taxEnabled ? ` (${localization.taxRate}%)` : ''}:</span><span>{formatCurrency(receiptModal.tax)}</span></div>}
-                      </div>
-
-                      <div className="px-4"><Sep2 /></div>
-                      <div className="px-4 flex justify-between font-bold text-[14px]">
-                        <span>TOTAL:</span><span>{formatCurrency(receiptModal.total)}</span>
-                      </div>
+                      {/* Subtotals — re-computed from items so variation prices are included */}
+                      {(() => {
+                        const computedSubtotal = receiptModal.items.reduce((sum, item) => {
+                          const lt = Math.round(getCartItemPrice(item) * item.quantity * (1 - (item.discount || 0) / 100) * 100) / 100;
+                          return Math.round((sum + lt) * 100) / 100;
+                        }, 0);
+                        const taxRate2 = localization.taxEnabled ? localization.taxRate / 100 : 0;
+                        const gratuityRate2 = localization.gratuityEnabled ? localization.gratuityRate / 100 : 0;
+                        const computedTotal = Math.round(computedSubtotal * (1 + taxRate2 + gratuityRate2) * 100) / 100;
+                        return (
+                          <>
+                            <div className="px-4 py-1 space-y-0.5 text-[11px] text-gray-600">
+                              <div className="flex justify-between"><span>Subtotal:</span><span>{formatCurrency(computedSubtotal)}</span></div>
+                              {receiptModal.tax > 0 && <div className="flex justify-between"><span>Tax{localization.taxEnabled ? ` (${localization.taxRate}%)` : ''}:</span><span>{formatCurrency(receiptModal.tax)}</span></div>}
+                              {localization.gratuityEnabled && localization.gratuityRate > 0 && <div className="flex justify-between"><span>Gratuity ({localization.gratuityRate}%):</span><span>{formatCurrency(Math.round(computedSubtotal * gratuityRate2 * 100) / 100)}</span></div>}
+                            </div>
+                            <div className="px-4"><Sep2 /></div>
+                            <div className="px-4 flex justify-between font-bold text-[14px]">
+                              <span>TOTAL:</span><span>{formatCurrency(computedTotal)}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
                       <div className="px-4"><Sep2 /></div>
 
                       <div className="px-4"><Sep /></div>

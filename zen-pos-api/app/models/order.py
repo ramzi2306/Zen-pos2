@@ -35,17 +35,16 @@ class OrderItem(BaseModel):
         if self.manual_price is not None:
             return round(self.manual_price * self.quantity * (1 - self.discount / 100), 2)
 
-        # Replicate frontend logic: variation price replaces unit_price; supplements are added.
+        # Variation prices override unit_price; supplements are additive on top.
         variations = [v for v in self.selected_variations if not v.is_supplement]
         supplements = [v for v in self.selected_variations if v.is_supplement]
-        
+
         var_total = sum(v.price_adjustment for v in variations)
         supp_total = sum(v.price_adjustment for v in supplements)
-        
-        # If any non-supplement variation has a price (even 0), it overrides the unit_price.
-        has_variation_override = len(variations) > 0
-        
-        base_unit = var_total if has_variation_override else self.unit_price
+
+        # Only override if at least one variation carries a non-zero price
+        has_override = any(v.price_adjustment != 0 for v in variations)
+        base_unit = var_total if has_override else self.unit_price
         total_unit = base_unit + supp_total
         
         return round(total_unit * self.quantity * (1 - self.discount / 100), 2)
