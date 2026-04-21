@@ -394,10 +394,9 @@ export const ProfilePanel = ({
   const sessionOrders = openedAt > 0 ? orders.filter(o => {
     const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
     return t >= openedAt;
-  }) : [];
-  
-  // Use all orders for the daily total displayed in the panel, per user request.
-  const totalSales = orders
+  }) : orders;
+
+  const totalSales = sessionOrders
     .filter(o => o.paymentStatus === 'Paid' && o.status !== 'Cancelled')
     .reduce((sum, o) => sum + o.total, 0);
   const totalOrders = orders.filter(o => o.status !== 'Cancelled').length;
