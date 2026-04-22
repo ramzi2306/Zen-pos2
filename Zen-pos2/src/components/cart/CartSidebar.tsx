@@ -117,7 +117,7 @@ export const CartSidebar = ({
       setNoResultsForPrefix(null);
     }
 
-    if (customerSearch.length >= 5 && customerSearch.length < 10) {
+    if (customerSearch.length >= 5 && customerSearch.length <= 10) {
       // Unify with the prefix cache logic
       for (let i = 5; i < customerSearch.length; i++) {
         if (searchPrefixCache.has(customerSearch.substring(0, i))) {
@@ -167,10 +167,6 @@ export const CartSidebar = ({
     const filtered = apiClients.filter(
       c => c.phone.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())
     );
-
-    if (filtered.length === 0 && customerSearch.length >= 5) {
-      setSearchPrefixCache(prev => new Set([...prev, customerSearch]));
-    }
 
     return filtered;
   }, [apiClients, customerSearch, searchPrefixCache]);

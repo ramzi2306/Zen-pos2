@@ -390,7 +390,7 @@ export const ProfilePanel = ({
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
-  const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+  const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || new Date().setHours(0,0,0,0);
   
   // Create a robust shift filter. 
   // If we have a session start time, use it with a very generous 1-hour grace period for clock skew.
@@ -399,8 +399,8 @@ export const ProfilePanel = ({
     if (!openedAt) return orders;
     const shiftStart = openedAt - 3600000; // 1 hour grace period
     return orders.filter(o => {
-      const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
-      return t >= shiftStart;
+      const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt.includes(' ') ? o.createdAt.replace(' ', 'T') : o.createdAt).getTime() : 0);
+      return !isNaN(t) && t >= shiftStart;
     });
   }, [orders, openedAt]);
 

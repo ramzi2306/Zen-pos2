@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Sidebar, TopBar, CartSidebar, MobileNav, CartFloatingAction, ProfilePanel } from './components/Layout';
+import { Sidebar, TopBar, MobileNav, ProfilePanel } from './components/Layout';
+import { CartSidebar, CartFloatingAction } from './components/cart';
 import { AdminLoginView } from './views/AdminLoginView';
 
 // Heavy views are lazy-loaded so cashiers/chefs never download the admin bundle
@@ -568,7 +569,7 @@ function AppShell() {
     if (reportData) {
       try {
         await api.register.submitRegisterReport({
-          openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || Date.now(),
+          openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || new Date().setHours(0,0,0,0),
           closedAt: Date.now(),
           cashierName: currentUser?.name || 'Unknown',
           expectedSales: reportData.expectedSales,

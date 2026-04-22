@@ -115,7 +115,7 @@ function mapOrder(raw: ApiOrder, users: User[] = []): Order {
     scheduledTime: raw.scheduled_time,
     startTime: raw.start_time,
     endTime: raw.end_time,
-    queueStartTime: raw.created_at ? new Date(raw.created_at).getTime() : undefined,
+    queueStartTime: raw.created_at ? new Date(raw.created_at.includes(' ') ? raw.created_at.replace(' ', 'T') : raw.created_at).getTime() : undefined,
     createdAt: raw.created_at,
     isUrgent: raw.is_urgent,
     cook,

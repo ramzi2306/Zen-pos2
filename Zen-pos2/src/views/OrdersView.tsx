@@ -218,7 +218,6 @@ export const OrdersView = ({
   const handleOrderClick = (order: Order, e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-                  onClearRecentlyUpdated?.(order.id);
     onClearRecentlyUpdated?.(order.id);
     if (order.status === 'Draft' && order.id === 'Current Cart') {
       if (onEditOrder) onEditOrder(order);
