@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calculator } from 'lucide-react';
 import { Order } from '../../data';
@@ -391,17 +391,25 @@ export const ProfilePanel = ({
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
   const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
-  // Add a 5-minute grace period (300000ms) to account for client/server clock skew
-  const shiftStart = openedAt > 0 ? openedAt - 300000 : 0;
+  
+  // Create a robust shift filter. 
+  // If we have a session start time, use it with a very generous 1-hour grace period for clock skew.
+  // If no session start is found, default to showing all orders from the current list (which are already filtered for 'today' in App.tsx).
+  const sessionOrders = useMemo(() => {
+    if (!openedAt) return orders;
+    const shiftStart = openedAt - 3600000; // 1 hour grace period
+    return orders.filter(o => {
+      const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
+      return t >= shiftStart;
+    });
+  }, [orders, openedAt]);
 
-  const sessionOrders = shiftStart > 0 ? orders.filter(o => {
-    const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
-    return t >= shiftStart;
-  }) : orders;
+  const paidOrders = useMemo(() => 
+    sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid' && o.status !== 'Cancelled'),
+    [sessionOrders]
+  );
 
-  const totalSales = sessionOrders
-    .filter(o => o.paymentStatus?.toLowerCase() === 'paid' && o.status !== 'Cancelled')
-    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const totalSales = paidOrders.reduce((sum, o) => sum + (o.total || 0), 0);
   const totalOrders = orders.filter(o => o.status !== 'Cancelled').length;
 
   const canSwitchLocation = !currentUser?.locationId && locations.length > 0 && !!setActiveLocationId;
