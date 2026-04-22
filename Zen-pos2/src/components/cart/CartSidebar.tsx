@@ -109,6 +109,7 @@ export const CartSidebar = ({
   };
 
   const [noResultsForPrefix, setNoResultsForPrefix] = useState<string | null>(null);
+  const [searchPrefixCache, setSearchPrefixCache] = useState<Set<string>>(new Set());
 
   // Search logic: trigger API call when search reaches >= 5 chars
   useEffect(() => {
@@ -152,8 +153,6 @@ export const CartSidebar = ({
       api.delivery.listActivePlaces().then(places => setDeliveryPlaces(places)).catch(console.error);
     }
   }, [orderType]);
-
-  const [searchPrefixCache, setSearchPrefixCache] = useState<Set<string>>(new Set());
 
   const filteredClients = useMemo(() => {
     if (customerSearch.length < 5) return [];
