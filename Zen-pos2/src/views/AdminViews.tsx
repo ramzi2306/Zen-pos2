@@ -4095,10 +4095,10 @@ const SalesView = () => {
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Revenue', value: formatCurrency(summary?.total_revenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Total Orders', value: summary?.total_orders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenue_this_month || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Avg Order Value', value: formatCurrency(summary?.avg_order_value || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Total Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenueThisMonth || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Avg Order Value', value: formatCurrency(summary?.avgOrderValue || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
           ].map((stat, i) => (
             <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-4">

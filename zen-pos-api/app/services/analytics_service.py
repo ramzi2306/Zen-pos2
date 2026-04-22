@@ -19,10 +19,14 @@ class AnalyticsService:
         end_of_day = start_of_day + timedelta(days=1)
         date_str = start_of_day.strftime("%Y-%m-%d")
 
-        # Find all paid, non-cancelled orders for that day
+        # Find all completed or paid orders for that day
+        from beanie.operators import Or
         orders = await OrderDocument.find(
             OrderDocument.status != "Cancelled",
-            OrderDocument.payment_status == "Paid",
+            Or(
+                OrderDocument.payment_status == "Paid",
+                OrderDocument.status == "Done"
+            ),
             OrderDocument.created_at >= start_of_day,
             OrderDocument.created_at < end_of_day
         ).to_list()
