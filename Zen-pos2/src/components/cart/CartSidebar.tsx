@@ -112,19 +112,27 @@ export const CartSidebar = ({
 
   // Search logic: trigger API call when search reaches >= 5 chars
   useEffect(() => {
-    // If we already know this prefix (or a shorter one) has no results, don't search again
-    if (noResultsForPrefix && customerSearch.startsWith(noResultsForPrefix)) {
-      setApiClients([]);
-      return;
+    // If we backspace below the failing prefix, allow searching again
+    if (noResultsForPrefix && !customerSearch.startsWith(noResultsForPrefix)) {
+      setNoResultsForPrefix(null);
     }
 
     if (customerSearch.length >= 5 && customerSearch.length < 10) {
+      // Unify with the prefix cache logic
+      for (let i = 5; i < customerSearch.length; i++) {
+        if (searchPrefixCache.has(customerSearch.substring(0, i))) {
+          setApiClients([]);
+          return;
+        }
+      }
+
       const delayDebounceFn = setTimeout(() => {
         api.customers.listCustomers(customerSearch)
           .then(clients => {
             setApiClients(clients);
             if (clients.length === 0) {
               setNoResultsForPrefix(customerSearch);
+              setSearchPrefixCache(prev => new Set([...prev, customerSearch]));
             } else {
               setNoResultsForPrefix(null);
             }
@@ -132,16 +140,11 @@ export const CartSidebar = ({
           .catch(console.error);
       }, 300);
       return () => clearTimeout(delayDebounceFn);
-    } else {
-      // If we backspace below the failing prefix, allow searching again
-      if (noResultsForPrefix && !customerSearch.startsWith(noResultsForPrefix)) {
-        setNoResultsForPrefix(null);
-      }
-      if (customerSearch.length === 0) {
-        setApiClients([]);
-      }
+    } else if (customerSearch.length === 0) {
+      setApiClients([]);
+      setNoResultsForPrefix(null);
     }
-  }, [customerSearch, noResultsForPrefix]);
+  }, [customerSearch, noResultsForPrefix, searchPrefixCache]);
 
   // Load active delivery places when switching to delivery order type
   useEffect(() => {
