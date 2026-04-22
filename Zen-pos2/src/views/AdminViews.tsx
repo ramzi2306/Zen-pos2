@@ -4461,6 +4461,34 @@ const CustomersView = () => {
     }
   };
 
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Customer; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
+  const sortedCustomers = useMemo(() => {
+    const sortable = [...customers];
+    sortable.sort((a, b) => {
+      const aVal = a[sortConfig.key] ?? '';
+      const bVal = b[sortConfig.key] ?? '';
+      
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sortable;
+  }, [customers, sortConfig]);
+
+  const requestSort = (key: keyof Customer) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key: keyof Customer) => {
+    if (sortConfig.key !== key) return 'unfold_more';
+    return sortConfig.direction === 'asc' ? 'expand_less' : 'expand_more';
+  };
+
   const formatDate = (iso?: string) => {
     if (!iso) return 'Never';
     return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -4511,16 +4539,36 @@ const CustomersView = () => {
                   <th className="px-5 py-3 w-12 text-center">
                     <input type="checkbox" checked={customers.length > 0 && selectedCustomerIds.size === customers.length} onChange={toggleSelectAllCustomers} className="rounded text-secondary w-4 h-4 cursor-pointer" />
                   </th>
-                  <th className="text-left px-5 py-3">Name</th>
+                  <th className="text-left px-5 py-3">
+                    <button onClick={() => requestSort('name')} className="flex items-center gap-1 hover:text-on-surface transition-colors uppercase tracking-wider">
+                      Name
+                      <span className="material-symbols-outlined text-[14px]">{getSortIcon('name')}</span>
+                    </button>
+                  </th>
                   <th className="text-left px-5 py-3">Phone</th>
-                  <th className="text-right px-5 py-3">Orders</th>
-                  <th className="text-right px-5 py-3">Total Spent</th>
-                  <th className="text-left px-5 py-3">Last Order</th>
+                  <th className="text-right px-5 py-3">
+                    <button onClick={() => requestSort('orderCount')} className="flex items-center gap-1 hover:text-on-surface transition-colors uppercase tracking-wider ml-auto">
+                      Orders
+                      <span className="material-symbols-outlined text-[14px]">{getSortIcon('orderCount')}</span>
+                    </button>
+                  </th>
+                  <th className="text-right px-5 py-3">
+                    <button onClick={() => requestSort('totalSpent')} className="flex items-center gap-1 hover:text-on-surface transition-colors uppercase tracking-wider ml-auto">
+                      Total Spent
+                      <span className="material-symbols-outlined text-[14px]">{getSortIcon('totalSpent')}</span>
+                    </button>
+                  </th>
+                  <th className="text-left px-5 py-3">
+                    <button onClick={() => requestSort('lastOrderDate')} className="flex items-center gap-1 hover:text-on-surface transition-colors uppercase tracking-wider">
+                      Last Order
+                      <span className="material-symbols-outlined text-[14px]">{getSortIcon('lastOrderDate')}</span>
+                    </button>
+                  </th>
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map(c => (
+                {sortedCustomers.map(c => (
                   <tr key={c.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
                     <td className="px-5 py-4 text-center">
                       <input type="checkbox" checked={selectedCustomerIds.has(c.id)} onChange={() => toggleCustomerSelect(c.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
