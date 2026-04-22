@@ -193,7 +193,8 @@ async def sales_summary():
 async def daily_sales(start_date: str, end_date: str):
     from app.services.analytics_service import AnalyticsService
     summaries = await AnalyticsService.get_daily_summaries(start_date, end_date)
-    return [
+
+    results = [
         DailySalesItem(
             date=s.date,
             income=s.total_revenue,
@@ -202,3 +203,38 @@ async def daily_sales(start_date: str, end_date: str):
         )
         for s in summaries
     ]
+
+    # If end_date includes today, compute today's data live from orders
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if end_date >= today_str:
+        # Check if today already exists in pre-aggregated data (shouldn't, but be safe)
+        existing_dates = {r.date for r in results}
+        if today_str not in existing_dates:
+            start_of_today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            from beanie.operators import Or
+            today_orders = await OrderDocument.find(
+                OrderDocument.status != "Cancelled",
+                Or(
+                    OrderDocument.payment_status == "Paid",
+                    OrderDocument.status == "Done"
+                ),
+                OrderDocument.created_at >= start_of_today
+            ).to_list()
+
+            if today_orders:
+                today_revenue = sum(o.total for o in today_orders)
+                today_prep_ms = 0
+                today_prep_count = 0
+                for o in today_orders:
+                    if o.start_time and o.end_time:
+                        today_prep_ms += (o.end_time - o.start_time)
+                        today_prep_count += 1
+
+                results.append(DailySalesItem(
+                    date=today_str,
+                    income=round(today_revenue, 2),
+                    order_count=len(today_orders),
+                    avg_prep_time_minutes=round(today_prep_ms / today_prep_count / 60000) if today_prep_count > 0 else 0
+                ))
+
+    return results

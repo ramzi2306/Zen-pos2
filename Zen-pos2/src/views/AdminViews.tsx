@@ -4023,6 +4023,14 @@ const SalesView = () => {
     }));
   }, [dailyData]);
 
+  // Compute KPI values from dailyData so they respond to the date filter
+  const filteredKPIs = useMemo(() => {
+    const totalRevenue = dailyData.reduce((s, d) => s + d.income, 0);
+    const totalOrders = dailyData.reduce((s, d) => s + d.order_count, 0);
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    return { totalRevenue, totalOrders, avgOrderValue };
+  }, [dailyData]);
+
   // Remove the jumpy full-screen splash. Let the skeletons handle the loading state immediately.
   // if (loading) return <LoadingScreen />; 
 
@@ -4096,10 +4104,10 @@ const SalesView = () => {
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: summaryLoading },
-            { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString() || '0', icon: <span className="material-symbols-outlined text-[18px]">tag</span>, loading: summaryLoading },
-            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenueThisMonth || 0), icon: <span className="material-symbols-outlined text-[18px]">calendar_month</span>, loading: summaryLoading },
-            { label: 'Avg Order Value', value: formatCurrency(summary?.avgOrderValue || 0), icon: <span className="material-symbols-outlined text-[18px]">shopping_bag</span>, loading: summaryLoading },
+            { label: 'Period Revenue', value: formatCurrency(filteredKPIs.totalRevenue), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: dailyLoading },
+            { label: 'Period Orders', value: filteredKPIs.totalOrders.toLocaleString(), icon: <span className="material-symbols-outlined text-[18px]">tag</span>, loading: dailyLoading },
+            { label: 'Avg Order Value', value: formatCurrency(filteredKPIs.avgOrderValue), icon: <span className="material-symbols-outlined text-[18px]">shopping_bag</span>, loading: dailyLoading },
+            { label: 'All-Time Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <span className="material-symbols-outlined text-[18px]">calendar_month</span>, loading: summaryLoading },
           ].map((stat, i) => (
             <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-4">
