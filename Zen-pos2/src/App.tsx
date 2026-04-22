@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Sidebar } from './components/Layout/Sidebar';
-import { TopBar } from './components/Layout/TopBar';
-import { MobileNav } from './components/Layout/MobileNav';
-import { ProfilePanel } from './components/Layout/ProfilePanel';
-import { CartSidebar } from './components/cart/CartSidebar';
-import { CartFloatingAction } from './components/cart/CartFloatingAction';
+import { Sidebar, TopBar, MobileNav, ProfilePanel } from './components/Layout';
+import { CartSidebar, CartFloatingAction } from './components/cart';
 import { AdminLoginView } from './views/AdminLoginView';
 
 // Heavy views are lazy-loaded so cashiers/chefs never download the admin bundle
