@@ -51,26 +51,29 @@ class DailySalesItem(BaseModel):
             dependencies=[Depends(require_permission("view_orders"))])
 async def bestsellers(limit: int = 5):
     start = _start_of_month()
-    orders = await OrderDocument.find(
-        OrderDocument.status != "Cancelled",
-        OrderDocument.created_at >= start,
-    ).to_list()
-
-    product_qty: Counter = Counter()
-    product_rev: dict = {}
-    for order in orders:
-        for item in order.items:
-            product_qty[item.product_name] += item.quantity
-            product_rev[item.product_name] = product_rev.get(item.product_name, 0.0) + (item.unit_price * item.quantity)
-
-    top = product_qty.most_common(limit)
+    pipeline = [
+        {"$match": {
+            "status": {"$ne": "Cancelled"},
+            "created_at": {"$gte": start}
+        }},
+        {"$unwind": "$items"},
+        {"$group": {
+            "_id": "$items.product_name",
+            "total_quantity": {"$sum": "$items.quantity"},
+            "total_revenue": {"$sum": {"$multiply": ["$items.unit_price", "$items.quantity"]}}
+        }},
+        {"$sort": {"total_quantity": -1}},
+        {"$limit": limit}
+    ]
+    
+    results = await OrderDocument.aggregate(pipeline).to_list()
     return [
         BestsellerItem(
-            product_name=name,
-            total_quantity=qty,
-            total_revenue=round(product_rev.get(name, 0.0), 2),
+            product_name=r["_id"],
+            total_quantity=r["total_quantity"],
+            total_revenue=round(r["total_revenue"], 2),
         )
-        for name, qty in top
+        for r in results
     ]
 
 
@@ -78,45 +81,55 @@ async def bestsellers(limit: int = 5):
             dependencies=[Depends(require_permission("view_orders"))])
 async def kitchen_leaderboard():
     start = _start_of_month()
-    try:
-        orders = await OrderDocument.find(
-            OrderDocument.status == "Done",
-            OrderDocument.created_at >= start,
-        ).to_list()
-    except Exception:
+    pipeline = [
+        {"$match": {
+            "status": "Done",
+            "created_at": {"$gte": start},
+            "cook": {"$ne": None}
+        }},
+        {"$group": {
+            "_id": "$cook",
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"count": -1}}
+    ]
+    
+    results = await OrderDocument.aggregate(pipeline).to_list()
+    if not results:
         return []
 
-    cook_counts: Counter = Counter()
-    for order in orders:
-        try:
-            if order.cook and hasattr(order.cook, "ref") and order.cook.ref:
-                cook_id = str(order.cook.ref.id)
-                cook_counts[cook_id] += 1
-            elif order.cook and isinstance(order.cook, str):
-                cook_counts[order.cook] += 1
-        except Exception:
-            continue
+    # results["_id"] are DBRefs (Beanie links)
+    cook_ids = []
+    counts_map = {}
+    for r in results:
+        # Extract ID from DBRef or direct string/ObjectId
+        cid = r["_id"]
+        if hasattr(cid, "id"):
+            cid_str = str(cid.id)
+        elif isinstance(cid, dict) and "$id" in cid:
+            cid_str = str(cid["$id"])
+        else:
+            cid_str = str(cid)
+        
+        cook_ids.append(cid_str)
+        counts_map[cid_str] = r["count"]
 
-    if not cook_counts:
-        return []
-
-    # Batch-fetch all cooks in a single query instead of N individual lookups
-    ranked = cook_counts.most_common()
+    # Batch fetch users
     try:
-        object_ids = [PydanticObjectId(uid) for uid, _ in ranked]
+        object_ids = [PydanticObjectId(uid) for uid in cook_ids]
         users_list = await UserDocument.find(In(UserDocument.id, object_ids)).to_list()
         user_map = {str(u.id): u for u in users_list}
     except Exception:
         user_map = {}
 
     entries = []
-    for rank, (cook_id, count) in enumerate(ranked, start=1):
-        user = user_map.get(cook_id)
+    for rank, cid in enumerate(cook_ids, start=1):
+        user = user_map.get(cid)
         entries.append(LeaderboardEntry(
-            user_id=cook_id,
+            user_id=cid,
             name=user.name if user else "Unknown",
             avatar=getattr(user, "image", "") or "",
-            orders_completed=count,
+            orders_completed=counts_map[cid],
             rank=rank,
         ))
     return entries
@@ -125,37 +138,53 @@ async def kitchen_leaderboard():
 @router.get("/summary", response_model=SalesSummary,
             dependencies=[Depends(require_permission("view_orders"))])
 async def sales_summary():
-    start = _start_of_month()
-    # Aggregation pipeline — DB does the maths, never loads all orders into memory
-    pipeline = [
-        {"$match": {"status": {"$ne": "Cancelled"}}},
+    start_of_month = _start_of_month()
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 1. Get historical sums from DailySalesSummary
+    hist_pipeline = [
         {"$group": {
             "_id": None,
-            "total_orders": {"$sum": 1},
-            "total_revenue": {"$sum": "$total"},
+            "total_orders": {"$sum": "$order_count"},
+            "total_revenue": {"$sum": "$total_revenue"},
             "month_orders": {
-                "$sum": {"$cond": [{"$gte": ["$created_at", start]}, 1, 0]},
+                "$sum": {"$cond": [{"$gte": ["$date", start_of_month.strftime("%Y-%m-%d")]}, "$order_count", 0]}
             },
             "month_revenue": {
-                "$sum": {"$cond": [{"$gte": ["$created_at", start]}, "$total", 0]},
+                "$sum": {"$cond": [{"$gte": ["$date", start_of_month.strftime("%Y-%m-%d")]}, "$total_revenue", 0]}
             },
-        }},
+        }}
     ]
-    results = await OrderDocument.aggregate(pipeline).to_list()
-    if not results:
-        return SalesSummary(
-            total_orders=0, total_revenue=0.0, avg_order_value=0.0,
-            orders_this_month=0, revenue_this_month=0.0,
-        )
-    r = results[0]
-    total_orders = r.get("total_orders", 0)
-    total_rev = float(r.get("total_revenue", 0.0))
+    from app.models.daily_sales import DailySalesSummary
+    hist_results = await DailySalesSummary.aggregate(hist_pipeline).to_list()
+    h = hist_results[0] if hist_results else {"total_orders": 0, "total_revenue": 0.0, "month_orders": 0, "month_revenue": 0.0}
+
+    # 2. Get today's data from OrderDocument
+    today_pipeline = [
+        {"$match": {
+            "status": {"$ne": "Cancelled"},
+            "created_at": {"$gte": today_start}
+        }},
+        {"$group": {
+            "_id": None,
+            "count": {"$sum": 1},
+            "revenue": {"$sum": "$total"}
+        }}
+    ]
+    today_results = await OrderDocument.aggregate(today_pipeline).to_list()
+    t = today_results[0] if today_results else {"count": 0, "revenue": 0.0}
+
+    total_orders = h["total_orders"] + t["count"]
+    total_rev = h["total_revenue"] + t["revenue"]
+    month_orders = h["month_orders"] + t["count"]
+    month_rev = h["month_revenue"] + t["revenue"]
+
     return SalesSummary(
         total_orders=total_orders,
         total_revenue=round(total_rev, 2),
         avg_order_value=round(total_rev / total_orders, 2) if total_orders else 0.0,
-        orders_this_month=r.get("month_orders", 0),
-        revenue_this_month=round(float(r.get("month_revenue", 0.0)), 2),
+        orders_this_month=month_orders,
+        revenue_this_month=round(month_rev, 2),
     )
 
 

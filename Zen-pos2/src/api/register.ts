@@ -48,8 +48,12 @@ export async function submitRegisterReport(
   return mapRegisterReport(raw);
 }
 
-export async function listRegisterReports(locationId?: string): Promise<RegisterReport[]> {
-  const url = locationId ? `/register/reports?location_id=${locationId}` : '/register/reports';
+export async function listRegisterReports(locationId?: string, limit?: number): Promise<RegisterReport[]> {
+  const params = new URLSearchParams();
+  if (locationId) params.set('location_id', locationId);
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const url = `/register/reports${qs ? '?' + qs : ''}`;
   const raw = await apiRequest<ApiRegisterReport[]>(url);
   return raw.map(mapRegisterReport);
 }

@@ -57,11 +57,12 @@ async def submit_register_report(body: RegisterReportCreate):
             dependencies=[Depends(require_permission("view_orders"))])
 async def list_register_reports(
     location_id: Optional[str] = Query(None, description="Filter by location"),
+    limit: int = Query(50, ge=1, le=1000),
 ):
     query = RegisterReportDocument.find()
     if location_id:
         query = query.find(RegisterReportDocument.location_id == location_id)
-    reports = await query.sort("-closed_at").to_list()
+    reports = await query.sort("-closed_at").limit(limit).to_list()
     return [_to_out(r) for r in reports]
 
 

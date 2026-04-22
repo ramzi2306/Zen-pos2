@@ -3942,23 +3942,29 @@ const SalesView = () => {
     return { start, end };
   };
 
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    Promise.allSettled([
-      api.users.listUsers().then(u => { setUsers(u); return u; }).then(u => api.orders.listOrders(u, undefined, undefined, dateFilter.start, dateFilter.end, 100)),
-      api.analytics.getBestsellers(5),
-      api.analytics.getLeaderboard(),
-      api.analytics.getSalesSummary(),
-      api.analytics.getDailySales(dateFilter.start, dateFilter.end),
-      api.register.listRegisterReports(),
-    ]).then(([ords, bs, lb, sum, daily, rawReports]) => {
-      if (ords.status === 'fulfilled') setOrders(ords.value);
-      if (bs.status === 'fulfilled') setBestsellers(bs.value);
-      if (lb.status === 'fulfilled') setLeaderboard(lb.value);
-      if (sum.status === 'fulfilled') setSummary(sum.value);
-      if (daily.status === 'fulfilled') setDailyData(daily.value);
-      if (rawReports.status === 'fulfilled') setRegisterReports(rawReports.value.sort((a: RegisterReport, b: RegisterReport) => b.closedAt - a.closedAt));
-    }).catch(console.error).finally(() => setLoading(false));
+
+    // 1. Initial parallel fetch for non-dependent data
+    const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
+    const bestsellersPromise = api.analytics.getBestsellers(5).then(bs => setBestsellers(bs)).catch(console.error);
+    const leaderboardPromise = api.analytics.getLeaderboard().then(lb => setLeaderboard(lb)).catch(console.error);
+    const summaryPromise = api.analytics.getSalesSummary().then(sum => setSummary(sum)).catch(console.error);
+    const dailyPromise = api.analytics.getDailySales(dateFilter.start, dateFilter.end).then(d => setDailyData(d)).catch(console.error);
+    const reportsPromise = api.register.listRegisterReports(undefined, 50).then(raw => setRegisterReports(raw.sort((a, b) => b.closedAt - a.closedAt))).catch(console.error);
+
+    // Wait for the essential dashboard numbers to unlock the UI
+    await Promise.allSettled([summaryPromise, dailyPromise]);
+    setLoading(false);
+
+    // 2. Fetch orders list (depends on users for mapping, but we can do it in background)
+    const currentUsers = await usersPromise;
+    api.orders.listOrders(currentUsers, undefined, undefined, dateFilter.start, dateFilter.end, 100)
+      .then(setOrders)
+      .catch(console.error);
+
+    // Other non-blocking data
+    await Promise.allSettled([bestsellersPromise, leaderboardPromise, reportsPromise]);
   }, [dateFilter.start, dateFilter.end]);
 
   useEffect(() => {
