@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
+import { TrendingUp, Hash, Calendar, ShoppingBag, BarChart3 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
 import type { IngredientItem, PurchaseLog } from '../api/inventory';
