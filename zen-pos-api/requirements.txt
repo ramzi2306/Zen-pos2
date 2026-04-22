@@ -18,6 +18,7 @@ pydantic[email]==2.10.4
 
 # Utils
 python-dateutil==2.9.0
+apscheduler==3.10.4
 
 # Testing
 pytest==8.3.4
