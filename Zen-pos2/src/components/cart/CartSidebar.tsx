@@ -108,15 +108,40 @@ export const CartSidebar = ({
     setToast(null);
   };
 
-  // Load clients once — skip subsequent opens to avoid redundant API calls
+  const [noResultsForPrefix, setNoResultsForPrefix] = useState<string | null>(null);
+
+  // Search logic: trigger API call when search reaches >= 5 chars
   useEffect(() => {
-    if (isOpen && !clientsLoadedRef.current) {
-      api.customers.listCustomers().then(clients => {
-        setApiClients(clients);
-        clientsLoadedRef.current = true;
-      }).catch(() => {});
+    // If we already know this prefix (or a shorter one) has no results, don't search again
+    if (noResultsForPrefix && customerSearch.startsWith(noResultsForPrefix)) {
+      setApiClients([]);
+      return;
     }
-  }, [isOpen]);
+
+    if (customerSearch.length >= 5 && customerSearch.length < 10) {
+      const delayDebounceFn = setTimeout(() => {
+        api.customers.listCustomers(customerSearch)
+          .then(clients => {
+            setApiClients(clients);
+            if (clients.length === 0) {
+              setNoResultsForPrefix(customerSearch);
+            } else {
+              setNoResultsForPrefix(null);
+            }
+          })
+          .catch(console.error);
+      }, 300);
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      // If we backspace below the failing prefix, allow searching again
+      if (noResultsForPrefix && !customerSearch.startsWith(noResultsForPrefix)) {
+        setNoResultsForPrefix(null);
+      }
+      if (customerSearch.length === 0) {
+        setApiClients([]);
+      }
+    }
+  }, [customerSearch, noResultsForPrefix]);
 
   // Load active delivery places when switching to delivery order type
   useEffect(() => {
@@ -324,14 +349,16 @@ export const CartSidebar = ({
                     </motion.button>
                     <input
                       type="text"
-                      placeholder="Rechercher un client (nom ou téléphone)"
+                      placeholder="Numéro de téléphone (10 chiffres)"
                       className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface"
                       value={customerSearch}
                       onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        setShowClientDropdown(e.target.value.length > 0);
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        setCustomerSearch(val);
+                        // Search after 5th number
+                        setShowClientDropdown(val.length >= 5);
                       }}
-                      onFocus={() => setShowClientDropdown(customerSearch.length > 0)}
+                      onFocus={() => setShowClientDropdown(customerSearch.length >= 5)}
                     />
                     <motion.button
                       whileTap={{ scale: 0.85 }}
@@ -355,7 +382,7 @@ export const CartSidebar = ({
                               <div className="text-xs text-on-surface-variant">{client.phone}</div>
                             </div>
                           ))
-                        ) : (
+                        ) : customerSearch.length === 10 ? (
                           <div className="p-3 bg-surface-container-lowest">
                             <div className="text-xs text-on-surface-variant mb-2">Nouveau client</div>
                             <input
@@ -386,6 +413,10 @@ export const CartSidebar = ({
                             >
                               Ajouter
                             </button>
+                          </div>
+                        ) : (
+                          <div className="p-3 text-xs text-on-surface-variant text-center italic">
+                            Continuer à taper...
                           </div>
                         )}
                       </div>

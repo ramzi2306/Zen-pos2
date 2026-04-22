@@ -3957,7 +3957,9 @@ const SalesView = () => {
     setBestsellersLoading(true);
     setReportsLoading(true);
     setOrdersLoading(true);
-    setLoading(false);
+    
+    // Smoothly transition from splash to skeletons
+    setTimeout(() => setLoading(false), 200);
 
     const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
     const ordersPromise = api.orders.listOrders(undefined, undefined, undefined, dateFilter.start, dateFilter.end, 100);
@@ -4107,9 +4109,9 @@ const SalesView = () => {
                 </div>
               </div>
               {stat.loading ? (
-                <div className="space-y-2">
-                  <div className="h-4 w-24 bg-white/5 animate-pulse rounded" />
-                  <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
+                <div className="space-y-3">
+                  <div className="h-3 w-20 bg-white/10 animate-pulse rounded-full opacity-50" />
+                  <div className="h-8 w-32 bg-white/20 animate-pulse rounded-xl" />
                 </div>
               ) : (
                 <>
@@ -4231,16 +4233,16 @@ const SalesView = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {ordersLoading ? (
-                    [...Array(5)].map((_, i) => (
-                      <tr key={i} className="animate-pulse">
-                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-6 w-20 bg-white/5 rounded-full" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
-                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                    [...Array(6)].map((_, i) => (
+                      <tr key={i} className="animate-pulse opacity-50">
+                        <td className="px-4 py-4"><div className="h-3 w-10 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-28 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-12 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-20 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-14 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-6 w-16 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-12 bg-white/10 rounded-full" /></td>
+                        <td className="px-4 py-4"><div className="h-3 w-12 bg-white/10 rounded-full" /></td>
                       </tr>
                     ))
                   ) : filtered.length === 0 ? (
