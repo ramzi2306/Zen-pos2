@@ -3950,7 +3950,6 @@ const SalesView = () => {
   };
 
   const fetchData = useCallback(async () => {
-    // Start all loaders
     setSummaryLoading(true);
     setDailyLoading(true);
     setLeaderboardLoading(true);
@@ -3959,7 +3958,6 @@ const SalesView = () => {
     setOrdersLoading(true);
     setLoading(false);
 
-    // 1. Fetch everything in parallel
     const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
     const ordersPromise = api.orders.listOrders(undefined, undefined, undefined, dateFilter.start, dateFilter.end, 100);
     
@@ -3969,10 +3967,9 @@ const SalesView = () => {
     api.analytics.getDailySales(dateFilter.start, dateFilter.end).then(setDailyData).catch(console.error).finally(() => setDailyLoading(false));
     api.register.listRegisterReports(undefined, 50).then(raw => setRegisterReports(raw.sort((a, b) => b.closedAt - a.closedAt))).catch(console.error).finally(() => setReportsLoading(false));
 
-    // 2. Wait for users AND orders, then combine them
     try {
       const [u, o] = await Promise.all([usersPromise, ordersPromise]);
-      setOrders(o); // listOrders already handles internal mapping if users are passed, but here we can pass them or rely on the state later
+      setOrders(o);
     } catch (err) {
       console.error(err);
     } finally {
@@ -4095,37 +4092,36 @@ const SalesView = () => {
         </div>
 
         {/* KPI cards */}
-        {(() => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {[
-          { label: 'Total Revenue', value: formatCurrency(summary?.total_revenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
-          { label: 'Total Orders', value: summary?.total_orders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
-          { label: 'Revenue (Month)', value: formatCurrency(summary?.revenue_this_month || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
-          { label: 'Avg Order Value', value: formatCurrency(summary?.avg_order_value || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
-        ].map((stat, i) => (
-          <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
-                {stat.icon}
+          {[
+            { label: 'Total Revenue', value: formatCurrency(summary?.total_revenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Total Orders', value: summary?.total_orders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenue_this_month || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Avg Order Value', value: formatCurrency(summary?.avg_order_value || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
+          ].map((stat, i) => (
+            <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                  {stat.icon}
+                </div>
+              </div>
+              {stat.loading ? (
+                <div className="space-y-2">
+                  <div className="h-4 w-24 bg-white/5 animate-pulse rounded" />
+                  <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</p>
+                  <p className="text-3xl font-headline font-black text-on-surface mt-1">{stat.value}</p>
+                </>
+              )}
+              <div className="absolute top-0 right-0 p-8 text-primary/5 pointer-events-none group-hover:scale-150 transition-transform">
+                {React.cloneElement(stat.icon as any, { size: 120 })}
               </div>
             </div>
-            {stat.loading ? (
-              <div className="space-y-2">
-                <div className="h-4 w-24 bg-white/5 animate-pulse rounded" />
-                <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
-              </div>
-            ) : (
-              <>
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</p>
-                <p className="text-3xl font-headline font-black text-on-surface mt-1">{stat.value}</p>
-              </>
-            )}
-            <div className="absolute top-0 right-0 p-8 text-primary/5 pointer-events-none group-hover:scale-150 transition-transform">
-              {React.cloneElement(stat.icon as any, { size: 120 })}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
         {/* Daily Performance Chart */}
         <div className="bg-surface border border-white/5 rounded-2xl p-8 mb-8">
@@ -4154,56 +4150,56 @@ const SalesView = () => {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
-                <XAxis 
-                  dataKey="dateLabel" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
-                  tickFormatter={(val) => formatCurrency(val).split('.')[0]}
-                />
-                <Tooltip 
-                  cursor={{ fill: 'white', opacity: 0.05 }}
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[1.5rem] p-6 shadow-2xl overflow-hidden min-w-[200px]">
-                          <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4 border-b border-white/5 pb-2">{data.fullDate}</div>
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
-                              <span className="text-[10px] font-bold text-white/60 uppercase">Revenue</span>
-                              <span className="text-sm font-headline font-extrabold text-white">{formatCurrency(data.income)}</span>
-                            </div>
-                            <div className="flex justify-between items-center px-2">
-                              <span className="text-[10px] font-bold text-white/60 uppercase">Volume</span>
-                              <span className="text-sm font-bold text-white">{data.order_count} Orders</span>
-                            </div>
-                            <div className="flex justify-between items-center px-2">
-                              <span className="text-[10px] font-bold text-white/60 uppercase">Efficiency</span>
-                              <span className="text-sm font-bold text-white">{data.avg_prep_time_minutes}m avg prep</span>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
+                  <XAxis 
+                    dataKey="dateLabel" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
+                    tickFormatter={(val) => formatCurrency(val).split('.')[0]}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'white', opacity: 0.05 }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[1.5rem] p-6 shadow-2xl overflow-hidden min-w-[200px]">
+                            <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4 border-b border-white/5 pb-2">{data.fullDate}</div>
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
+                                <span className="text-[10px] font-bold text-white/60 uppercase">Revenue</span>
+                                <span className="text-sm font-headline font-extrabold text-white">{formatCurrency(data.income)}</span>
+                              </div>
+                              <div className="flex justify-between items-center px-2">
+                                <span className="text-[10px] font-bold text-white/60 uppercase">Volume</span>
+                                <span className="text-sm font-bold text-white">{data.order_count} Orders</span>
+                              </div>
+                              <div className="flex justify-between items-center px-2">
+                                <span className="text-[10px] font-bold text-white/60 uppercase">Efficiency</span>
+                                <span className="text-sm font-bold text-white">{data.avg_prep_time_minutes}m avg prep</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar dataKey="income" radius={[4, 4, 0, 0]} fill="white" />
-              </BarChart>
-            </ResponsiveContainer>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="income" radius={[4, 4, 0, 0]} fill="white" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Orders table */}
           <div className="xl:col-span-2 bg-surface-container rounded-xl overflow-hidden">
             <div className="p-4 border-b border-outline-variant/10 flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between">
               <h3 className="font-headline font-bold text-on-surface">All Orders</h3>
@@ -4232,8 +4228,21 @@ const SalesView = () => {
                     <th className="text-center px-4 py-3">Review</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
+                <tbody className="divide-y divide-white/5">
+                  {ordersLoading ? (
+                    [...Array(5)].map((_, i) => (
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-6 w-20 bg-white/5 rounded-full" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                        <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                      </tr>
+                    ))
+                  ) : filtered.length === 0 ? (
                     <tr><td colSpan={8} className="text-center py-10 text-on-surface-variant">No orders found.</td></tr>
                   ) : filtered.map(o => (
                     <tr key={o.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
@@ -4261,15 +4270,26 @@ const SalesView = () => {
             </div>
           </div>
 
-          {/* Side panels */}
           <div className="flex flex-col gap-6">
-            {/* Best sellers */}
             <div className="bg-surface-container rounded-xl p-5">
               <h3 className="font-headline font-bold text-on-surface mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary">local_fire_department</span>
                 Best Sellers — This Month
               </h3>
-              {bestsellers.length === 0 ? (
+              {bestsellersLoading ? (
+                <div className="space-y-4 py-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-6 h-6 rounded-full bg-white/5" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-24 bg-white/10 rounded" />
+                        <div className="h-2 w-12 bg-white/5 rounded" />
+                      </div>
+                      <div className="h-4 w-12 bg-white/10 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : bestsellers.length === 0 ? (
                 <p className="text-sm text-on-surface-variant text-center py-4">No sales data yet.</p>
               ) : (
                 <div className="space-y-3">
@@ -4287,13 +4307,25 @@ const SalesView = () => {
               )}
             </div>
 
-            {/* Kitchen leaderboard */}
             <div className="bg-surface-container rounded-xl p-5">
               <h3 className="font-headline font-bold text-on-surface mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary">emoji_events</span>
                 Kitchen Leaderboard — This Month
               </h3>
-              {leaderboard.length === 0 ? (
+              {leaderboardLoading ? (
+                <div className="space-y-4 py-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-6 h-6 rounded-full bg-white/5" />
+                      <div className="w-8 h-8 rounded-full bg-white/10" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-24 bg-white/10 rounded" />
+                        <div className="h-2 w-16 bg-white/5 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : leaderboard.length === 0 ? (
                 <p className="text-sm text-on-surface-variant text-center py-4">No completed orders yet.</p>
               ) : (
                 <div className="space-y-3">
@@ -4315,7 +4347,6 @@ const SalesView = () => {
           </div>
         </div>
 
-        {/* Register Closures Report */}
         <div className="mt-6 bg-surface-container rounded-xl overflow-hidden">
           <div className="p-4 border-b border-outline-variant/10">
             <h3 className="font-headline font-bold text-on-surface">Register Reports (Closures)</h3>
@@ -4332,8 +4363,19 @@ const SalesView = () => {
                   <th className="text-left px-4 py-3">Notes</th>
                 </tr>
               </thead>
-              <tbody>
-                {registerReports.length === 0 ? (
+              <tbody className="divide-y divide-white/5">
+                {reportsLoading ? (
+                  [...Array(3)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
+                      <td className="px-4 py-3"><div className="h-4 w-24 bg-white/5 rounded" /></td>
+                      <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                      <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                      <td className="px-4 py-3"><div className="h-4 w-12 bg-white/5 rounded" /></td>
+                      <td className="px-4 py-3"><div className="h-4 w-32 bg-white/5 rounded" /></td>
+                    </tr>
+                  ))
+                ) : registerReports.length === 0 ? (
                   <tr><td colSpan={6} className="text-center py-10 text-on-surface-variant">No register closures logged yet.</td></tr>
                 ) : registerReports.map(r => (
                   <tr key={r.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
