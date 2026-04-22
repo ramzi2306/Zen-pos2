@@ -36,7 +36,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
-  const paidOrders = sessionOrders.filter(o => o.paymentStatus === 'Paid');
+  const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid');
 
   const cashOrders   = paidOrders.filter(o => (!o.paymentMethod || o.paymentMethod === 'Cash'));
   const cardOrders   = paidOrders.filter(o => o.paymentMethod === 'Credit Card');
@@ -391,14 +391,17 @@ export const ProfilePanel = ({
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
   const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
-  const sessionOrders = openedAt > 0 ? orders.filter(o => {
+  // Add a 5-minute grace period (300000ms) to account for client/server clock skew
+  const shiftStart = openedAt > 0 ? openedAt - 300000 : 0;
+
+  const sessionOrders = shiftStart > 0 ? orders.filter(o => {
     const t = o.queueStartTime || (o.createdAt ? new Date(o.createdAt).getTime() : 0);
-    return t >= openedAt;
+    return t >= shiftStart;
   }) : orders;
 
   const totalSales = sessionOrders
-    .filter(o => o.paymentStatus === 'Paid' && o.status !== 'Cancelled')
-    .reduce((sum, o) => sum + o.total, 0);
+    .filter(o => o.paymentStatus?.toLowerCase() === 'paid' && o.status !== 'Cancelled')
+    .reduce((sum, o) => sum + (o.total || 0), 0);
   const totalOrders = orders.filter(o => o.status !== 'Cancelled').length;
 
   const canSwitchLocation = !currentUser?.locationId && locations.length > 0 && !!setActiveLocationId;

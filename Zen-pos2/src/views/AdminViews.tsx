@@ -3915,12 +3915,12 @@ const SalesView = () => {
   const [registerReports, setRegisterReports] = useState<RegisterReport[]>([]);
   const [dailyData, setDailyData] = useState<{ date: string; income: number; order_count: number; avg_prep_time_minutes: number }[]>([]);
   
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-  const [dailyLoading, setDailyLoading] = useState(false);
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [bestsellersLoading, setBestsellersLoading] = useState(false);
-  const [reportsLoading, setReportsLoading] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [dailyLoading, setDailyLoading] = useState(true);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [bestsellersLoading, setBestsellersLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
     const now = new Date();
@@ -3958,8 +3958,8 @@ const SalesView = () => {
     setReportsLoading(true);
     setOrdersLoading(true);
     
-    // Smoothly transition from splash to skeletons
-    setTimeout(() => setLoading(false), 200);
+    // Smoothly transition from splash to skeletons immediately
+    setLoading(false);
 
     const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
     const ordersPromise = api.orders.listOrders(undefined, undefined, undefined, dateFilter.start, dateFilter.end, 100);
@@ -3992,7 +3992,7 @@ const SalesView = () => {
 
   const prepTime = (o: Order) => {
     if (!o.startTime) return '—';
-    const ms = Date.now() - o.startTime;
+    const ms = Math.max(0, Date.now() - o.startTime);
     const mins = Math.floor(ms / 60000);
     if (mins < 60) return `${mins}m`;
     return `${Math.floor(mins / 60)}h ${mins % 60}m`;
@@ -4097,10 +4097,10 @@ const SalesView = () => {
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenueThisMonth || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
-            { label: 'Avg Order Value', value: formatCurrency(summary?.avgOrderValue || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
+            { label: 'Total Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: summaryLoading },
+            { label: 'Total Orders', value: summary?.totalOrders?.toLocaleString() || '0', icon: <span className="material-symbols-outlined text-[18px]">tag</span>, loading: summaryLoading },
+            { label: 'Revenue (Month)', value: formatCurrency(summary?.revenueThisMonth || 0), icon: <span className="material-symbols-outlined text-[18px]">calendar_month</span>, loading: summaryLoading },
+            { label: 'Avg Order Value', value: formatCurrency(summary?.avgOrderValue || 0), icon: <span className="material-symbols-outlined text-[18px]">shopping_bag</span>, loading: summaryLoading },
           ].map((stat, i) => (
             <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-4">
@@ -4131,7 +4131,7 @@ const SalesView = () => {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-tertiary/10 rounded-xl text-tertiary">
-                <BarChart3 className="w-5 h-5" />
+                <span className="material-symbols-outlined text-[20px]">bar_chart</span>
               </div>
               <div>
                 <h3 className="text-lg font-headline font-black text-on-surface">Daily Revenue</h3>
@@ -4251,7 +4251,7 @@ const SalesView = () => {
                     <tr key={o.id} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-on-surface-variant">{o.id.slice(-6).toUpperCase()}</td>
                       <td className="px-4 py-3 text-xs text-on-surface-variant whitespace-nowrap">{formatDate(o.createdAt)}</td>
-                      <td className="px-4 py-3"><span className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">{o.orderType.replace('_','-')}</span></td>
+                      <td className="px-4 py-3"><span className="text-[10px] uppercase font-bold tracking-wider text-on-surface-variant">{o.orderType.replaceAll('_','-')}</span></td>
                       <td className="px-4 py-3 text-sm">{o.customer?.name || <span className="text-on-surface-variant/50">—</span>}</td>
                       <td className="px-4 py-3 text-right font-bold text-sm">{formatCurrency(o.total)}</td>
                       <td className="px-4 py-3"><span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${statusColors[o.status] || ''}`}>{o.status}</span></td>
@@ -4514,6 +4514,23 @@ const CustomersView = () => {
               className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface"
             />
             {search && <button onClick={() => handleSearch('')} className="text-on-surface-variant hover:text-on-surface"><span className="material-symbols-outlined text-[18px]">close</span></button>}
+          </div>
+          <div className="flex items-center gap-2 bg-surface-container rounded-xl px-3 py-1.5 border border-outline-variant/20">
+            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider ml-1">Sort by:</span>
+            <select 
+              value={`${sortConfig.key}-${sortConfig.direction}`} 
+              onChange={e => {
+                const [key, dir] = e.target.value.split('-');
+                setSortConfig({ key: key as keyof Customer, direction: dir as 'asc' | 'desc' });
+              }}
+              className="bg-transparent text-sm focus:outline-none text-on-surface cursor-pointer py-1.5"
+            >
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="orderCount-desc">Most Orders</option>
+              <option value="totalSpent-desc">Highest Spend</option>
+              <option value="lastOrderDate-desc">Most Recent</option>
+            </select>
           </div>
           {selectedCustomerIds.size > 0 && (
             <button

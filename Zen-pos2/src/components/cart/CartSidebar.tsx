@@ -150,12 +150,27 @@ export const CartSidebar = ({
     }
   }, [orderType]);
 
-  const filteredClients = useMemo(
-    () => apiClients.filter(
+  const [searchPrefixCache, setSearchPrefixCache] = useState<Set<string>>(new Set());
+
+  const filteredClients = useMemo(() => {
+    if (customerSearch.length < 5) return [];
+    
+    // Prefix optimization: if we already searched for a shorter prefix and got 0 results,
+    // any longer string starting with that prefix will also have 0 results.
+    for (let i = 5; i < customerSearch.length; i++) {
+      if (searchPrefixCache.has(customerSearch.substring(0, i))) return [];
+    }
+
+    const filtered = apiClients.filter(
       c => c.phone.includes(customerSearch) || c.name.toLowerCase().includes(customerSearch.toLowerCase())
-    ),
-    [apiClients, customerSearch],
-  );
+    );
+
+    if (filtered.length === 0 && customerSearch.length >= 5) {
+      setSearchPrefixCache(prev => new Set([...prev, customerSearch]));
+    }
+
+    return filtered;
+  }, [apiClients, customerSearch, searchPrefixCache]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   // Load metadata when editing an order
@@ -349,14 +364,14 @@ export const CartSidebar = ({
                     </motion.button>
                     <input
                       type="text"
-                      placeholder="Numéro de téléphone (10 chiffres)"
+                      placeholder="Search phone number (10 digits)…"
                       className="flex-1 bg-transparent border-none focus:outline-none text-sm text-on-surface"
                       value={customerSearch}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                         setCustomerSearch(val);
-                        // Search after 5th number
-                        setShowClientDropdown(val.length >= 5);
+                        // Show dropdown if 5+ digits or if exactly 10 (for new client)
+                        setShowClientDropdown(val.length >= 5 || val.length === 10);
                       }}
                       onFocus={() => setShowClientDropdown(customerSearch.length >= 5)}
                     />
@@ -383,12 +398,21 @@ export const CartSidebar = ({
                             </div>
                           ))
                         ) : customerSearch.length === 10 ? (
-                          <div className="p-3 bg-surface-container-lowest">
-                            <div className="text-xs text-on-surface-variant mb-2">Nouveau client</div>
+                          <div className="p-4 bg-surface-container-lowest border-t border-outline-variant/10">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                                <span className="material-symbols-outlined text-[18px]">person_add</span>
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold text-on-surface">New Customer</div>
+                                <div className="text-[10px] text-on-surface-variant uppercase tracking-wider">{customerSearch}</div>
+                              </div>
+                            </div>
                             <input
                               type="text"
-                              placeholder="Nom du client"
-                              className="w-full bg-surface-container border border-outline-variant/20 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                              placeholder="Enter customer name…"
+                              autoFocus
+                              className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all mb-3"
                               value={newClientName}
                               onChange={(e) => setNewClientName(e.target.value)}
                               onKeyDown={(e) => {
