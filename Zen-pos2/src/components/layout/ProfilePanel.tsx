@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calculator } from 'lucide-react';
 import { Order } from '../../data';
 import type { Location } from '../../api/locations';
 import { useLocalization } from '../../context/LocalizationContext';
@@ -201,7 +200,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                             }}
                             className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-[#d84315] transition-colors"
                           >
-                            <Calculator size={20} strokeWidth={2.5} />
+                            <span className="material-symbols-outlined text-[20px]">calculate</span>
                           </button>
                         </div>
                       </div>
