@@ -34,6 +34,19 @@ async def lifespan(app: FastAPI):
     await connect_db()
     await seed_system_roles()
     await seed_settings()
+    
+    # Run a quick backfill of daily analytics if empty (helps on first deploy)
+    from app.models.daily_sales import DailySalesSummary
+    count = await DailySalesSummary.count()
+    if count == 0:
+        from app.services.analytics_service import AnalyticsService
+        from datetime import datetime, timedelta, timezone
+        logging.info("Analytics collection empty. Running 90-day backfill...")
+        for i in range(90, 0, -1):
+            day = datetime.now(timezone.utc) - timedelta(days=i)
+            await AnalyticsService.aggregate_daily_sales(day)
+        logging.info("Backfill complete.")
+
     start_scheduler()
     yield
     stop_scheduler()

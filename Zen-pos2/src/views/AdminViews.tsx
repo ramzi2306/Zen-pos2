@@ -3913,6 +3913,13 @@ const SalesView = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [registerReports, setRegisterReports] = useState<RegisterReport[]>([]);
   const [dailyData, setDailyData] = useState<{ date: string; income: number; order_count: number; avg_prep_time_minutes: number }[]>([]);
+  
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [bestsellersLoading, setBestsellersLoading] = useState(false);
+  const [reportsLoading, setReportsLoading] = useState(false);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
     const now = new Date();
@@ -3943,28 +3950,34 @@ const SalesView = () => {
   };
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-
-    // 1. Initial parallel fetch for non-dependent data
-    const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
-    const bestsellersPromise = api.analytics.getBestsellers(5).then(bs => setBestsellers(bs)).catch(console.error);
-    const leaderboardPromise = api.analytics.getLeaderboard().then(lb => setLeaderboard(lb)).catch(console.error);
-    const summaryPromise = api.analytics.getSalesSummary().then(sum => setSummary(sum)).catch(console.error);
-    const dailyPromise = api.analytics.getDailySales(dateFilter.start, dateFilter.end).then(d => setDailyData(d)).catch(console.error);
-    const reportsPromise = api.register.listRegisterReports(undefined, 50).then(raw => setRegisterReports(raw.sort((a, b) => b.closedAt - a.closedAt))).catch(console.error);
-
-    // Wait for the essential dashboard numbers to unlock the UI
-    await Promise.allSettled([summaryPromise, dailyPromise]);
+    // Start all loaders
+    setSummaryLoading(true);
+    setDailyLoading(true);
+    setLeaderboardLoading(true);
+    setBestsellersLoading(true);
+    setReportsLoading(true);
+    setOrdersLoading(true);
     setLoading(false);
 
-    // 2. Fetch orders list (depends on users for mapping, but we can do it in background)
-    const currentUsers = await usersPromise;
-    api.orders.listOrders(currentUsers, undefined, undefined, dateFilter.start, dateFilter.end, 100)
-      .then(setOrders)
-      .catch(console.error);
+    // 1. Fetch everything in parallel
+    const usersPromise = api.users.listUsers().then(u => { setUsers(u); return u; });
+    const ordersPromise = api.orders.listOrders(undefined, undefined, undefined, dateFilter.start, dateFilter.end, 100);
+    
+    api.analytics.getBestsellers(5).then(setBestsellers).catch(console.error).finally(() => setBestsellersLoading(false));
+    api.analytics.getLeaderboard().then(setLeaderboard).catch(console.error).finally(() => setLeaderboardLoading(false));
+    api.analytics.getSalesSummary().then(setSummary).catch(console.error).finally(() => setSummaryLoading(false));
+    api.analytics.getDailySales(dateFilter.start, dateFilter.end).then(setDailyData).catch(console.error).finally(() => setDailyLoading(false));
+    api.register.listRegisterReports(undefined, 50).then(raw => setRegisterReports(raw.sort((a, b) => b.closedAt - a.closedAt))).catch(console.error).finally(() => setReportsLoading(false));
 
-    // Other non-blocking data
-    await Promise.allSettled([bestsellersPromise, leaderboardPromise, reportsPromise]);
+    // 2. Wait for users AND orders, then combine them
+    try {
+      const [u, o] = await Promise.all([usersPromise, ordersPromise]);
+      setOrders(o); // listOrders already handles internal mapping if users are passed, but here we can pass them or rely on the state later
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOrdersLoading(false);
+    }
   }, [dateFilter.start, dateFilter.end]);
 
   useEffect(() => {
@@ -4083,42 +4096,64 @@ const SalesView = () => {
 
         {/* KPI cards */}
         {(() => {
-          const paidOrders = orders.filter(o => o.status !== 'Cancelled' && o.paymentStatus === 'Paid');
-          const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
-          const totalOrderCount = paidOrders.length;
-          const avgValue = totalOrderCount > 0 ? totalRevenue / totalOrderCount : 0;
-          
-          return (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {[
-                { label: 'Total Volume', value: totalOrderCount + ' orders', icon: 'receipt_long' },
-                { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: 'payments' },
-                { label: 'Avg. Transaction', value: formatCurrency(avgValue), icon: 'calculate' },
-                { label: 'Selected Period', value: dateFilter.type === 'custom' ? `${dateFilter.start} to ${dateFilter.end}` : dateFilter.label || dateFilter.type.replace('_',' '), icon: 'calendar_month' },
-              ].map(kpi => (
-                <div key={kpi.label} className="bg-[#1A1A1A] rounded-2xl p-6 flex flex-col gap-1 border border-white/5 shadow-xl hover:border-white/20 transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="material-symbols-outlined text-white text-xl opacity-50">{kpi.icon}</span>
-                  </div>
-                  <div className="text-2xl font-headline font-black text-white tracking-tight">{kpi.value}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">{kpi.label}</div>
-                </div>
-              ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: 'Total Revenue', value: formatCurrency(summary?.total_revenue || 0), icon: <TrendingUp className="w-4 h-4" />, loading: summaryLoading },
+          { label: 'Total Orders', value: summary?.total_orders?.toLocaleString() || '0', icon: <Hash className="w-4 h-4" />, loading: summaryLoading },
+          { label: 'Revenue (Month)', value: formatCurrency(summary?.revenue_this_month || 0), icon: <Calendar className="w-4 h-4" />, loading: summaryLoading },
+          { label: 'Avg Order Value', value: formatCurrency(summary?.avg_order_value || 0), icon: <ShoppingBag className="w-4 h-4" />, loading: summaryLoading },
+        ].map((stat, i) => (
+          <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                {stat.icon}
+              </div>
             </div>
-          );
-        })()}
-
-        {/* Daily Performance Chart */}
-        <div className="bg-[#1A1A1A] rounded-[2rem] p-8 mb-8 border border-white/5 shadow-2xl">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h3 className="text-xl font-headline font-extrabold text-white uppercase tracking-tight">Revenue Trajectory</h3>
-              <p className="text-xs text-white/50 font-medium tracking-wide">Daily aggregation of synchronized paid transactional data.</p>
+            {stat.loading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-white/5 animate-pulse rounded" />
+                <div className="h-8 w-32 bg-white/10 animate-pulse rounded" />
+              </div>
+            ) : (
+              <>
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</p>
+                <p className="text-3xl font-headline font-black text-on-surface mt-1">{stat.value}</p>
+              </>
+            )}
+            <div className="absolute top-0 right-0 p-8 text-primary/5 pointer-events-none group-hover:scale-150 transition-transform">
+              {React.cloneElement(stat.icon as any, { size: 120 })}
             </div>
           </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        ))}
+      </div>
+
+        {/* Daily Performance Chart */}
+        <div className="bg-surface border border-white/5 rounded-2xl p-8 mb-8">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-tertiary/10 rounded-xl text-tertiary">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-headline font-black text-on-surface">Daily Revenue</h3>
+                <p className="text-xs text-on-surface-variant">Income distribution over the period</p>
+              </div>
+            </div>
+          </div>
+          <div className="h-[300px] w-full flex items-center justify-center">
+            {dailyLoading ? (
+              <div className="w-full h-full flex items-end gap-2 px-4">
+                {[...Array(12)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="flex-1 bg-white/5 animate-pulse rounded-t-lg" 
+                    style={{ height: `${Math.random() * 60 + 20}%`, animationDelay: `${i * 0.1}s` }} 
+                  />
+                ))}
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
                 <XAxis 
                   dataKey="dateLabel" 
