@@ -1,6 +1,6 @@
 from typing import List
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from beanie import PydanticObjectId
 from beanie.operators import In
@@ -207,34 +207,45 @@ async def daily_sales(start_date: str, end_date: str):
     # If end_date includes today, compute today's data live from orders
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if end_date >= today_str:
-        # Check if today already exists in pre-aggregated data (shouldn't, but be safe)
-        existing_dates = {r.date for r in results}
-        if today_str not in existing_dates:
-            start_of_today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Always compute today live to ensure real-time accuracy
+        try:
+            day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            day_end = day_start + timedelta(days=1)
+            
             from beanie.operators import Or
-            today_orders = await OrderDocument.find(
+            orders = await OrderDocument.find(
                 OrderDocument.status != "Cancelled",
                 Or(
                     OrderDocument.payment_status == "Paid",
                     OrderDocument.status == "Done"
                 ),
-                OrderDocument.created_at >= start_of_today
+                OrderDocument.created_at >= day_start,
+                OrderDocument.created_at < day_end
             ).to_list()
+            
+            total_revenue = sum(o.total for o in orders)
+            order_count = len(orders)
+            
+            today_prep_ms = 0
+            today_prep_count = 0
+            for o in orders:
+                if o.start_time and o.end_time:
+                    today_prep_ms += (o.end_time - o.start_time)
+                    today_prep_count += 1
+            
+            results.append(DailySalesItem(
+                date=today_str,
+                income=round(total_revenue, 2),
+                order_count=order_count,
+                avg_prep_time_minutes=round(today_prep_ms / today_prep_count / 60000) if today_prep_count > 0 else 0
+            ))
+        except Exception as e:
+            import logging
+            logging.error(f"Error computing live sales: {e}")
 
-            if today_orders:
-                today_revenue = sum(o.total for o in today_orders)
-                today_prep_ms = 0
-                today_prep_count = 0
-                for o in today_orders:
-                    if o.start_time and o.end_time:
-                        today_prep_ms += (o.end_time - o.start_time)
-                        today_prep_count += 1
-
-                results.append(DailySalesItem(
-                    date=today_str,
-                    income=round(today_revenue, 2),
-                    order_count=len(today_orders),
-                    avg_prep_time_minutes=round(today_prep_ms / today_prep_count / 60000) if today_prep_count > 0 else 0
-                ))
-
-    return results
+    # Deduplicate results by date (favoring later entries if duplicates exist)
+    unique_results = {}
+    for item in results:
+        unique_results[item.date] = item
+    
+    return sorted(unique_results.values(), key=lambda x: x.date)

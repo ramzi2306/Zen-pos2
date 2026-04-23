@@ -4016,7 +4016,10 @@ const SalesView = () => {
   });
 
   const chartData = useMemo(() => {
-    return dailyData.map(d => ({
+    // Deduplicate by date to prevent UI glitches if backend returns duplicate keys
+    const unique = Array.from(new Map(dailyData.map(d => [d.date, d])).values());
+    
+    return unique.map(d => ({
       ...d,
       dateLabel: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
       fullDate: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
