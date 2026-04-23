@@ -131,6 +131,12 @@ export const OrdersView = ({
   const [newAgentForm, setNewAgentForm] = useState({ name: '', phone: '' });
   const [showNewAgentForm, setShowNewAgentForm] = useState(false);
 
+  // Payment Modal state
+  const [paymentModalOrder, setPaymentModalOrder] = useState<Order | null>(null);
+  const [amountPaid, setAmountPaid] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit Card' | 'Other'>('Cash');
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
   useEffect(() => {
     api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end)
       .then(setOrders)
@@ -293,6 +299,15 @@ export const OrdersView = ({
 
   const handlePaymentSelect = async (status: Order['paymentStatus']) => {
     if (!selectedOrder || status === selectedOrder.paymentStatus || isSaving) return;
+    
+    if (status === 'Paid') {
+      setPaymentModalOrder(selectedOrder);
+      setAmountPaid('');
+      setPaymentMethod('Cash');
+      setPaymentError(null);
+      return;
+    }
+
     setIsSaving(true);
     try {
       const updated = await api.orders.updateOrderPayment(selectedOrder.id, status);
@@ -301,6 +316,33 @@ export const OrdersView = ({
       onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
     } catch (err: any) {
       console.error('Payment update failed:', err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!paymentModalOrder || isSaving) return;
+    const paid = parseFloat(amountPaid);
+    if (isNaN(paid) || paid < paymentModalOrder.total) {
+      setPaymentError(`Amount paid (${formatCurrency(paid || 0)}) is less than total due (${formatCurrency(paymentModalOrder.total)})`);
+      setTimeout(() => setPaymentError(null), 3000);
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const updated = await api.orders.updateOrderPayment(paymentModalOrder.id, 'Paid', paymentMethod);
+      setOrders(prev => prev.map(o => o.id === paymentModalOrder.id ? updated : o));
+      if (selectedOrder?.id === paymentModalOrder.id) {
+        setSelectedOrder(updated);
+      }
+      onRefresh?.(dateFilter.date, dateFilter.start, dateFilter.end);
+      setPaymentModalOrder(null);
+    } catch (err: any) {
+      console.error('Payment update failed:', err.message);
+      setPaymentError(err.message || 'Payment update failed');
+      setTimeout(() => setPaymentError(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -1800,6 +1842,83 @@ export const OrdersView = ({
                       Preparing receipt…
                     </>
                   )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Payment numpad ───────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {paymentModalOrder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-md" onClick={() => setPaymentModalOrder(null)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative z-10 bg-[#1a1d21] border border-white/10 rounded-2xl shadow-2xl overflow-hidden w-80"
+            >
+              <div className="p-4 bg-[#22252a] border-b border-white/10 flex justify-between items-center">
+                <h3 className="text-white font-bold text-sm uppercase tracking-wider">Payment</h3>
+                <div className="text-[#8bc34a] font-mono font-bold text-lg">{formatCurrency(paymentModalOrder.total)}</div>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Payment method selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Cash', 'Credit Card', 'Other'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setPaymentMethod(m)}
+                      className={`py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                        paymentMethod === m
+                          ? 'bg-[#8bc34a] text-white'
+                          : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <div className="bg-black/30 rounded-xl p-3 border border-white/5">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">Amount Paid</div>
+                  <div className="text-2xl text-white font-mono font-bold flex items-center">
+                    <span className="text-gray-500 mr-1">{localization.currency === 'USD' ? '$' : localization.currency === 'EUR' ? '€' : localization.currency === 'GBP' ? '£' : ''}</span>
+                    {amountPaid || '0.00'}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, 'C'].map((num) => (
+                    <button
+                      key={num}
+                      onClick={() => {
+                        if (num === 'C') setAmountPaid('');
+                        else if (num === '.' && amountPaid.includes('.')) return;
+                        else setAmountPaid(prev => prev + num);
+                      }}
+                      className="h-12 bg-white/5 hover:bg-white/10 text-white rounded-lg font-bold transition-colors active:scale-95"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                  <div className="text-sm text-gray-400">Change Due:</div>
+                  <div className="text-xl text-[#8bc34a] font-mono font-bold">
+                    {formatCurrency(Math.max(0, (parseFloat(amountPaid) || 0) - paymentModalOrder.total))}
+                  </div>
+                </div>
+                {paymentError && (
+                  <div className="text-error text-[10px] uppercase font-bold tracking-wider text-center">{paymentError}</div>
+                )}
+                <button
+                  onClick={handleConfirmPayment}
+                  disabled={isSaving}
+                  className={`w-full py-3 bg-[#8bc34a] text-white rounded-xl font-bold transition-colors shadow-lg flex items-center justify-center gap-2 ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#7cb342]'}`}
+                >
+                  {isSaving ? <span className="material-symbols-outlined animate-spin">sync</span> : <span className="material-symbols-outlined">check_circle</span>}
+                  DONE
                 </button>
               </div>
             </motion.div>

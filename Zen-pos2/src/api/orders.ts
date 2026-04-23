@@ -269,10 +269,12 @@ export async function updateOrderStatus(orderId: string, status: string, schedul
   return mapOrder(raw);
 }
 
-export async function updateOrderPayment(orderId: string, paymentStatus: string): Promise<Order> {
+export async function updateOrderPayment(orderId: string, paymentStatus: string, paymentMethod?: string): Promise<Order> {
+  const body: any = { payment_status: paymentStatus };
+  if (paymentMethod) body.payment_method = paymentMethod;
   const raw = await apiRequest<ApiOrder>(`/orders/${orderId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ payment_status: paymentStatus }),
+    body: JSON.stringify(body),
   });
   return mapOrder(raw);
 }
