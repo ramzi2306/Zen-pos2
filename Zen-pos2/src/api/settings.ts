@@ -29,8 +29,8 @@ export const DEFAULT_OPENING_HOURS: OpeningHours = {
 };
 
 /** Returns true if the restaurant is currently open based on the schedule.
- *  Also returns the next opening slot as a human-readable string. */
-export function checkOpeningHours(hours: OpeningHours): { isOpen: boolean; nextOpen?: string } {
+ *  Also returns the next opening slot as a human-readable string and a Date object. */
+export function checkOpeningHours(hours: OpeningHours): { isOpen: boolean; nextOpen?: string; nextOpenDate?: Date } {
   if (!hours.enabled) return { isOpen: true };
 
   const now = new Date();
@@ -41,17 +41,40 @@ export function checkOpeningHours(hours: OpeningHours): { isOpen: boolean; nextO
   const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const today = hours[dayKeys[todayIdx]];
+  
+  // 1. Check if currently open
   if (today.enabled && currentTime >= today.open && currentTime < today.close) {
     return { isOpen: true };
   }
 
-  // Find next open slot (search up to 7 days ahead)
+  // 2. Check if opens later TODAY
+  if (today.enabled && currentTime < today.open) {
+    const [h, m] = today.open.split(':').map(Number);
+    const openingDate = new Date(now);
+    openingDate.setHours(h, m, 0, 0);
+    return { 
+      isOpen: false, 
+      nextOpen: `Today at ${today.open}`,
+      nextOpenDate: openingDate 
+    };
+  }
+
+  // 3. Find next open slot in the coming days
   for (let i = 1; i <= 7; i++) {
     const idx = (todayIdx + i) % 7;
     const day = hours[dayKeys[idx]];
     if (day.enabled) {
       const label = i === 1 ? 'Tomorrow' : dayLabels[idx];
-      return { isOpen: false, nextOpen: `${label} at ${day.open}` };
+      const [h, m] = day.open.split(':').map(Number);
+      const openingDate = new Date(now);
+      openingDate.setDate(now.getDate() + i);
+      openingDate.setHours(h, m, 0, 0);
+      
+      return { 
+        isOpen: false, 
+        nextOpen: `${label} at ${day.open}`,
+        nextOpenDate: openingDate
+      };
     }
   }
   return { isOpen: false };
