@@ -29,10 +29,27 @@ async def refresh(body: RefreshRequest):
     return AccessTokenResponse(access_token=access_token)
 
 
+@router.post("/heartbeat")
+async def heartbeat(current_user: UserDocument = Depends(get_current_user)):
+    """Silent heartbeat to keep token alive and update RegisterSession last_activity_at."""
+    from app.models.register import RegisterSessionDocument
+    from datetime import datetime, timezone
+    
+    session = await RegisterSessionDocument.find_one(
+        RegisterSessionDocument.cashier_id == str(current_user.id),
+        RegisterSessionDocument.status == "OPEN"
+    )
+    if session:
+        session.last_activity_at = datetime.now(timezone.utc)
+        await session.save()
+    return {"status": "alive"}
+
+
 @router.post("/logout", status_code=204)
 async def logout(body: RefreshRequest):
     """Revoke a refresh token."""
     await auth_service.logout(body.refresh_token)
+
 
 
 @router.get("/me")

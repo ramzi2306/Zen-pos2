@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { User } from '../data';
 import * as api from '../api';
 
-export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) => {
+export const AdminLoginView = ({ onLogin }: { onLogin: (result: api.auth.AuthLoginResult) => void }) => {
   const [email, setEmail] = useState(() => localStorage.getItem('zenpos_remembered_email') || '');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('zenpos_remember_me') === 'true');
@@ -15,7 +15,7 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) =
     setIsLoading(true);
     setError('');
     try {
-      const user = await Promise.race([
+      const result = await Promise.race([
         api.auth.login(email, password),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Connection timed out. Is the server running?')), 8000)
@@ -28,7 +28,7 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (user: User) => void }) =
         localStorage.removeItem('zenpos_remember_me');
         localStorage.removeItem('zenpos_remembered_email');
       }
-      onLogin(user);
+      onLogin(result);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');
       setIsLoading(false);

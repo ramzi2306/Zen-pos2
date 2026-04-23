@@ -24,3 +24,27 @@ class RegisterReportDocument(Document):
             IndexModel([("closed_at", DESCENDING)]),
             IndexModel([("location_id", DESCENDING)]),
         ]
+
+class RegisterSessionDocument(Document):
+    """Active or historically tracked register sessions."""
+    cashier_id: str
+    cashier_name: str
+    location_id: Optional[str] = None
+    status: str = "OPEN" # OPEN, CLOSED
+    opened_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    closed_at: Optional[datetime] = None
+    opening_float: float = 0
+    total_cash_collected: float = 0
+    
+    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    is_stale: bool = False
+    resumed_at: Optional[datetime] = None
+    resume_count: int = 0
+
+    class Settings:
+        name = "register_sessions"
+        indexes = [
+            IndexModel([("cashier_id", DESCENDING)]),
+            IndexModel([("status", DESCENDING)]),
+        ]
+

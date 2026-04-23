@@ -17,7 +17,7 @@ from app.models.customer import CustomerDocument, CustomerSessionDocument
 from app.models.settings import BrandingDocument, LocalizationDocument, IntegrationDocument
 from app.models.location import LocationDocument
 from app.models.otp import OTPDocument
-from app.models.register import RegisterReportDocument
+from app.models.register import RegisterReportDocument, RegisterSessionDocument
 from app.models.delivery import DeliveryPlaceDocument, DeliveryAgentDocument
 from app.models.daily_sales import DailySalesSummary
 
@@ -54,6 +54,7 @@ async def connect_db() -> None:
             LocationDocument,
             OTPDocument,
             RegisterReportDocument,
+            RegisterSessionDocument,
             DeliveryPlaceDocument,
             DeliveryAgentDocument,
             DailySalesSummary,

@@ -6,10 +6,14 @@ class LoginRequest(BaseModel):
     password: str
 
 
+from typing import Optional, Any
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    resumable: bool = False
+    register_session: Optional[Any] = None
 
 
 class RefreshRequest(BaseModel):

@@ -71,6 +71,51 @@ function AppShell() {
   // Register gate: false = attendance screen is locked (must check in before using POS)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
+  // Lock Screen & Shift Resume State
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockPin, setLockPin] = useState('');
+  const [lockError, setLockError] = useState('');
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [pendingLoginResult, setPendingLoginResult] = useState<api.auth.AuthLoginResult | null>(null);
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isLockedRef = useRef(isLocked);
+  const isRegisterOpenRef = useRef(isRegisterOpen);
+  const currentUserRef = useRef(currentUser);
+
+  useEffect(() => { isLockedRef.current = isLocked; }, [isLocked]);
+  useEffect(() => { isRegisterOpenRef.current = isRegisterOpen; }, [isRegisterOpen]);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
+  const resetIdleTimer = () => {
+    if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+    if (!currentUserRef.current || isLockedRef.current || !isRegisterOpenRef.current) return;
+    // Lock after 5 minutes of inactivity
+    idleTimeoutRef.current = setTimeout(() => setIsLocked(true), 5 * 60 * 1000);
+  };
+
+  useEffect(() => {
+    window.addEventListener('mousemove', resetIdleTimer);
+    window.addEventListener('keydown', resetIdleTimer);
+    window.addEventListener('touchstart', resetIdleTimer);
+    resetIdleTimer();
+    return () => {
+      window.removeEventListener('mousemove', resetIdleTimer);
+      window.removeEventListener('keydown', resetIdleTimer);
+      window.removeEventListener('touchstart', resetIdleTimer);
+      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Silent token refresh heartbeat (every 10 minutes)
+    if (!currentUser || !isRegisterOpen) return;
+    const interval = setInterval(() => {
+      api.auth.heartbeat().catch(() => {});
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [currentUser, isRegisterOpen]);
+
   // Refs so WS event handler always sees current values without re-registering
   const usersRef = useRef(users);
   const activeLocationIdRef = useRef(activeLocationId);
@@ -131,6 +176,9 @@ function AppShell() {
     if (cancelled.v) return;
     setCurrentUser(u);
     localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(u));
+    if (sessionStorage.getItem('sessionOpenedAt')) {
+      setIsRegisterOpen(true);
+    }
     _scheduleAudioUnlock();
 
     if (_isAttendanceMgrRole(u)) { navigate('/attendance'); return; }
@@ -138,8 +186,12 @@ function AppShell() {
     if (!u.excludeFromAttendance) {
       try {
         const isCheckedIn = await api.attendance.getUserStatus(u.id);
-        if (!cancelled.v) setIsRegisterOpen(isCheckedIn);
-        if (!cancelled.v && !isCheckedIn) navigate('/attendance');
+        if (!cancelled.v && !sessionStorage.getItem('sessionOpenedAt')) {
+          setIsRegisterOpen(isCheckedIn);
+        }
+        if (!cancelled.v && !isCheckedIn && !sessionStorage.getItem('sessionOpenedAt')) {
+          navigate('/attendance');
+        }
       } catch {
         if (!cancelled.v) { setIsRegisterOpen(false); navigate('/attendance'); }
       }
@@ -522,11 +574,17 @@ function AppShell() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const handleLogin = (user: User) => {
+  const _finalizeLogin = (user: User, registerSession?: any) => {
     localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
-    sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
+    if (registerSession) {
+      sessionStorage.setItem('zenpos_register_session', JSON.stringify(registerSession));
+      sessionStorage.setItem('sessionOpenedAt', registerSession.opened_at || Date.now().toString());
+    } else {
+      sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
+    }
     unlockAudio(); // Unlock AudioContext — login IS a user gesture
     setCurrentUser(user);
+    setIsLocked(false);
 
     // Attendance Manager: locked to attendance screen, no exit
     if (_isAttendanceMgrRole(user)) {
@@ -536,18 +594,47 @@ function AppShell() {
 
     // All non-excluded roles must check in before accessing the POS
     if (!user.excludeFromAttendance) {
-      setIsRegisterOpen(false);
-      navigate('/attendance');
+      if (registerSession && registerSession.opened_at) {
+        // If resuming shift, skip attendance check-in gate
+        setIsRegisterOpen(true);
+        _routeToLanding(user);
+      } else {
+        setIsRegisterOpen(false);
+        navigate('/attendance');
+      }
       return;
     }
 
     _routeToLanding(user);
   };
 
+  const handleLogin = (result: api.auth.AuthLoginResult) => {
+    if (result.resumable) {
+      setPendingLoginResult(result);
+      setShowResumeModal(true);
+      return;
+    }
+    _finalizeLogin(result.user, result.registerSession);
+  };
+
+  const handleResumeShift = (resume: boolean) => {
+    if (!pendingLoginResult) return;
+    setShowResumeModal(false);
+    if (resume) {
+      _finalizeLogin(pendingLoginResult.user, pendingLoginResult.registerSession);
+    } else {
+      // Force start new shift
+      _finalizeLogin(pendingLoginResult.user, { opened_at: null });
+    }
+    setPendingLoginResult(null);
+  };
+
+
   const handleLogout = () => {
     api.auth.logout().catch(console.error);
     localStorage.removeItem(SESSION_CACHE_KEY);
     sessionStorage.removeItem('sessionOpenedAt');
+    sessionStorage.removeItem('zenpos_register_session');
     setCurrentUser(null);
     setOrders([]);
     setRecentlyUpdatedIds(new Set());
@@ -584,6 +671,7 @@ function AppShell() {
     }
 
     sessionStorage.removeItem('sessionOpenedAt');
+    sessionStorage.removeItem('zenpos_register_session');
     setOrders([]);
     setNotifications([]);
     try { localStorage.removeItem(NOTIF_STORAGE_KEY); } catch {}
@@ -1035,6 +1123,129 @@ function AppShell() {
                   ? <span className="material-symbols-outlined animate-spin">sync</span>
                   : <><span className="material-symbols-outlined text-sm">cancel</span>Cancel Order</>}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Resume Shift Modal ────────────────────────────────────────────── */}
+      {showResumeModal && pendingLoginResult && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-surface-container-lowest rounded-2xl p-8 max-w-md w-full shadow-2xl border border-outline-variant/10 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-6">
+              <span className="material-symbols-outlined text-3xl">resume</span>
+            </div>
+            <h2 className="text-2xl font-headline font-bold text-on-surface mb-2">Active Shift Detected</h2>
+            <p className="text-sm text-on-surface-variant mb-6">
+              You have an active register session that was not closed. Do you want to resume this shift or start a new one?
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleResumeShift(true)}
+                className="w-full py-4 bg-primary text-on-primary rounded-xl font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+              >
+                <span className="material-symbols-outlined">play_arrow</span>
+                Resume Shift
+              </button>
+              <button
+                onClick={() => handleResumeShift(false)}
+                className="w-full py-4 bg-surface-container text-on-surface rounded-xl font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors"
+              >
+                <span className="material-symbols-outlined">restart_alt</span>
+                Start New Shift
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lock Screen Overlay ─────────────────────────────────────────── */}
+      {isLocked && currentUser && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md pointer-events-auto">
+          <div className="bg-surface-container-lowest rounded-3xl p-10 max-w-md w-full shadow-2xl border border-outline-variant/10">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 rounded-full bg-surface-container-high text-on-surface mx-auto mb-4 flex items-center justify-center shadow-inner overflow-hidden">
+                {currentUser.avatar_url ? (
+                  <img src={currentUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl font-bold">{currentUser.name.charAt(0)}</span>
+                )}
+              </div>
+              <h2 className="text-2xl font-headline font-bold text-on-surface mb-1">{currentUser.name}</h2>
+              <p className="text-xs font-bold text-primary uppercase tracking-widest">Session Locked</p>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="flex justify-center gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className={`w-4 h-4 rounded-full border-2 ${lockPin.length > i ? 'bg-primary border-primary' : 'border-outline-variant/30'}`} />
+                ))}
+              </div>
+              {lockError && (
+                <p className="text-center text-[10px] font-bold text-error uppercase tracking-widest">{lockError}</p>
+              )}
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => {
+                      if (lockPin.length < 4) {
+                        const newPin = lockPin + num;
+                        setLockPin(newPin);
+                        if (newPin.length === 4) {
+                          // Very simple pin validation - in real app would verify against server or hashed pin
+                          if (newPin === (currentUser.pin_code || '0000')) {
+                            setIsLocked(false);
+                            setLockPin('');
+                            setLockError('');
+                            resetIdleTimer();
+                          } else {
+                            setLockError('Invalid PIN');
+                            setTimeout(() => setLockPin(''), 500);
+                          }
+                        }
+                      }
+                    }}
+                    className="aspect-square rounded-2xl bg-surface-container text-on-surface text-xl font-bold hover:bg-surface-container-high active:bg-primary/20 transition-colors flex items-center justify-center"
+                  >
+                    {num}
+                  </button>
+                ))}
+                <button
+                  onClick={() => handleLogout()}
+                  className="aspect-square rounded-2xl bg-error/10 text-error text-sm font-bold uppercase tracking-widest hover:bg-error/20 active:bg-error/30 transition-colors flex flex-col items-center justify-center gap-1"
+                >
+                  <span className="material-symbols-outlined">logout</span>
+                  <span className="text-[9px]">Exit</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (lockPin.length < 4) {
+                      const newPin = lockPin + '0';
+                      setLockPin(newPin);
+                      if (newPin.length === 4) {
+                        if (newPin === (currentUser.pin_code || '0000')) {
+                          setIsLocked(false);
+                          setLockPin('');
+                          setLockError('');
+                          resetIdleTimer();
+                        } else {
+                          setLockError('Invalid PIN');
+                          setTimeout(() => setLockPin(''), 500);
+                        }
+                      }
+                    }
+                  }}
+                  className="aspect-square rounded-2xl bg-surface-container text-on-surface text-xl font-bold hover:bg-surface-container-high active:bg-primary/20 transition-colors flex items-center justify-center"
+                >
+                  0
+                </button>
+                <button
+                  onClick={() => setLockPin(prev => prev.slice(0, -1))}
+                  className="aspect-square rounded-2xl bg-surface-container text-on-surface hover:bg-surface-container-high active:bg-primary/20 transition-colors flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined">backspace</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

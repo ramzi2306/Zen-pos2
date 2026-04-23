@@ -6,15 +6,32 @@ interface LoginResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
+  resumable?: boolean;
+  register_session?: any;
 }
 
-export async function login(email: string, password: string): Promise<User> {
+export interface AuthLoginResult {
+  user: User;
+  resumable: boolean;
+  registerSession?: any;
+}
+
+export async function login(email: string, password: string): Promise<AuthLoginResult> {
   const data = await apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
   setTokens(data.access_token, data.refresh_token);
-  return me();
+  const user = await me();
+  return {
+    user,
+    resumable: !!data.resumable,
+    registerSession: data.register_session
+  };
+}
+
+export async function heartbeat(): Promise<void> {
+  await apiRequest('/auth/heartbeat', { method: 'POST' });
 }
 
 export async function me(): Promise<User> {

@@ -15,11 +15,47 @@ from app.config import settings
 
 
 async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]:
+    from app.models.register import RegisterSessionDocument
+    
     user = await UserDocument.find_one(UserDocument.email == email)
     if not user or not verify_password(password, user.hashed_password):
         raise UnauthorizedError("Invalid email or password")
 
     tokens = await _issue_tokens(user)
+    
+    # Check for resumable shift
+    grace_window = datetime.now(timezone.utc) - timedelta(hours=4)
+    open_session = await RegisterSessionDocument.find_one(
+        RegisterSessionDocument.cashier_id == str(user.id),
+        RegisterSessionDocument.status == "OPEN",
+        RegisterSessionDocument.opened_at > grace_window
+    )
+    
+    if open_session:
+        tokens.resumable = True
+        tokens.register_session = {
+            "id": str(open_session.id),
+            "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
+            "opening_float": open_session.opening_float,
+            "total_cash_collected": open_session.total_cash_collected,
+        }
+    else:
+        tokens.resumable = False
+        # Create a new session (for cashiers)
+        # Note: In a real flow, you might only do this for certain roles
+        new_session = RegisterSessionDocument(
+            cashier_id=str(user.id),
+            cashier_name=user.name,
+            location_id=user.location_id
+        )
+        await new_session.insert()
+        tokens.register_session = {
+            "id": str(new_session.id),
+            "opened_at": new_session.opened_at.isoformat(),
+            "opening_float": new_session.opening_float,
+            "total_cash_collected": new_session.total_cash_collected,
+        }
+
     return user, tokens
 
 

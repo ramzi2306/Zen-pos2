@@ -37,8 +37,11 @@ class RegisterReportOut(BaseModel):
 
 @router.post("/reports", response_model=RegisterReportOut, status_code=201,
              dependencies=[Depends(require_permission("view_orders"))])
-async def submit_register_report(body: RegisterReportCreate):
+async def submit_register_report(body: RegisterReportCreate, current_user=Depends(require_permission("view_orders"))):
     """Called automatically when a cashier closes their register."""
+    from app.models.register import RegisterSessionDocument
+    from datetime import datetime, timezone
+
     report = RegisterReportDocument(
         opened_at=body.opened_at,
         closed_at=body.closed_at,
@@ -50,6 +53,17 @@ async def submit_register_report(body: RegisterReportCreate):
         location_id=body.location_id,
     )
     await report.insert()
+
+    # Close active RegisterSession for this cashier if it exists
+    open_session = await RegisterSessionDocument.find_one(
+        RegisterSessionDocument.cashier_id == str(current_user.id),
+        RegisterSessionDocument.status == "OPEN"
+    )
+    if open_session:
+        open_session.status = "CLOSED"
+        open_session.closed_at = datetime.now(timezone.utc)
+        await open_session.save()
+
     return _to_out(report)
 
 
