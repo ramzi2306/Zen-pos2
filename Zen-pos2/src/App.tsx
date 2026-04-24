@@ -965,7 +965,7 @@ function AppShell() {
         locations={locations}
         activeLocationId={activeLocationId}
         setActiveLocationId={setActiveLocationId}
-        restaurantName={branding.restaurantName}
+        branding={branding}
       />
 
       {/* Toast notification — bottom-right, auto-dismisses */}

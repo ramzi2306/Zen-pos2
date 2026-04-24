@@ -4,7 +4,8 @@ import { Order, RegisterReport } from '../../data';
 import type { Location } from '../../api/locations';
 import { useLocalization } from '../../context/LocalizationContext';
 import * as api from '../../api';
-import type { FloatSummary } from '../../api/register';
+import { FloatSummary } from '../../api/register';
+import { BrandingData } from '../../api/settings';
 
 // ─── CloseRegisterModal ────────────────────────────────────────────────────────
 /**
@@ -83,43 +84,34 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   };
 
   const handlePrintReport = () => {
-    const openedAt = (() => {
+    const openedAtVal = openedAt || (() => {
       const v = sessionStorage.getItem('sessionOpenedAt');
       if (!v) return 0;
       const d = new Date(isNaN(Number(v)) ? v : Number(v));
       return isNaN(d.getTime()) ? 0 : d.getTime();
     })();
-    const openedLabel = openedAt
-      ? new Date(openedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-      : 'Unknown';
-    const closedLabel = new Date().toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const rows = paymentMethods.map(pm => {
-      const actual = parseFloat(actualAmounts[pm.name]) || 0;
-      const diff = actual - pm.total;
-      return `<tr>
-        <td>${pm.name}</td><td>${pm.ordersCount}</td>
-        <td>${formatCurrency(pm.total)}</td>
-        <td>${actual ? formatCurrency(actual) : '—'}</td>
-        <td style="color:${diff > 0 ? 'green' : diff < 0 ? 'red' : 'inherit'}">${diff !== 0 ? (diff > 0 ? '+' : '') + formatCurrency(diff) : '—'}</td>
-      </tr>`;
-    }).join('');
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <style>body{font-family:monospace;padding:24px;color:#000}h2{margin:0 0 4px}p{margin:2px 0;font-size:13px;color:#555}
-      table{width:100%;border-collapse:collapse;margin-top:16px}th{text-align:left;padding:6px 8px;border-bottom:2px solid #000;font-size:11px;text-transform:uppercase}
-      td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:13px}.total{font-weight:bold;font-size:15px;margin-top:12px;text-align:right}
-      .notes{margin-top:12px;font-size:12px;color:#555;border-top:1px dashed #ccc;padding-top:8px}</style>
-    </head><body>
-      <h2>Register Closure Report</h2>
-      <p>Cashier: <strong>${cashierName}</strong></p>
-      <p>Location: ${locationName}</p>
-      <p>Opened: ${openedLabel}</p>
-      <p>Closed: ${closedLabel}</p>
-      <table><thead><tr><th>Method</th><th>Orders</th><th>Expected</th><th>Counted</th><th>Difference</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <div class="total">Total in register: ${formatCurrency(totalActual)} / Expected: ${formatCurrency(expectedSales)}</div>
-      ${notes ? `<div class="notes">Notes: ${notes}</div>` : ''}
-    </body><script>window.onload=function(){window.print();};<\/script></html>`;
-    import('../../utils/printUtils').then(m => m.firePrint(html));
+
+    import('../../utils/printRegisterReport').then(m => {
+      const html = m.buildRegisterReportHtml({
+        branding: branding || { restaurantName: 'ZenPOS' },
+        cashierName,
+        locationName,
+        openedAt: openedAtVal,
+        closedAt: Date.now(),
+        paymentMethods: paymentMethods.map(pm => ({
+          ...pm,
+          actual: parseFloat(actualAmounts[pm.name]) || 0,
+          difference: (parseFloat(actualAmounts[pm.name]) || 0) - pm.total
+        })),
+        expectedSales,
+        actualSales: totalActual,
+        difference: totalActual - expectedSales,
+        notes,
+        floatSummary: floatSummary || undefined,
+        formatCurrency
+      });
+      m.firePrint(html);
+    });
   };
 
   return (
@@ -474,7 +466,7 @@ export const ProfilePanel = ({
   locations = [],
   activeLocationId,
   setActiveLocationId,
-  restaurantName,
+  branding,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -492,7 +484,7 @@ export const ProfilePanel = ({
   locations?: Location[];
   activeLocationId?: string | null;
   setActiveLocationId?: (id: string | null) => void;
-  restaurantName?: string;
+  branding?: BrandingData;
 }) => {
   const { formatCurrency } = useLocalization();
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
