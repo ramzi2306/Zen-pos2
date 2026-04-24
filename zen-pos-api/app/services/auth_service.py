@@ -45,22 +45,31 @@ async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]
             "id": str(open_session.id),
             "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
             "opening_float": open_session.opening_float,
-            "total_cash_collected": open_session.total_cash_collected,
+            "net_cash_collected": open_session.net_cash_collected,
         }
     else:
         tokens.resumable = False
         # Create a new session (for cashiers)
+        # Find last closed session to pre-fill opening float
+        last_session = await RegisterSessionDocument.find_one(
+            RegisterSessionDocument.cashier_id == str(user.id),
+            RegisterSessionDocument.status == "CLOSED",
+            sort=[("closed_at", -1)]
+        )
+        opening_float = last_session.counted_closing_float if last_session and last_session.counted_closing_float is not None else 0
+        
         new_session = RegisterSessionDocument(
             cashier_id=str(user.id),
             cashier_name=user.name,
-            location_id=user.location_id
+            location_id=user.location_id,
+            opening_float=opening_float
         )
         await new_session.insert()
         tokens.register_session = {
             "id": str(new_session.id),
             "opened_at": new_session.opened_at.isoformat(),
             "opening_float": new_session.opening_float,
-            "total_cash_collected": new_session.total_cash_collected,
+            "net_cash_collected": new_session.net_cash_collected,
         }
 
     return user, tokens
@@ -128,7 +137,7 @@ async def get_user_with_role(user: UserDocument) -> dict:
             "id": str(open_session.id),
             "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
             "opening_float": open_session.opening_float,
-            "total_cash_collected": open_session.total_cash_collected,
+            "net_cash_collected": open_session.net_cash_collected,
         }
 
     return {

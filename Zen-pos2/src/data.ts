@@ -140,7 +140,8 @@ export interface User {
     id: string;
     opened_at: string;
     opening_float: number;
-    total_cash_collected: number;
+    net_cash_collected: number;
+    total_cash_withdrawn: number;
   };
 }
 
@@ -218,6 +219,11 @@ export interface RegisterReport {
   difference: number;
   notes?: string;
   locationId?: string;
+  openingFloat?: number;
+  netCashCollected?: number;
+  totalCashWithdrawn?: number;
+  countedClosingFloat?: number;
+  discrepancy?: number;
 }
 
 export interface VerificationMetadata {

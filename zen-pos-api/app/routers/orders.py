@@ -87,15 +87,27 @@ async def create_order(
     return out
 
 
-@router.patch("/{order_id}", response_model=OrderOut,
-              dependencies=[Depends(require_permission("view_orders"))])
-async def update_order(order_id: str, body: OrderUpdate):
+@router.patch("/{order_id}", response_model=OrderOut)
+async def update_order(
+    order_id: str, 
+    body: OrderUpdate, 
+    current_user: UserDocument = Depends(require_permission("view_orders"))
+):
     from app.models.order import OrderItem, CustomerInfo, SelectedVariation
     from app.services.order_service import recalculate_order_totals
+    from app.services.register_service import record_cash_collection
 
     order = await OrderDocument.get(order_id)
     if not order:
         raise NotFoundError("Order not found")
+    
+    # Track payment for register session
+    was_paid = order.payment_status == "Paid"
+    is_now_paid = (body.payment_status == "Paid") if body.payment_status is not None else was_paid
+    payment_method = body.payment_method or order.payment_method
+    
+    if not was_paid and is_now_paid and payment_method == "Cash":
+        await record_cash_collection(str(current_user.id), order.total)
     
     if body.status and body.status != order.status:
         order = await order_service.transition_status(order_id, body.status, body.scheduled_time)

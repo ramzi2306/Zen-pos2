@@ -11,6 +11,18 @@ interface ApiRegisterReport {
   difference: number;
   notes?: string;
   location_id?: string;
+  opening_float?: number;
+  net_cash_collected?: number;
+  total_cash_withdrawn?: number;
+  counted_closing_float?: number;
+  discrepancy?: number;
+}
+
+export interface FloatSummary {
+  opening_float: number;
+  net_cash_collected: number;
+  total_cash_withdrawn: number;
+  expected_closing_float: number;
 }
 
 function mapRegisterReport(raw: ApiRegisterReport): RegisterReport {
@@ -24,6 +36,11 @@ function mapRegisterReport(raw: ApiRegisterReport): RegisterReport {
     difference: raw.difference,
     notes: raw.notes,
     locationId: raw.location_id,
+    openingFloat: raw.opening_float,
+    netCashCollected: raw.net_cash_collected,
+    totalCashWithdrawn: raw.total_cash_withdrawn,
+    countedClosingFloat: raw.counted_closing_float,
+    discrepancy: raw.discrepancy,
   };
 }
 
@@ -39,6 +56,11 @@ export async function submitRegisterReport(
     difference: payload.difference,
     notes: payload.notes,
     location_id: payload.locationId,
+    opening_float: payload.openingFloat,
+    net_cash_collected: payload.netCashCollected,
+    total_cash_withdrawn: payload.totalCashWithdrawn,
+    counted_closing_float: payload.countedClosingFloat,
+    discrepancy: payload.discrepancy,
   };
 
   const raw = await apiRequest<ApiRegisterReport>('/register/reports', {
@@ -46,6 +68,17 @@ export async function submitRegisterReport(
     body: JSON.stringify(apiPayload),
   });
   return mapRegisterReport(raw);
+}
+
+export async function getSessionFloatSummary(): Promise<FloatSummary> {
+  return await apiRequest<FloatSummary>('/register/session/float-summary');
+}
+
+export async function recordWithdrawal(amount: number, notes?: string): Promise<void> {
+  await apiRequest<void>(`/register/session/withdrawal`, {
+    method: 'POST',
+    body: JSON.stringify({ amount, notes }),
+  });
 }
 
 export async function listRegisterReports(locationId?: string, limit?: number): Promise<RegisterReport[]> {

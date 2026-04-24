@@ -16,6 +16,12 @@ class RegisterReportDocument(Document):
     difference: float                       # actual - expected
     notes: Optional[str] = None
     location_id: Optional[str] = None
+    # New float reconciliation fields
+    opening_float: float = 0
+    net_cash_collected: float = 0
+    total_cash_withdrawn: float = 0
+    counted_closing_float: float = 0
+    discrepancy: float = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     class Settings:
@@ -34,7 +40,12 @@ class RegisterSessionDocument(Document):
     opened_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     closed_at: Optional[datetime] = None
     opening_float: float = 0
-    total_cash_collected: float = 0
+    net_cash_collected: float = 0
+    total_cash_withdrawn: float = 0
+    counted_closing_float: Optional[float] = None
+    discrepancy: Optional[float] = None
+    float_status: str = "OK"  # OK, WARNING, ALERT
+    closing_notes: Optional[str] = None
     
     last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_stale: bool = False

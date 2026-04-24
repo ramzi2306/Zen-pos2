@@ -110,6 +110,11 @@ async def create_order(data: OrderCreate, location_id: Optional[str] = None) -> 
 
     await order.insert()
 
+    # Track cash collection for register session if applicable
+    if order.payment_status == "Paid" and order.payment_method == "Cash" and data.cashier_id:
+        from app.services.register_service import record_cash_collection
+        await record_cash_collection(data.cashier_id, order.total)
+
     # Auto-upsert customer record when phone is provided
     if customer_info.phone:
         await _upsert_customer(customer_info)

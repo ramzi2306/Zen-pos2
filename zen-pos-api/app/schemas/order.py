@@ -53,6 +53,7 @@ class OrderCreate(BaseModel):
     payment_status: str = "Unpaid"   # "Paid" when cashier processes payment at checkout
     payment_method: str = "Cash"     # Cash | Credit Card | Other
     status: str = "Queued"           # "Draft" for Save for Later
+    cashier_id: Optional[str] = None # The ID of the cashier who processed the order/payment
 
 
 class OrderUpdate(BaseModel):

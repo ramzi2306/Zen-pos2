@@ -669,23 +669,12 @@ function AppShell() {
    * Force-checks out the currently logged-in user (if not excluded from attendance),
    * then navigates to the attendance screen.
    */
-  const handleCloseRegister = async (reportData?: { actualSales: number, expectedSales: number, difference: number, notes: string }) => {
+  const handleCloseRegister = async (reportData?: Omit<RegisterReport, 'id'>) => {
     if (reportData) {
       try {
         await api.register.submitRegisterReport({
-          openedAt: (() => {
-            const val = sessionStorage.getItem('sessionOpenedAt');
-            if (!val) return new Date().setHours(0,0,0,0);
-            const d = new Date(isNaN(Number(val)) ? val : Number(val));
-            return isNaN(d.getTime()) ? new Date().setHours(0,0,0,0) : d.getTime();
-          })(),
-          closedAt: Date.now(),
-          cashierName: currentUser?.name || 'Unknown',
-          expectedSales: reportData.expectedSales,
-          actualSales: reportData.actualSales,
-          difference: reportData.difference,
-          notes: reportData.notes,
-          locationId: activeLocationId || undefined
+          ...reportData,
+          locationId: reportData.locationId || activeLocationId || undefined
         });
       } catch (err) {
         console.error('Failed to submit register report', err);

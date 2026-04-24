@@ -1,29 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Order } from '../../data';
+import { Order, RegisterReport } from '../../data';
 import type { Location } from '../../api/locations';
 import { useLocalization } from '../../context/LocalizationContext';
+import * as api from '../../api';
+import type { FloatSummary } from '../../api/register';
 
 // ─── CloseRegisterModal ────────────────────────────────────────────────────────
 /**
  * CloseRegisterModal — full-screen end-of-shift reconciliation screen.
  * Lets the cashier count actual cash/card amounts and compare to expected sales.
- *
- * @prop isOpen        - Controls visibility
- * @prop onClose       - Called when the user cancels
- * @prop expectedSales - System-calculated total for the shift
- * @prop onConfirm     - Called on "Close Register" confirm; defaults to onClose
  */
 interface CloseRegisterModalProps {
   isOpen: boolean;
   onClose: () => void;
   sessionOrders: Order[];
-  onConfirm?: (reportData: { actualSales: number, expectedSales: number, difference: number, notes: string }) => void;
+  onConfirm?: (reportData: Omit<RegisterReport, 'id'>) => void;
   cashierName?: string;
   locationName?: string;
+  openedAt?: number;
 }
 
-const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS' }: CloseRegisterModalProps) => {
+const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS', openedAt }: CloseRegisterModalProps) => {
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
     'Cash': '',
@@ -33,6 +31,20 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [notes, setNotes] = useState('');
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [floatSummary, setFloatSummary] = useState<FloatSummary | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoadingSummary(true);
+      api.register.getSessionFloatSummary()
+        .then(setFloatSummary)
+        .catch(err => console.error('Failed to fetch float summary:', err))
+        .finally(() => setIsLoadingSummary(false));
+    }
+  }, [isOpen]);
+
+  const FLOAT_TOLERANCE = 50; // Configurable threshold
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
   const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid');
@@ -57,6 +69,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   (Object.values(actualAmounts) as string[]).forEach(val => {
     totalActual += parseFloat(val) || 0;
   });
+
+  const countedCash = parseFloat(actualAmounts['Cash']) || 0;
+  const expectedClosingFloat = floatSummary?.expected_closing_float ?? expectedCash;
+  const discrepancy = countedCash - expectedClosingFloat;
+  const isToleranceExceeded = Math.abs(discrepancy) > FLOAT_TOLERANCE;
+  const isNoteRequired = isToleranceExceeded && notes.trim().length === 0;
 
   const handleActualChange = (method: string, value: string) => {
     if (/^\d*\.?\d*$/.test(value)) {
@@ -251,6 +269,74 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               </div>
             </div>
 
+            {/* Cash Float Summary Section */}
+            <div className="bg-[#1a1d21] border-t border-white/5 p-6 flex flex-col gap-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#d84315] text-lg">payments</span>
+                <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-widest">Cash Float Summary</h3>
+                <div className="group relative">
+                  <span className="material-symbols-outlined text-white/20 text-sm cursor-help">info</span>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-[#1a1d21] border border-white/10 rounded-xl text-[10px] text-white/60 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl">
+                    Expected Float = Opening Cash + Cash Collected from Orders − Cash Withdrawals
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-8">
+                <div className="flex flex-col gap-1">
+                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Opening Float</p>
+                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.opening_float ?? 0)}</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">+ Cash Collected</p>
+                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.net_cash_collected ?? expectedCash)}</p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">− Cash Withdrawn</p>
+                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.total_cash_withdrawn ?? 0)}</p>
+                </div>
+                <div className="flex flex-col gap-1 p-3 bg-white/[0.03] rounded-xl border border-white/5">
+                  <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest">= Expected Float</p>
+                  <p className="text-lg font-headline font-extrabold text-white/90 font-mono">{formatCurrency(expectedClosingFloat)}</p>
+                </div>
+              </div>
+
+              {/* Discrepancy Indicator */}
+              {actualAmounts['Cash'] !== '' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex items-center gap-3 p-3 rounded-xl border transition-colors duration-300 ${
+                    discrepancy === 0 
+                      ? 'bg-tertiary/10 border-tertiary/20 text-tertiary' 
+                      : isToleranceExceeded 
+                        ? 'bg-secondary/10 border-secondary/20 text-secondary' 
+                        : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {discrepancy === 0 ? 'check_circle' : isToleranceExceeded ? 'error' : 'warning'}
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-widest">
+                    {discrepancy === 0 
+                      ? '✓ Float matches exactly' 
+                      : `${discrepancy > 0 ? '+' : ''}${formatCurrency(discrepancy)} – ${isToleranceExceeded ? 'Discrepancy detected' : 'Minor difference'}`
+                    }
+                  </p>
+                </motion.div>
+              )}
+              
+              {isNoteRequired && (
+                <motion.p 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  className="text-[10px] font-bold text-secondary uppercase tracking-widest mt-1"
+                >
+                  ⚠️ Closing note required due to discrepancy
+                </motion.p>
+              )}
+            </div>
+
             {/* Footer */}
             <div className="p-6 bg-[#22252a] border-t border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-8">
@@ -266,12 +352,28 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                 <button
                   onClick={() => {
                     if (onConfirm) {
-                      onConfirm({ actualSales: totalActual, expectedSales, difference: totalActual - expectedSales, notes });
+                      onConfirm({ 
+                        actualSales: totalActual, 
+                        expectedSales, 
+                        difference: totalActual - expectedSales, 
+                        notes,
+                        openedAt: openedAt || Date.now(),
+                        closedAt: Date.now(),
+                        cashierName,
+                        openingFloat: floatSummary?.opening_float ?? 0,
+                        netCashCollected: floatSummary?.net_cash_collected ?? expectedCash,
+                        totalCashWithdrawn: floatSummary?.total_cash_withdrawn ?? 0,
+                        countedClosingFloat: countedCash,
+                        discrepancy: discrepancy
+                      });
                     } else {
                       onClose();
                     }
                   }}
-                  className="px-12 py-4 bg-[#d84315] text-white rounded-lg text-sm font-bold uppercase tracking-widest hover:bg-[#bf360c] transition-all shadow-lg shadow-[#d84315]/20"
+                  disabled={isNoteRequired || isLoadingSummary}
+                  className={`px-12 py-4 bg-[#d84315] text-white rounded-lg text-sm font-bold uppercase tracking-widest transition-all shadow-lg shadow-[#d84315]/20 ${
+                    (isNoteRequired || isLoadingSummary) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:bg-[#bf360c]'
+                  }`}
                 >
                   Close Register
                 </button>
@@ -382,7 +484,7 @@ export const ProfilePanel = ({
   currentUser: any;
   onLogout: () => void;
   /** Called after the cashier confirms "Close Register" — handles checkout + navigation */
-  onCloseRegister?: (reportData: { actualSales: number, expectedSales: number, difference: number, notes: string }) => void;
+  onCloseRegister?: (reportData: Omit<RegisterReport, 'id'>) => void;
   /** Called when the cashier tries to close the register but active orders exist */
   onCloseRegisterBlocked?: () => void;
   hasPermission: (p: any) => boolean;
@@ -394,6 +496,7 @@ export const ProfilePanel = ({
 }) => {
   const { formatCurrency } = useLocalization();
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
   const openedAt = (() => {
@@ -633,6 +736,13 @@ export const ProfilePanel = ({
                     </button>
                   )}
                 </div>
+                <button
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  className="w-full py-3 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-secondary/20 flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">payments</span>
+                  Withdraw Cash (Drop)
+                </button>
               </div>
 
               {isLoggedIn && (
@@ -656,6 +766,7 @@ export const ProfilePanel = ({
         onClose={() => setIsCloseModalOpen(false)}
         sessionOrders={sessionOrders}
         cashierName={currentUser?.name}
+        openedAt={openedAt}
         locationName={(() => {
           if (currentUser?.locationName) return currentUser.locationName;
           const activeLoc = activeLocationId ? locations.find(l => l.id === activeLocationId) : null;
@@ -671,6 +782,129 @@ export const ProfilePanel = ({
           }
         }}
       />
+
+      <WithdrawalModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        onConfirm={async (amount, notes) => {
+          try {
+            await api.register.recordWithdrawal(amount, notes);
+            setIsWithdrawModalOpen(false);
+          } catch (err) {
+            console.error('Failed to record withdrawal', err);
+            alert('Failed to record withdrawal. Please try again.');
+          }
+        }}
+      />
     </>
+  );
+};
+
+/**
+ * WithdrawalModal — for mid-session drawer drops or petty cash
+ */
+const WithdrawalModal = ({ isOpen, onClose, onConfirm }: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  onConfirm: (amount: number, notes: string) => Promise<void> 
+}) => {
+  const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { formatCurrency } = useLocalization();
+
+  if (!isOpen) return null;
+
+  const handleConfirm = async () => {
+    const num = parseFloat(amount);
+    if (isNaN(num) || num <= 0) return;
+    setIsSubmitting(true);
+    try {
+      await onConfirm(num, notes);
+      setAmount('');
+      setNotes('');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }}
+        onClick={onClose} 
+        className="absolute inset-0 bg-black/60 backdrop-blur-md" 
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative bg-surface-container-lowest rounded-3xl shadow-3xl w-full max-w-sm overflow-hidden border border-outline-variant/10"
+      >
+        <div className="p-8">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
+              <span className="material-symbols-outlined text-2xl">payments</span>
+            </div>
+            <div>
+              <h3 className="text-xl font-headline font-bold text-on-surface">Withdraw Cash</h3>
+              <p className="text-xs text-on-surface-variant">Record a mid-session drawer drop</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Amount to Withdraw</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold text-lg">$</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-4 bg-surface-container rounded-2xl text-2xl font-bold text-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all placeholder:opacity-30"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Notes / Reason</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Petty cash for supplies, Drawer drop..."
+                rows={3}
+                className="w-full p-4 bg-surface-container rounded-2xl text-sm focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-10">
+            <button
+              onClick={onClose}
+              className="flex-1 py-4 bg-surface-container-highest text-on-surface-variant rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-surface-container-highest/80 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!amount || parseFloat(amount) <= 0 || isSubmitting}
+              className="flex-[2] py-4 bg-secondary text-on-secondary rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-secondary/20 hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center gap-2"
+            >
+              {isSubmitting ? (
+                <span className="material-symbols-outlined animate-spin">sync</span>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-sm">check_circle</span>
+                  Confirm Withdrawal
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
