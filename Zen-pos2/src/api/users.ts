@@ -47,6 +47,12 @@ export interface ApiUserDetail extends ApiUserPublic {
   }[];
   withdrawal_logs: { id: string; amount: number; date: string; status: string }[];
   personal_documents: { id: string; name: string; type: string; url: string }[];
+  register_session?: {
+    id: string;
+    opened_at: string;
+    opening_float: number;
+    total_cash_collected: number;
+  };
 }
 
 function mapUserPublic(raw: ApiUserPublic): User {
@@ -132,6 +138,7 @@ export function mapUserDetail(raw: ApiUserDetail): User {
     })),
     locationId: raw.location_id,
     locationName: raw.location_name,
+    register_session: raw.register_session,
   };
 }
 

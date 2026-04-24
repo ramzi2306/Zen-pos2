@@ -23,14 +23,22 @@ async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]
 
     tokens = await _issue_tokens(user)
     
-    # Check for resumable shift
-    grace_window = datetime.now(timezone.utc) - timedelta(hours=4)
+    # Check for any open shift for this cashier
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
     open_session = await RegisterSessionDocument.find_one(
         RegisterSessionDocument.cashier_id == str(user.id),
-        RegisterSessionDocument.status == "OPEN",
-        RegisterSessionDocument.opened_at > grace_window
+        RegisterSessionDocument.status == "OPEN"
     )
     
+    # If session is from a previous day, close it automatically
+    if open_session and open_session.opened_at < today_start:
+        open_session.status = "CLOSED"
+        open_session.closed_at = now
+        await open_session.save()
+        open_session = None
+
     if open_session:
         tokens.resumable = True
         tokens.register_session = {
@@ -42,7 +50,6 @@ async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]
     else:
         tokens.resumable = False
         # Create a new session (for cashiers)
-        # Note: In a real flow, you might only do this for certain roles
         new_session = RegisterSessionDocument(
             cashier_id=str(user.id),
             cashier_name=user.name,
@@ -101,12 +108,29 @@ async def logout(refresh_token: str) -> None:
 
 async def get_user_with_role(user: UserDocument) -> dict:
     from app.models.location import LocationDocument
+    from app.models.register import RegisterSessionDocument
+    
     await user.fetch_all_links()
     role: RoleDocument = user.role  # may be None if user has no role assigned
     location_name = None
     if user.location_id:
         loc = await LocationDocument.get(user.location_id)
         location_name = loc.name if loc else None
+        
+    # Also fetch active register session
+    open_session = await RegisterSessionDocument.find_one(
+        RegisterSessionDocument.cashier_id == str(user.id),
+        RegisterSessionDocument.status == "OPEN"
+    )
+    register_session = None
+    if open_session:
+        register_session = {
+            "id": str(open_session.id),
+            "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
+            "opening_float": open_session.opening_float,
+            "total_cash_collected": open_session.total_cash_collected,
+        }
+
     return {
         "id": str(user.id),
         "name": user.name,
@@ -132,6 +156,7 @@ async def get_user_with_role(user: UserDocument) -> dict:
         "contract_type": user.contract_type,
         "contract_date": user.contract_date,
         "contract_expiration": user.contract_expiration,
+        "register_session": register_session,
         "monthly_attendance": [
             {
                 "day": a.day,
@@ -155,6 +180,7 @@ async def get_user_with_role(user: UserDocument) -> dict:
             for d in user.personal_documents
         ],
     }
+
 
 
 # ── Internal helpers ───────────────────────────────────────

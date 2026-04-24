@@ -136,6 +136,12 @@ export interface User {
   }[];
   locationId?: string;
   locationName?: string;
+  register_session?: {
+    id: string;
+    opened_at: string;
+    opening_float: number;
+    total_cash_collected: number;
+  };
 }
 
 export interface PerformanceLog {

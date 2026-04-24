@@ -176,9 +176,15 @@ function AppShell() {
     if (cancelled.v) return;
     setCurrentUser(u);
     localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(u));
-    if (sessionStorage.getItem('sessionOpenedAt')) {
+    
+    // Sync register session from user data if present
+    if (u.register_session?.opened_at) {
+      sessionStorage.setItem('sessionOpenedAt', u.register_session.opened_at);
+      setIsRegisterOpen(true);
+    } else if (sessionStorage.getItem('sessionOpenedAt')) {
       setIsRegisterOpen(true);
     }
+    
     _scheduleAudioUnlock();
 
     if (_isAttendanceMgrRole(u)) { navigate('/attendance'); return; }
@@ -225,8 +231,19 @@ function AppShell() {
       api.auth.me()
         .then(fresh => {
           if (!cancelled.v) {
-            setCurrentUser(fresh as User);
-            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(fresh));
+            const u = fresh as User;
+            setCurrentUser(u);
+            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(u));
+            
+            // Background sync of register session
+            if (u.register_session?.opened_at) {
+              sessionStorage.setItem('sessionOpenedAt', u.register_session.opened_at);
+              setIsRegisterOpen(true);
+            } else if (!u.register_session) {
+              // If backend says no session, but we thought there was one, clear it?
+              // Only if it's a genuine "closed" state.
+              // For now, trust the session storage if it exists to be safe against glitches.
+            }
           }
         })
         .catch(err => {
@@ -864,9 +881,25 @@ function AppShell() {
                         isLocked={!!currentUser && !currentUser.excludeFromAttendance && !isRegisterOpen}
                         currentUserId={currentUser?.id}
                         onCurrentUserCheckedIn={() => {
-                          sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
-                          setIsRegisterOpen(true);
-                          _routeToLanding(currentUser!);
+                          // Fetch fresh user data to sync register_session from backend
+                          api.auth.me().then(fresh => {
+                            setCurrentUser(fresh);
+                            localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(fresh));
+                            if (fresh.register_session?.opened_at) {
+                              sessionStorage.setItem('sessionOpenedAt', fresh.register_session.opened_at);
+                              setIsRegisterOpen(true);
+                            } else {
+                              // Fallback if backend didn't create one yet
+                              sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
+                              setIsRegisterOpen(true);
+                            }
+                            _routeToLanding(fresh);
+                          }).catch(() => {
+                             // Fallback if API fails
+                             sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
+                             setIsRegisterOpen(true);
+                             _routeToLanding(currentUser!);
+                          });
                         }}
                       />
                     : <AccessDenied />
