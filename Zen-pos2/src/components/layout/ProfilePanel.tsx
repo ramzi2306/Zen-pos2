@@ -43,22 +43,45 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
           if (summary) setWithdrawnCash(summary.total_cash_withdrawn);
         })
         .catch(() => {});
+    } else {
+      // Reset state when closed
+      setActualAmounts({ 'Cash': '', 'Credit Card': '', 'Other': '' });
+      setWithdrawnCash(0);
+      setFondDeCaisse('');
+      setNotes('');
     }
   }, [isOpen]);
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
-  const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid');
+  const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid' && o.status !== 'Cancelled');
 
-  const cashOrders   = paidOrders.filter(o => (!o.paymentMethod || o.paymentMethod === 'Cash'));
-  const cardOrders   = paidOrders.filter(o => o.paymentMethod === 'Credit Card');
-  const otherOrders  = paidOrders.filter(o => o.paymentMethod === 'Other');
+  const cashOrders   = paidOrders.filter(o => (!o.paymentMethod || o.paymentMethod.toLowerCase() === 'cash'));
+  const cardOrders   = paidOrders.filter(o => o.paymentMethod?.toLowerCase() === 'credit card');
+  const otherOrders  = paidOrders.filter(o => o.paymentMethod?.toLowerCase() === 'other');
 
-  const expectedCash  = cashOrders.reduce((sum, o) => sum + o.total, 0);
-  const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
-  const expectedOther = otherOrders.reduce((sum, o) => sum + o.total, 0);
+  const expectedCash  = cashOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  const expectedCard  = cardOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  const expectedOther = otherOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
   // Cash expected should subtract withdrawn cash (already removed from register)
   const expectedCashNet = expectedCash - withdrawnCash;
+
+  // Pre-fill the actual counted amounts with the expected values by default when the modal opens and withdrawnCash is loaded
+  useEffect(() => {
+    if (isOpen) {
+      setActualAmounts(prev => {
+        // Only pre-fill if they haven't started typing
+        if (!prev['Cash'] && !prev['Credit Card'] && !prev['Other']) {
+          return {
+            'Cash': expectedCashNet ? expectedCashNet.toString() : '',
+            'Credit Card': expectedCard ? expectedCard.toString() : '',
+            'Other': expectedOther ? expectedOther.toString() : '',
+          };
+        }
+        return prev;
+      });
+    }
+  }, [isOpen, expectedCashNet, expectedCard, expectedOther]);
 
   const paymentMethods = [
     { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
@@ -282,8 +305,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                     <div className="text-white/20 font-bold text-xl">=</div>
                   </div>
                   <div className="border-t border-white/10 mt-1 pt-2">
-                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES (EXPECTED)</p>
-                    <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(expectedSales)}</p>
+                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES (EXPECTED)</p>
+                    <p className="text-2xl font-headline font-extrabold text-white/60">{formatCurrency(expectedSales)}</p>
+                  </div>
+                  <div className="border-t border-white/10 mt-2 pt-2">
+                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL ACTUAL COUNTED</p>
+                    <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(totalActual)}</p>
                   </div>
                 </div>
               </div>
