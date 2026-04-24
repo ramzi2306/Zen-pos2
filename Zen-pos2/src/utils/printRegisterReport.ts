@@ -19,6 +19,7 @@ export interface RegisterReportPrintData {
   difference: number;
   notes?: string;
   fondDeCaisse?: number;
+  withdrawnCash: number;
   formatCurrency: (n: number) => string;
 }
 
@@ -131,7 +132,15 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
 
       ${SEP2}
       
-      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:18px;padding:4px 0;">
+      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding:4px 0;">
+        <span>TOTAL SALES:</span>
+        <span>${formatCurrency(d.expectedSales + d.withdrawnCash)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding:4px 0;border-top:1px dashed #000;color:#666;">
+        <span>WITHDRAWN CASH:</span>
+        <span>-${formatCurrency(d.withdrawnCash)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:18px;padding:4px 0;border-top:1px solid #000;">
         <span>TOTAL EXPECTED:</span>
         <span>${formatCurrency(d.expectedSales)}</span>
       </div>

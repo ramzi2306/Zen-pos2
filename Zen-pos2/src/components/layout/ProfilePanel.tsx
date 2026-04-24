@@ -105,6 +105,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
         difference: totalActual - expectedSales,
         notes,
         fondDeCaisse: parseFloat(fondDeCaisse) || 0,
+        withdrawnCash,
         formatCurrency
       });
       m.firePrint(html);
@@ -268,25 +269,22 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
-                  {withdrawnCash > 0 ? (
-                    <>
+                  <div className="flex justify-end items-center gap-4 mb-2">
+                    <div className="text-right">
                       <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">TOTAL SALES</p>
                       <p className="text-lg font-bold text-white/50">{formatCurrency(totalSales)}</p>
-                      <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mt-1 mb-0.5">− WITHDRAWN CASH</p>
-                      <p className="text-lg font-bold text-secondary/70">−{formatCurrency(withdrawnCash)}</p>
-                      <div className="border-t border-white/10 mt-2 pt-2">
-                        <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
-                        <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(expectedSales)}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
-                      <p className="text-3xl font-headline font-extrabold text-white/80">
-                        {formatCurrency(totalActual)}
-                      </p>
-                    </>
-                  )}
+                    </div>
+                    <div className="text-white/20 font-bold text-xl">−</div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mb-0.5">WITHDRAWN CASH</p>
+                      <p className="text-lg font-bold text-secondary/70">{formatCurrency(withdrawnCash)}</p>
+                    </div>
+                    <div className="text-white/20 font-bold text-xl">=</div>
+                  </div>
+                  <div className="border-t border-white/10 mt-1 pt-2">
+                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES (EXPECTED)</p>
+                    <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(expectedSales)}</p>
+                  </div>
                 </div>
               </div>
             </div>
