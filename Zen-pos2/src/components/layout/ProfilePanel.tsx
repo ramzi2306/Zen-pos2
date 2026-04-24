@@ -371,6 +371,10 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                         closedAt: Date.now(),
                         cashierName,
                         countedClosingFloat: parseFloat(fondDeCaisse) || 0,
+                        opening_float: openingFloat,
+                        total_cash_withdrawn: withdrawnCash,
+                        net_cash_collected: totalSales,
+                        discrepancy: totalActual - expectedSales,
                       });
                     } else {
                       onClose();

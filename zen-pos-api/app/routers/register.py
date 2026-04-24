@@ -103,8 +103,6 @@ async def submit_register_report(body: RegisterReportCreate, current_user=Depend
         counted_closing_float=body.counted_closing_float,
         discrepancy=body.discrepancy,
     )
-    # Note: RegisterReportDocument in models doesn't have the new float fields yet.
-    # I should update it as well if we want them persisted in reports.
     await report.insert()
 
     return _to_out(report, body)
