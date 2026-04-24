@@ -33,6 +33,18 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [notes, setNotes] = useState('');
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [withdrawnCash, setWithdrawnCash] = useState(0);
+
+  // Fetch withdrawn cash from backend when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      api.register.getSessionFloatSummary()
+        .then(summary => {
+          if (summary) setWithdrawnCash(summary.total_cash_withdrawn);
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
   const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid');
@@ -45,13 +57,17 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
   const expectedOther = otherOrders.reduce((sum, o) => sum + o.total, 0);
 
+  // Cash expected should subtract withdrawn cash (already removed from register)
+  const expectedCashNet = expectedCash - withdrawnCash;
+
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,  refunds: 0 },
-    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,  refunds: 0 },
-    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther, refunds: 0 },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,     refunds: 0 },
+    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,    refunds: 0 },
   ];
 
-  const expectedSales = expectedCash + expectedCard + expectedOther;
+  const totalSales = expectedCash + expectedCard + expectedOther;
+  const expectedSales = totalSales - withdrawnCash; // Net after withdrawals
 
   let totalActual = 0;
   (Object.values(actualAmounts) as string[]).forEach(val => {
@@ -252,10 +268,25 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
-                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
-                  <p className="text-3xl font-headline font-extrabold text-white/80">
-                    {formatCurrency(totalActual)}
-                  </p>
+                  {withdrawnCash > 0 ? (
+                    <>
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">TOTAL SALES</p>
+                      <p className="text-lg font-bold text-white/50">{formatCurrency(totalSales)}</p>
+                      <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mt-1 mb-0.5">− WITHDRAWN CASH</p>
+                      <p className="text-lg font-bold text-secondary/70">−{formatCurrency(withdrawnCash)}</p>
+                      <div className="border-t border-white/10 mt-2 pt-2">
+                        <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
+                        <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(expectedSales)}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
+                      <p className="text-3xl font-headline font-extrabold text-white/80">
+                        {formatCurrency(totalActual)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
