@@ -34,19 +34,24 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const [withdrawnCash, setWithdrawnCash] = useState(0);
+  const [openingFloat, setOpeningFloat] = useState(0);
 
   // Fetch withdrawn cash from backend when modal opens
   useEffect(() => {
     if (isOpen) {
       api.register.getSessionFloatSummary()
         .then(summary => {
-          if (summary) setWithdrawnCash(summary.total_cash_withdrawn);
+          if (summary) {
+            setWithdrawnCash(summary.total_cash_withdrawn);
+            setOpeningFloat(summary.opening_float || 0);
+          }
         })
         .catch(() => {});
     } else {
       // Reset state when closed
       setActualAmounts({ 'Cash': '', 'Credit Card': '', 'Other': '' });
       setWithdrawnCash(0);
+      setOpeningFloat(0);
       setFondDeCaisse('');
       setNotes('');
     }
@@ -90,7 +95,11 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   ];
 
   const totalSales = expectedCash + expectedCard + expectedOther;
-  const expectedSales = totalSales - withdrawnCash; // Net after withdrawals
+  const salesNet = totalSales - withdrawnCash; // Net sales after withdrawals
+  
+  const currentFondDeCaisse = parseFloat(fondDeCaisse) || 0;
+  const floatDifference = openingFloat - currentFondDeCaisse;
+  const expectedSales = salesNet + floatDifference; // Adjusted for float change
 
   let totalActual = 0;
   (Object.values(actualAmounts) as string[]).forEach(val => {
@@ -127,7 +136,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
         actualSales: totalActual,
         difference: totalActual - expectedSales,
         notes,
-        fondDeCaisse: parseFloat(fondDeCaisse) || 0,
+        openingFloat,
+        fondDeCaisse: currentFondDeCaisse,
         withdrawnCash,
         formatCurrency
       });
@@ -256,26 +266,44 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               })}
             </div>
 
-            {/* Fond de Caisse Row */}
             <div className="bg-[#22252a] border-b border-white/10 px-8 py-5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-[#d84315]/10 flex items-center justify-center border border-[#d84315]/20">
-                  <span className="material-symbols-outlined text-[#d84315] text-xl">account_balance_wallet</span>
+              <div className="flex items-center gap-12">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-[#d84315]/10 flex items-center justify-center border border-[#d84315]/20">
+                    <span className="material-symbols-outlined text-[#d84315] text-xl">account_balance_wallet</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white/80">Fond de Caisse (Opening)</p>
+                    <p className="text-[10px] text-white/40 font-medium">Cash that was in the register at shift start</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-white/80">Fond de Caisse</p>
-                  <p className="text-[10px] text-white/40 font-medium">Cash left in register for next shift opening</p>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-white/60">{formatCurrency(openingFloat)}</p>
+                </div>
+
+                <div className="flex items-center gap-4 border-l border-white/5 pl-12 ml-4">
+                  <div>
+                    <p className="text-sm font-bold text-white/80">Fond de Caisse (Closing)</p>
+                    <p className="text-[10px] text-white/40 font-medium">Cash to leave for next shift</p>
+                  </div>
+                  <div className="relative w-[180px]">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d84315]/50 font-bold text-lg">$</div>
+                    <input
+                      type="text"
+                      value={fondDeCaisse}
+                      onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setFondDeCaisse(e.target.value); }}
+                      placeholder="0.00"
+                      className="w-full bg-[#1a1d21] border-2 border-[#d84315]/30 rounded-xl pl-10 pr-4 py-3 text-xl font-bold focus:outline-none focus:border-[#d84315] transition-all text-white placeholder:text-white/10"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="relative w-[200px]">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d84315]/50 font-bold text-lg">$</div>
-                <input
-                  type="text"
-                  value={fondDeCaisse}
-                  onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setFondDeCaisse(e.target.value); }}
-                  placeholder="0.00"
-                  className="w-full bg-[#1a1d21] border-2 border-[#d84315]/30 rounded-xl pl-10 pr-4 py-3 text-xl font-bold focus:outline-none focus:border-[#d84315] transition-all text-white placeholder:text-white/10"
-                />
+              
+              <div className="text-right">
+                <p className="text-[9px] uppercase font-bold text-white/30 tracking-widest mb-0.5">FLOAT ADJUSTMENT</p>
+                <p className={`text-sm font-bold ${floatDifference === 0 ? 'text-white/40' : floatDifference > 0 ? 'text-tertiary' : 'text-secondary'}`}>
+                  {floatDifference === 0 ? 'No change' : (floatDifference > 0 ? '+' : '-') + formatCurrency(Math.abs(floatDifference))}
+                </p>
               </div>
             </div>
 
@@ -294,13 +322,13 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                 <div className="text-right">
                   <div className="flex justify-end items-center gap-4 mb-2">
                     <div className="text-right">
-                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">TOTAL SALES</p>
-                      <p className="text-lg font-bold text-white/50">{formatCurrency(totalSales)}</p>
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">NET SALES</p>
+                      <p className="text-lg font-bold text-white/50">{formatCurrency(salesNet)}</p>
                     </div>
-                    <div className="text-white/20 font-bold text-xl">−</div>
+                    <div className="text-white/20 font-bold text-xl">{floatDifference >= 0 ? '+' : '−'}</div>
                     <div className="text-right">
-                      <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mb-0.5">WITHDRAWN CASH</p>
-                      <p className="text-lg font-bold text-secondary/70">{formatCurrency(withdrawnCash)}</p>
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">FLOAT DIFF</p>
+                      <p className="text-lg font-bold text-white/50">{formatCurrency(Math.abs(floatDifference))}</p>
                     </div>
                     <div className="text-white/20 font-bold text-xl">=</div>
                   </div>

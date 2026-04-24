@@ -18,6 +18,7 @@ export interface RegisterReportPrintData {
   actualSales: number;
   difference: number;
   notes?: string;
+  openingFloat?: number;
   fondDeCaisse?: number;
   withdrawnCash: number;
   formatCurrency: (n: number) => string;
@@ -61,7 +62,22 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
     </div>
   `).join('');
 
-  const cashFloatSection = d.fondDeCaisse ? `
+  const floatSection = (d.openingFloat !== undefined && d.fondDeCaisse !== undefined) ? `
+    ${SEP}
+    <div style="font-weight:900;font-size:13px;text-align:center;text-decoration:underline;margin-bottom:4px;">FLOAT RECONCILIATION</div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;">
+      <span>Shift Start Float:</span>
+      <span>${formatCurrency(d.openingFloat)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;">
+      <span>Shift End Float:</span>
+      <span>${formatCurrency(d.fondDeCaisse)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:bold;">
+      <span>Float Difference:</span>
+      <span>${(d.openingFloat - d.fondDeCaisse) >= 0 ? '+' : ''}${formatCurrency(d.openingFloat - d.fondDeCaisse)}</span>
+    </div>
+  ` : d.fondDeCaisse ? `
     ${SEP}
     <div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;">
       <span>FOND DE CAISSE (STAY):</span>
@@ -126,19 +142,19 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
         ${methodRows}
       </div>
 
-      ${cashFloatSection}
+      ${floatSection}
 
       ${notesSection}
 
       ${SEP2}
       
       <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding:4px 0;">
-        <span>TOTAL SALES:</span>
-        <span>${formatCurrency(d.expectedSales + d.withdrawnCash)}</span>
+        <span>NET SALES:</span>
+        <span>${formatCurrency(d.expectedSales - (d.openingFloat !== undefined && d.fondDeCaisse !== undefined ? d.openingFloat - d.fondDeCaisse : 0))}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;padding:4px 0;border-top:1px dashed #000;color:#666;">
-        <span>WITHDRAWN CASH:</span>
-        <span>-${formatCurrency(d.withdrawnCash)}</span>
+      <div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;padding:4px 0;color:#333;">
+        <span>FLOAT ADJUST:</span>
+        <span>${(d.openingFloat !== undefined && d.fondDeCaisse !== undefined && (d.openingFloat - d.fondDeCaisse) >= 0) ? '+' : ''}${formatCurrency(d.openingFloat !== undefined && d.fondDeCaisse !== undefined ? d.openingFloat - d.fondDeCaisse : 0)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-weight:900;font-size:18px;padding:4px 0;border-top:1px solid #000;">
         <span>TOTAL EXPECTED:</span>
