@@ -1155,8 +1155,8 @@ export const OrdersView = ({
                         onClick={() => setIsCancelDialogOpen(true)}
                         className="flex-1 py-3 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors shadow-sm flex items-center justify-center gap-1.5"
                       >
-                        <span className="material-symbols-outlined text-[18px]">cancel</span>
-                        Cancel
+                        <span className="material-symbols-outlined text-[18px]">currency_exchange</span>
+                        Refund
                       </button>
                     </div>
                   </motion.div>
@@ -1370,9 +1370,9 @@ export const OrdersView = ({
                     <span className="material-symbols-outlined text-2xl">warning</span>
                   </div>
                   <div>
-                    <h3 className="font-headline text-xl font-bold text-on-surface">Cancel Order?</h3>
+                    <h3 className="font-headline text-xl font-bold text-on-surface">Refund Order?</h3>
                     <p className="text-xs text-on-surface-variant mt-0.5">
-                      Order {selectedOrder?.orderNumber ?? `#${selectedOrder?.id.slice(-4)}`} · This cannot be undone.
+                      Order {selectedOrder?.orderNumber ?? `#${selectedOrder?.id.slice(-4)}`} · This will cancel the order and deduct it from sales.
                     </p>
                   </div>
                 </div>
@@ -1380,7 +1380,7 @@ export const OrdersView = ({
                   <textarea
                     value={cancelReason}
                     onChange={e => setCancelReason(e.target.value)}
-                    placeholder="Reason for cancellation (optional)..."
+                    placeholder="Reason for refund (optional)..."
                     rows={3}
                     className="w-full bg-surface-container border border-outline-variant/20 rounded-xl px-4 pt-3 pb-8 text-sm text-on-surface placeholder:text-outline-variant focus:outline-none focus:border-error focus:ring-1 focus:ring-error transition-all resize-none"
                   />
@@ -1398,7 +1398,7 @@ export const OrdersView = ({
                   onClick={handleCancelOrder}
                   className="flex-1 py-3 bg-error text-on-error rounded-xl text-sm font-bold hover:bg-error/90 transition-colors shadow-md"
                 >
-                  Yes, Cancel
+                  Yes, Refund
                 </button>
               </div>
             </motion.div>
@@ -1647,8 +1647,8 @@ export const OrdersView = ({
                       <span className="material-symbols-outlined animate-spin">sync</span>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-sm">cancel</span>
-                        Cancel Order
+                        <span className="material-symbols-outlined text-sm">currency_exchange</span>
+                        Refund Order
                       </>
                     )}
                   </button>
