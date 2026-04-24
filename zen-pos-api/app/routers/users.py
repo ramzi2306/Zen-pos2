@@ -2,13 +2,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from app.dependencies import require_permission
+from app.dependencies import require_permission, get_current_user
 from app.models.user import UserDocument, RoleDocument
 from app.models.location import LocationDocument
 from app.schemas.user import (
     UserCreate, UserUpdate, UserPublic, UserDetail,
     ChangeRoleRequest, AttendanceDayOut, WithdrawalLogOut, PersonalDocumentOut,
-    UpdatePinRequest, AdminResetPasswordRequest,
+    UpdatePinRequest, AdminResetPasswordRequest, VerifyPinRequest,
 )
 from app.core.exceptions import NotFoundError, ConflictError
 from app.core.security import hash_password
@@ -123,6 +123,20 @@ async def set_pin(user_id: str, body: UpdatePinRequest):
         raise NotFoundError("User not found")
     user.hashed_pin = hash_password(body.pin)
     await user.save()
+
+
+@router.post("/verify-pin")
+async def verify_pin(body: VerifyPinRequest, current_user: UserDocument = Depends(get_current_user)):
+    """Verify the current user's PIN (used for lock screen)."""
+    from app.core.security import verify_password
+    from app.core.exceptions import BadRequestError
+    from fastapi import HTTPException
+    
+    if not current_user.hashed_pin:
+        raise BadRequestError("No PIN configured")
+    if not verify_password(body.pin, current_user.hashed_pin):
+        raise HTTPException(status_code=400, detail="Invalid PIN")
+    return {"status": "ok"}
 
 
 @router.put("/{user_id}/password", status_code=204,

@@ -1225,13 +1225,13 @@ function AppShell() {
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                   <button
                     key={num}
-                    onClick={() => {
+                    onClick={async () => {
                       if (lockPin.length < 4) {
                         const newPin = lockPin + num;
                         setLockPin(newPin);
                         if (newPin.length === 4) {
-                          // Very simple pin validation - in real app would verify against server or hashed pin
-                          if (newPin === (currentUser.pin_code || '0000')) {
+                          const isValid = await api.users.verifyPin(newPin);
+                          if (isValid) {
                             setIsLocked(false);
                             setLockPin('');
                             setLockError('');
@@ -1256,12 +1256,13 @@ function AppShell() {
                   <span className="text-[9px]">Exit</span>
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (lockPin.length < 4) {
                       const newPin = lockPin + '0';
                       setLockPin(newPin);
                       if (newPin.length === 4) {
-                        if (newPin === (currentUser.pin_code || '0000')) {
+                        const isValid = await api.users.verifyPin(newPin);
+                        if (isValid) {
                           setIsLocked(false);
                           setLockPin('');
                           setLockError('');

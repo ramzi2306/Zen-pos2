@@ -111,6 +111,10 @@ class ChangeRoleRequest(BaseModel):
     role_id: str
 
 
+class VerifyPinRequest(BaseModel):
+    pin: str
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
