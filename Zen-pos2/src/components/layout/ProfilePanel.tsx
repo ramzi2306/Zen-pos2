@@ -89,9 +89,10 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   }, [isOpen, expectedCashNet, expectedCard, expectedOther]);
 
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
-    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,     refunds: 0 },
-    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,    refunds: 0 },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,      refunds: 0, actual: parseFloat(actualAmounts['Cash']) || 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,      refunds: 0, actual: parseFloat(actualAmounts['Credit Card']) || 0 },
+    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,     refunds: 0, actual: parseFloat(actualAmounts['Other']) || 0 },
+    { name: 'Withdrawn Cash', ordersCount: 0,               total: -withdrawnCash,   refunds: 0, actual: -withdrawnCash },
   ];
 
   const totalSales = expectedCash + expectedCard + expectedOther;
@@ -101,10 +102,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const floatDifference = openingFloat - currentFondDeCaisse;
   const expectedSales = salesNet + floatDifference; // Adjusted for float change
 
-  let totalActual = 0;
-  (Object.values(actualAmounts) as string[]).forEach(val => {
-    totalActual += parseFloat(val) || 0;
-  });
+  const totalCounted = (parseFloat(actualAmounts['Cash']) || 0) + (parseFloat(actualAmounts['Credit Card']) || 0) + (parseFloat(actualAmounts['Other']) || 0);
+  const totalActual = totalCounted - withdrawnCash; // Net actual after withdrawals
 
   const handleActualChange = (method: string, value: string) => {
     if (/^\d*\.?\d*$/.test(value)) {
@@ -237,29 +236,25 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-bold text-sm">$</div>
                           <input
                             type="text"
-                            value={actualAmounts[pm.name]}
+                            value={actualAmounts[pm.name] || ''}
                             onChange={(e) => handleActualChange(pm.name, e.target.value)}
-                            placeholder="0"
-                            className="w-full bg-transparent border-2 border-[#d84315] rounded-xl pl-8 pr-12 py-4 text-lg font-bold focus:outline-none transition-all text-white placeholder:text-white/10 shadow-[0_0_15px_rgba(216,67,21,0.1)]"
-                          />
-                          <div className="absolute -top-2.5 left-4 bg-[#1a1d21] px-2 text-[11px] font-bold text-[#d84315] uppercase tracking-wider">Counted Value</div>
-                          <button
-                            onClick={(e) => {
-                              const rect = e.currentTarget.closest('.group')?.getBoundingClientRect();
-                              if (rect) {
-                                setNumpadPosition({ top: rect.bottom, left: rect.left, width: rect.width });
-                                setActiveNumpadMethod(pm.name);
-                              }
+                            onFocus={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setNumpadPosition({ top: rect.top, left: rect.left, width: rect.width });
+                              setActiveNumpadMethod(pm.name);
                             }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-[#d84315] transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">calculate</span>
-                          </button>
+                            className="w-full bg-[#1a1d21] border border-white/10 rounded-lg py-2.5 text-center text-sm font-bold text-white focus:outline-none focus:border-[#d84315] transition-all"
+                            placeholder="0.00"
+                          />
                         </div>
-                      </div>
+                      ) : (
+                        <div className="text-secondary text-xs font-bold">
+                          {formatCurrency(actual)}
+                        </div>
+                      )}
                     </div>
-                    <div className={`p-6 text-sm font-bold flex items-center justify-center ${diff === 0 ? 'text-white/40' : diff > 0 ? 'text-tertiary' : 'text-secondary'}`}>
-                      {diff === 0 ? formatCurrency(0) : (diff > 0 ? '+' : '-') + formatCurrency(Math.abs(diff))}
+                    <div className={`p-4 text-xs font-bold flex items-center justify-center ${diff === 0 ? 'text-white/20' : diff > 0 ? 'text-tertiary' : 'text-secondary'}`}>
+                      {diff === 0 ? '—' : (diff > 0 ? '+' : '-') + formatCurrency(Math.abs(diff))}
                     </div>
                   </div>
                 );
@@ -337,7 +332,11 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                     <p className="text-2xl font-headline font-extrabold text-white/60">{formatCurrency(expectedSales)}</p>
                   </div>
                   <div className="border-t border-white/10 mt-2 pt-2">
-                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL ACTUAL COUNTED</p>
+                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL ACTUAL COUNTED (NET)</p>
+                    <div className="flex items-center justify-end gap-2 text-white/40 text-[10px] font-medium mb-1">
+                      <span>{formatCurrency(totalCounted)} Counted</span>
+                      <span className="text-secondary">- {formatCurrency(withdrawnCash)} Withdrawn</span>
+                    </div>
                     <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(totalActual)}</p>
                   </div>
                 </div>
