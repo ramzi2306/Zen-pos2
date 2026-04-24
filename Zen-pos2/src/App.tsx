@@ -151,6 +151,26 @@ function AppShell() {
     else navigate('/menu');
   };
 
+  const getOrderFetchParams = () => {
+    const openedAtStr = sessionStorage.getItem('sessionOpenedAt');
+    if (openedAtStr) {
+      const openedAtTime = isNaN(Number(openedAtStr)) ? Date.parse(openedAtStr) : Number(openedAtStr);
+      if (!isNaN(openedAtTime)) {
+        const d = new Date(openedAtTime);
+        d.setHours(d.getHours() - 2);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return { startDate: `${yyyy}-${mm}-${dd}`, date: undefined };
+      }
+    }
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return { date: `${yyyy}-${mm}-${dd}`, startDate: undefined };
+  };
+
   // ── Session restore ────────────────────────────────────────────────────────
   // Strategy:
   //   1. If a cached user exists in localStorage, restore IMMEDIATELY — no spinner,
@@ -364,8 +384,8 @@ function AppShell() {
     // up on any events that arrived during the disconnected gap.
     const unsubReconnect = zenWs.onReconnect(() => {
       if (!currentUser?.permissions.includes('view_orders')) return;
-      const today = new Date().toISOString().split('T')[0];
-      api.orders.listOrders(usersRef.current, today, activeLocationIdRef.current ?? undefined)
+      const params = getOrderFetchParams();
+      api.orders.listOrders(usersRef.current, params.date, activeLocationIdRef.current ?? undefined, params.startDate)
         .then(setOrders)
         .catch(console.error);
     });
@@ -400,12 +420,13 @@ function AppShell() {
     const refreshOrders = () => {
       if (currentUser.permissions.includes('view_orders')) {
         if (wsRefreshTimerRef.current) clearTimeout(wsRefreshTimerRef.current);
-        const today = new Date().toISOString().split('T')[0];
+        const params = getOrderFetchParams();
         wsRefreshTimerRef.current = setTimeout(() => {
           api.orders.listOrders(
             usersRef.current,
-            today,
+            params.date,
             activeLocationIdRef.current ?? undefined,
+            params.startDate
           ).then(setOrders).catch(console.error);
         }, 300);
       }
@@ -469,27 +490,27 @@ function AppShell() {
     const canOrders = hasPermission('view_orders');
     const canStaff  = hasPermission('view_staff');
 
-    const today = new Date().toISOString().split('T')[0];
+    const params = getOrderFetchParams();
     
     // Fetch users if we can manage staff OR if we need them to assign cooks in OrdersView
     if (canStaff || canOrders) {
       api.users.listUsers().then(u => {
         setUsers(u);
         if (canOrders) {
-          api.orders.listOrders(u, today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+          api.orders.listOrders(u, params.date, activeLocationId ?? undefined, params.startDate).then(setOrders).catch(console.error);
         }
       }).catch(console.error);
     } else if (canOrders) {
       // Fallback (though canOrders is covered above, keeping for clarity if logic changes)
-      api.orders.listOrders([], today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+      api.orders.listOrders([], params.date, activeLocationId ?? undefined, params.startDate).then(setOrders).catch(console.error);
     }
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch orders when admin switches location filter or logs in
   useEffect(() => {
     if (!currentUser || !currentUser.permissions.includes('view_orders')) return;
-    const today = new Date().toISOString().split('T')[0];
-    api.orders.listOrders(usersRef.current, today, activeLocationId ?? undefined).then(setOrders).catch(console.error);
+    const params = getOrderFetchParams();
+    api.orders.listOrders(usersRef.current, params.date, activeLocationId ?? undefined, params.startDate).then(setOrders).catch(console.error);
   }, [activeLocationId, currentUser]);
 
   // Repeat new-order sound every 30 s while unverified online orders exist
