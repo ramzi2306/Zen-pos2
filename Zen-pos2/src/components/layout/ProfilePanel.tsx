@@ -20,12 +20,13 @@ interface CloseRegisterModalProps {
   cashierName?: string;
   locationName?: string;
   openedAt?: number;
+  branding?: BrandingData;
 }
 
-const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS', openedAt }: CloseRegisterModalProps) => {
+const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS', openedAt, branding }: CloseRegisterModalProps) => {
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
-    'Cash': '',
+    'Cash Float': '',
     'Credit Card': '',
     'Other': '',
   });
@@ -58,8 +59,15 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
   const expectedOther = otherOrders.reduce((sum, o) => sum + o.total, 0);
 
+  const expectedClosingFloat = floatSummary?.expected_closing_float ?? expectedCash;
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,  refunds: 0 },
+    { 
+      name: 'Cash Float', 
+      ordersCount: cashOrders.length, 
+      total: expectedClosingFloat, 
+      refunds: 0,
+      isFloat: true 
+    },
     { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,  refunds: 0 },
     { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther, refunds: 0 },
   ];
@@ -71,9 +79,16 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
     totalActual += parseFloat(val) || 0;
   });
 
-  const countedCash = parseFloat(actualAmounts['Cash']) || 0;
-  const expectedClosingFloat = floatSummary?.expected_closing_float ?? expectedCash;
+  const countedCash = parseFloat(actualAmounts['Cash Float']) || 0;
   const discrepancy = countedCash - expectedClosingFloat;
+
+  // Global difference = Sum of all differences in the table
+  const totalDifference = paymentMethods.reduce((sum, pm) => {
+    const expected = pm.total - pm.refunds;
+    const actual = parseFloat(actualAmounts[pm.name]) || 0;
+    return sum + (actual - expected);
+  }, 0);
+
   const isToleranceExceeded = Math.abs(discrepancy) > FLOAT_TOLERANCE;
   const isNoteRequired = isToleranceExceeded && notes.trim().length === 0;
 
@@ -190,7 +205,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
                 return (
                   <div key={pm.name} className="grid grid-cols-7 text-center border-b border-white/5 last:border-b-0 items-stretch relative">
-                    <div className="p-6 text-sm font-bold text-white/70 text-left pl-8 bg-white/[0.02] border-r border-white/5 flex items-center">{pm.name}</div>
+                    <div className="p-6 text-sm font-bold text-white/70 text-left pl-8 bg-white/[0.02] border-r border-white/5 flex flex-col justify-center">
+                      <span>{pm.name}</span>
+                      {pm.isFloat && (
+                        <span className="text-[9px] font-medium text-white/30 uppercase tracking-tighter mt-0.5">Incl. Opening Float</span>
+                      )}
+                    </div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{pm.ordersCount}</div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{formatCurrency(pm.total)}</div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{pm.refunds === 0 ? '—' : formatCurrency(pm.refunds)}</div>
@@ -252,9 +272,9 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                   <p className="text-3xl font-headline font-extrabold text-white/80">
                     {formatCurrency(totalActual)}
                   </p>
-                  {totalActual !== expectedSales && expectedSales > 0 && (
-                    <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${totalActual > expectedSales ? 'text-tertiary' : 'text-secondary'}`}>
-                      GLOBAL DIFFERENCE: {totalActual > expectedSales ? '+' : '-'}{formatCurrency(Math.abs(totalActual - expectedSales))}
+                  {totalDifference !== 0 && (
+                    <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${totalDifference > 0 ? 'text-tertiary' : 'text-secondary'}`}>
+                      GLOBAL DIFFERENCE: {totalDifference > 0 ? '+' : '-'}{formatCurrency(Math.abs(totalDifference))}
                     </p>
                   )}
                 </div>
@@ -294,7 +314,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               </div>
 
               {/* Discrepancy Indicator */}
-              {actualAmounts['Cash'] !== '' && (
+              {actualAmounts['Cash Float'] !== '' && (
                 <motion.div 
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -347,7 +367,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                       onConfirm({ 
                         actualSales: totalActual, 
                         expectedSales, 
-                        difference: totalActual - expectedSales, 
+                        difference: totalDifference, 
                         notes,
                         openedAt: openedAt || Date.now(),
                         closedAt: Date.now(),
@@ -558,7 +578,7 @@ export const ProfilePanel = ({
                     <p className="text-[10px] uppercase font-bold opacity-80 leading-none mb-1">Point of Sale</p>
                     {(() => {
                       const activeLoc = activeLocationId ? locations.find(l => l.id === activeLocationId) : null;
-                      const name = currentUser?.locationName || activeLoc?.name || restaurantName || 'All Locations';
+                      const name = currentUser?.locationName || activeLoc?.name || branding?.restaurantName || 'All Locations';
                       const sub = activeLoc?.subtitle || null;
                       return (
                         <>
@@ -762,8 +782,9 @@ export const ProfilePanel = ({
         locationName={(() => {
           if (currentUser?.locationName) return currentUser.locationName;
           const activeLoc = activeLocationId ? locations.find(l => l.id === activeLocationId) : null;
-          return activeLoc?.name || restaurantName || 'All Locations';
+          return activeLoc?.name || branding?.restaurantName || 'All Locations';
         })()}
+        branding={branding}
         onConfirm={(reportData) => {
           setIsCloseModalOpen(false);
           onClose();
