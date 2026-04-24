@@ -45,10 +45,15 @@ class RegisterReportOut(BaseModel):
     discrepancy: float = 0
 
 
+class WithdrawalItem(BaseModel):
+    amount: float
+    notes: Optional[str] = None
+
 class FloatSummary(BaseModel):
     opening_float: float
     net_cash_collected: float
     total_cash_withdrawn: float
+    withdrawals: list[WithdrawalItem] = []
     expected_closing_float: float
 
 

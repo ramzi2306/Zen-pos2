@@ -21,6 +21,7 @@ export interface RegisterReportPrintData {
   openingFloat?: number;
   fondDeCaisse?: number;
   withdrawnCash: number;
+  withdrawals?: { amount: number; notes?: string }[];
   formatCurrency: (n: number) => string;
 }
 
@@ -89,6 +90,24 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
     ? `${SEP}<div style="font-size:13px;font-weight:900;color:#000;border:1px solid #000;padding:4px;margin-top:4px;">NOTES:<br>${d.notes}</div>`
     : '';
 
+  const withdrawalsSection = (d.withdrawals && d.withdrawals.length > 0) ? `
+    ${SEP}
+    <div style="font-weight:900;font-size:13px;text-align:center;text-decoration:underline;margin-bottom:4px;">CASH WITHDRAWALS (DROPS)</div>
+    ${d.withdrawals.map(w => `
+      <div style="margin-bottom:4px;border-bottom:1px dotted #ccc;padding-bottom:2px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:bold;">
+          <span>WITHDRAWN:</span>
+          <span>${formatCurrency(w.amount)}</span>
+        </div>
+        ${w.notes ? `<div style="font-size:11px;font-style:italic;padding-left:8px;">Reason: ${w.notes}</div>` : ''}
+      </div>
+    `).join('')}
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:900;margin-top:4px;">
+      <span>TOTAL WITHDRAWN:</span>
+      <span>${formatCurrency(d.withdrawnCash)}</span>
+    </div>
+  ` : '';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -143,7 +162,7 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
       </div>
 
       ${floatSection}
-
+      ${withdrawalsSection}
       ${notesSection}
 
       ${SEP2}

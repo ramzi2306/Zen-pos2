@@ -2,7 +2,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from beanie import Document
-from pydantic import Field
+from pydantic import Field, BaseModel
 from pymongo import IndexModel, DESCENDING
 
 
@@ -31,6 +31,11 @@ class RegisterReportDocument(Document):
             IndexModel([("location_id", DESCENDING)]),
         ]
 
+class WithdrawalRecord(BaseModel):
+    amount: float
+    notes: Optional[str] = None
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class RegisterSessionDocument(Document):
     """Active or historically tracked register sessions."""
     cashier_id: str
@@ -42,6 +47,7 @@ class RegisterSessionDocument(Document):
     opening_float: float = 0
     net_cash_collected: float = 0
     total_cash_withdrawn: float = 0
+    withdrawals: list[WithdrawalRecord] = []
     counted_closing_float: Optional[float] = None
     discrepancy: Optional[float] = None
     float_status: str = "OK"  # OK, WARNING, ALERT

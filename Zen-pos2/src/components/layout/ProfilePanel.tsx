@@ -35,6 +35,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const [withdrawnCash, setWithdrawnCash] = useState(0);
   const [openingFloat, setOpeningFloat] = useState(0);
+  const [withdrawalsHistory, setWithdrawalsHistory] = useState<{amount: number, notes: string}[]>([]);
 
   // Fetch withdrawn cash from backend when modal opens
   useEffect(() => {
@@ -44,6 +45,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
           if (summary) {
             setWithdrawnCash(summary.total_cash_withdrawn);
             setOpeningFloat(summary.opening_float || 0);
+            setWithdrawalsHistory(summary.withdrawals || []);
           }
         })
         .catch(() => {});
@@ -52,6 +54,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
       setActualAmounts({ 'Cash': '', 'Credit Card': '', 'Other': '' });
       setWithdrawnCash(0);
       setOpeningFloat(0);
+      setWithdrawalsHistory([]);
       setFondDeCaisse('');
       setNotes('');
     }
@@ -89,10 +92,9 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   }, [isOpen, expectedCashNet, expectedCard, expectedOther]);
 
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,      refunds: 0, actual: parseFloat(actualAmounts['Cash']) || 0 },
-    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,      refunds: 0, actual: parseFloat(actualAmounts['Credit Card']) || 0 },
-    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,     refunds: 0, actual: parseFloat(actualAmounts['Other']) || 0 },
-    { name: 'Withdrawn Cash', ordersCount: 0,               total: -withdrawnCash,   refunds: 0, actual: -withdrawnCash },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,     refunds: 0 },
+    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,    refunds: 0 },
   ];
 
   const totalSales = expectedCash + expectedCard + expectedOther;
@@ -138,6 +140,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
         openingFloat,
         fondDeCaisse: currentFondDeCaisse,
         withdrawnCash,
+        withdrawals: withdrawalsHistory,
         formatCurrency
       });
       m.firePrint(html);
@@ -232,7 +235,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                     <div className="p-6 text-sm font-bold text-white/80 border-r border-white/5 flex items-center justify-center">{formatCurrency(expected)}</div>
                     <div className="p-4 border-r border-white/5 flex items-center justify-center">
                       <div className={`relative w-full max-w-[180px] transition-all duration-300 ${isActive ? 'z-[110]' : 'z-auto'}`}>
-                        <div className={`relative group p-1 rounded-2xl transition-all ${isActive ? 'bg-[#22252a] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-2 ring-[#d84315] scale-110' : ''}`}>
+                        <div className="relative group p-1 rounded-2xl transition-all shadow-sm">
                           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30 font-bold text-sm">$</div>
                           <input
                             type="text"
@@ -247,11 +250,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                             placeholder="0.00"
                           />
                         </div>
-                      ) : (
-                        <div className="text-secondary text-xs font-bold">
-                          {formatCurrency(actual)}
-                        </div>
-                      )}
+                      </div>
                     </div>
                     <div className={`p-4 text-xs font-bold flex items-center justify-center ${diff === 0 ? 'text-white/20' : diff > 0 ? 'text-tertiary' : 'text-secondary'}`}>
                       {diff === 0 ? '—' : (diff > 0 ? '+' : '-') + formatCurrency(Math.abs(diff))}
@@ -315,17 +314,22 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
-                  <div className="flex justify-end items-center gap-4 mb-2">
+                  <div className="flex justify-end items-center gap-3 mb-2">
                     <div className="text-right">
-                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">NET SALES</p>
-                      <p className="text-lg font-bold text-white/50">{formatCurrency(salesNet)}</p>
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">GROSS SALES</p>
+                      <p className="text-sm font-bold text-white/50">{formatCurrency(totalSales)}</p>
                     </div>
-                    <div className="text-white/20 font-bold text-xl">{floatDifference >= 0 ? '+' : '−'}</div>
+                    <div className="text-white/20 font-bold text-lg">−</div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mb-0.5">WITHDRAWN</p>
+                      <p className="text-sm font-bold text-secondary/70">{formatCurrency(withdrawnCash)}</p>
+                    </div>
+                    <div className="text-white/20 font-bold text-lg">{floatDifference >= 0 ? '+' : '−'}</div>
                     <div className="text-right">
                       <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">FLOAT DIFF</p>
-                      <p className="text-lg font-bold text-white/50">{formatCurrency(Math.abs(floatDifference))}</p>
+                      <p className="text-sm font-bold text-white/50">{formatCurrency(Math.abs(floatDifference))}</p>
                     </div>
-                    <div className="text-white/20 font-bold text-xl">=</div>
+                    <div className="text-white/20 font-bold text-lg">=</div>
                   </div>
                   <div className="border-t border-white/10 mt-1 pt-2">
                     <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES (EXPECTED)</p>

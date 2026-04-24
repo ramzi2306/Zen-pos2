@@ -12,17 +12,20 @@ async def record_cash_collection(cashier_id: str, amount: float):
         await session.save()
 
 async def record_cash_withdrawal(cashier_id: str, amount: float, notes: Optional[str] = None):
-    """Increment total_cash_withdrawn for the active session of the given cashier."""
+    """Increment total_cash_withdrawn and record the withdrawal entry for the active session."""
+    from app.models.register import WithdrawalRecord
     session = await RegisterSessionDocument.find_one(
         RegisterSessionDocument.cashier_id == cashier_id,
         RegisterSessionDocument.status == "OPEN"
     )
     if session:
         session.total_cash_withdrawn += amount
+        if session.withdrawals is None: session.withdrawals = []
+        session.withdrawals.append(WithdrawalRecord(amount=amount, notes=notes))
         await session.save()
 
 async def get_session_summary(cashier_id: str):
-    """Get the current session float summary."""
+    """Get the current session summary including withdrawals list."""
     session = await RegisterSessionDocument.find_one(
         RegisterSessionDocument.cashier_id == cashier_id,
         RegisterSessionDocument.status == "OPEN"
@@ -34,5 +37,6 @@ async def get_session_summary(cashier_id: str):
         "opening_float": session.opening_float,
         "net_cash_collected": session.net_cash_collected,
         "total_cash_withdrawn": session.total_cash_withdrawn,
+        "withdrawals": session.withdrawals or [],
         "expected_closing_float": session.opening_float + session.net_cash_collected - session.total_cash_withdrawn
     }
