@@ -22,11 +22,17 @@ let refreshPromise: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   const refresh = localStorage.getItem('refresh_token');
+  
   if (!refresh) {
     clearTokens();
-    window.location.href = '/admin';
+    localStorage.removeItem('zenpos_session_user');
+    // Only redirect if not already on login page to avoid infinite reload loops
+    if (window.location.pathname !== '/admin') {
+      window.location.href = '/admin';
+    }
     return null;
   }
+
   refreshPromise = (async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
@@ -34,28 +40,36 @@ async function refreshAccessToken(): Promise<string | null> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refresh }),
       });
+
       if (res.status === 401 || res.status === 403) {
         // Token is genuinely revoked or invalid — must log out
         clearTokens();
         localStorage.removeItem('zenpos_session_user');
-        window.location.href = '/admin';
+        
+        // Only redirect if not already on login page to avoid infinite reload loops
+        if (window.location.pathname !== '/admin') {
+          window.location.href = '/admin';
+        }
         return null;
       }
+
       if (!res.ok) {
         // Server error (5xx) or network hiccup — do NOT log out.
         return null;
       }
+
       const data = await res.json();
       localStorage.setItem('access_token', data.access_token);
       if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
       return data.access_token as string;
-    } catch {
-      // Network error (offline, timeout) — do NOT log out.
+    } catch (err) {
+      console.warn('[API] Refresh failed:', err);
       return null;
     } finally {
       refreshPromise = null;
     }
   })();
+  
   return refreshPromise;
 }
 
