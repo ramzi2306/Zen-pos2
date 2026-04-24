@@ -100,11 +100,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
       <tbody>${rows}</tbody></table>
       <div class="total">Total in register: ${formatCurrency(totalActual)} / Expected: ${formatCurrency(expectedSales)}</div>
       ${notes ? `<div class="notes">Notes: ${notes}</div>` : ''}
-    </body><script>window.onload=function(){window.print();setTimeout(function(){window.close();},500);};<\/script></html>`;
-    const win = window.open('', '_blank', 'width=600,height=700');
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    </body><script>window.onload=function(){window.print();};<\/script></html>`;
+    import('../../utils/printUtils').then(m => m.firePrint(html));
   };
 
   return (

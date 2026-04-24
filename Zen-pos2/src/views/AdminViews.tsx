@@ -13,6 +13,7 @@ import type { SoundConfig } from '../utils/sounds';
 import { useLocalization, CURRENCY_SYMBOLS } from '../context/LocalizationContext';
 import { TimeRangeSlider } from '../components/ui/TimeRangeSlider';
 import { AttendanceContributionGraph, type ContributionDayRecord } from '../components/ui/attendance-contribution-graph';
+import { printElement } from '../utils/printUtils';
 
 const CurrencySymbol = ({ prefix = '' }: { prefix?: string }) => {
   const { localization } = useLocalization();
@@ -277,7 +278,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
 
             <div className="mt-12 flex gap-6">
               <button 
-                onClick={() => window.print()}
+                onClick={() => printElement('settings-branding-preview', 'Branding Preview')}
                 className="px-12 py-5 bg-primary text-on-primary rounded-[1.5rem] text-sm font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_10px_30px_rgba(0,0,0,0.2)] flex items-center gap-4"
               >
                 <span className="material-symbols-outlined">print</span>
@@ -656,10 +657,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
   });
   
   const handlePrint = () => {
-    const printContent = document.getElementById('dossier-print-area');
-    if (printContent) {
-      window.print();
-    }
+    printElement('dossier-print-area', `Personnel Dossier - ${user.name}`);
   };
 
   const handleCloseEditing = () => {

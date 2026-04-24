@@ -1,5 +1,6 @@
 import QRCodeLib from 'qr.js/lib/QRCode';
 import ErrorCorrectLevel from 'qr.js/lib/ErrorCorrectLevel';
+import { firePrint } from './printUtils';
 
 /** Generate an inline SVG QR code — no external network request needed. */
 function generateQrSvg(value: string, size: number): string {
@@ -108,16 +109,4 @@ export function buildReceiptHtml(d: ReceiptData): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{size:80mm auto;margin:0;}*{box-sizing:border-box;margin:0;padding:0;}body{width:80mm;margin:0 auto;padding:4mm 2mm;font-family:'Courier New',Courier,monospace;font-size:13px;font-weight:700;line-height:1.4;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact;}</style></head><body><div style="text-align:center;margin-bottom:6px;">${branding.logo ? `<img src="${branding.logo}" style="max-width:56px;max-height:56px;display:block;margin:0 auto 4px;filter:grayscale(1) contrast(2);" />` : ''}<div style="font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;">${storeName}</div>${addr.map(l => `<div style="font-size:11px;">${l}</div>`).join('')}${branding.phone ? `<div style="font-size:11px;">${branding.phone}</div>` : ''}</div>${SEP}<div><div style="font-size:14px;font-weight:900;">Order: #${d.orderNumber || '\u2014'}</div><div>Date:  ${dateStr}  ${timeStr}</div><div style="font-weight:900;">Type:  ${orderTypeDisplay.toUpperCase()}</div></div>${paymentStatusSection}${customerSection}${SEP}${itemRows}${notesSection}${SEP}<div style="display:flex;justify-content:space-between;font-size:12px;"><span>Subtotal:</span><span>${formatCurrency(d.subtotal)}</span></div>${d.taxAmount > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;"><span>${taxLabel}</span><span>${formatCurrency(d.taxAmount)}</span></div>` : ''}${(d.gratuityAmount ?? 0) > 0 ? `<div style="display:flex;justify-content:space-between;font-size:12px;"><span>${gratuityLabel}</span><span>${formatCurrency(d.gratuityAmount!)}</span></div>` : ''}${SEP2}<div style="display:flex;justify-content:space-between;font-weight:900;font-size:20px;padding:4px 0;"><span>TOTAL:</span><span>${formatCurrency(d.total)}</span></div>${SEP2}${paidSection}${qrSection}${SEP}<div style="text-align:center;font-size:12px;font-weight:bold;padding:4px 0;">${footer}</div><script>window.onload=function(){window.print();};<\/script></body></html>`;
 }
 
-export function firePrint(html: string): void {
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.appendChild(iframe);
-  if (iframe.contentWindow) {
-    iframe.contentWindow.document.open();
-    iframe.contentWindow.document.write(html);
-    iframe.contentWindow.document.close();
-    iframe.contentWindow.addEventListener('afterprint', () => {
-      setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 1000);
-    });
-  }
-}
+export { firePrint };
