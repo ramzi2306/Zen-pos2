@@ -51,7 +51,8 @@ export interface ApiUserDetail extends ApiUserPublic {
     id: string;
     opened_at: string;
     opening_float: number;
-    total_cash_collected: number;
+    net_cash_collected: number;
+    total_cash_withdrawn: number;
   };
 }
 

@@ -46,6 +46,7 @@ async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]
             "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
             "opening_float": open_session.opening_float,
             "net_cash_collected": open_session.net_cash_collected,
+            "total_cash_withdrawn": open_session.total_cash_withdrawn,
         }
     else:
         tokens.resumable = False
@@ -70,6 +71,7 @@ async def login(email: str, password: str) -> tuple[UserDocument, TokenResponse]
             "opened_at": new_session.opened_at.isoformat(),
             "opening_float": new_session.opening_float,
             "net_cash_collected": new_session.net_cash_collected,
+            "total_cash_withdrawn": new_session.total_cash_withdrawn,
         }
 
     return user, tokens
@@ -138,6 +140,7 @@ async def get_user_with_role(user: UserDocument) -> dict:
             "opened_at": open_session.opened_at.isoformat() if open_session.opened_at else None,
             "opening_float": open_session.opening_float,
             "net_cash_collected": open_session.net_cash_collected,
+            "total_cash_withdrawn": open_session.total_cash_withdrawn,
         }
 
     return {

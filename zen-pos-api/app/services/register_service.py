@@ -11,7 +11,7 @@ async def record_cash_collection(cashier_id: str, amount: float):
         session.net_cash_collected += amount
         await session.save()
 
-async def record_cash_withdrawal(cashier_id: str, amount: float):
+async def record_cash_withdrawal(cashier_id: str, amount: float, notes: Optional[str] = None):
     """Increment total_cash_withdrawn for the active session of the given cashier."""
     session = await RegisterSessionDocument.find_one(
         RegisterSessionDocument.cashier_id == cashier_id,

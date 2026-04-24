@@ -85,8 +85,10 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const expectedSales = expectedCash + expectedCard + expectedOther;
 
   let totalActual = 0;
-  (Object.values(actualAmounts) as string[]).forEach(val => {
-    totalActual += parseFloat(val) || 0;
+  Object.entries(actualAmounts).forEach(([key, val]) => {
+    if (key !== 'Remaining Float') {
+      totalActual += parseFloat(val) || 0;
+    }
   });
 
   const countedCash = parseFloat(actualAmounts['Cash Float']) || 0;
@@ -118,7 +120,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
     import('../../utils/printRegisterReport').then(m => {
       const html = m.buildRegisterReportHtml({
-        branding: branding || { restaurantName: 'ZenPOS' },
+        branding: branding || { restaurantName: 'ZenPOS' } as BrandingData,
         cashierName,
         locationName,
         openedAt: openedAtVal,
@@ -384,6 +386,15 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                   placeholder="Required if there is a discrepancy. Add any notes about the shift or cash count..."
                   className={`w-full h-20 p-3 bg-white/[0.02] border rounded-xl text-sm focus:outline-none transition-all resize-none placeholder:text-white/20 text-white ${isNoteRequired ? 'border-secondary/50 focus:border-secondary shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/10 focus:border-[#d84315]'}`}
                 />
+                {isNoteRequired && (
+                  <motion.p 
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    className="text-[10px] font-bold text-secondary uppercase tracking-widest mt-2"
+                  >
+                    ⚠️ Closing note required due to discrepancy
+                  </motion.p>
+                )}
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
@@ -398,17 +409,6 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                   )}
                 </div>
               </div>
-            </div>
-              
-              {isNoteRequired && (
-                <motion.p 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }} 
-                  className="text-[10px] font-bold text-secondary uppercase tracking-widest mt-1"
-                >
-                  ⚠️ Closing note required due to discrepancy
-                </motion.p>
-              )}
             </div>
 
             {/* Footer */}
