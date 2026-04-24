@@ -83,11 +83,11 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
     ${SEP}
     <div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;">
       <span>ACTUAL COUNTED:</span>
-      <span>${formatCurrency(d.paymentMethods.find(p => p.name === 'Cash')?.actual || 0)}</span>
+      <span>${formatCurrency(d.paymentMethods.find(p => p.name.includes('Cash'))?.actual || 0)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;margin-top:2px;border:1px solid #000;padding:2px;">
       <span>DISCREPANCY:</span>
-      <span>${(d.paymentMethods.find(p => p.name === 'Cash')?.difference || 0) >= 0 ? '+' : ''}${formatCurrency(d.paymentMethods.find(p => p.name === 'Cash')?.difference || 0)}</span>
+      <span>${(d.paymentMethods.find(p => p.name.includes('Cash'))?.difference || 0) >= 0 ? '+' : ''}${formatCurrency(d.paymentMethods.find(p => p.name.includes('Cash'))?.difference || 0)}</span>
     </div>
   ` : '';
 

@@ -184,6 +184,104 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               );
             })()}
 
+            {/* Reconciliation Summary (Moved to Top) */}
+            <div className="bg-[#22252a] border-b border-white/10 p-6 flex flex-col gap-6 shadow-lg relative z-[50]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#d84315]/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[#d84315]">payments</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-widest">Register Reconciliation</h3>
+                    <p className="text-[10px] text-white/40 font-medium uppercase tracking-tighter">Step 1: Verify Cash & Count Drawer</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-10">
+                   <div className="flex flex-col gap-1">
+                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Opening Float</p>
+                    <p className="text-sm font-bold text-white/60 font-mono">
+                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.opening_float ?? 0)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">+ Cash Collected</p>
+                    <p className="text-sm font-bold text-white/60 font-mono">
+                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.net_cash_collected ?? expectedCash)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">− Withdrawals</p>
+                    <p className="text-sm font-bold text-white/60 font-mono">
+                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.total_cash_withdrawn ?? 0)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1 p-3 px-4 bg-white/[0.03] rounded-xl border border-white/5">
+                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest leading-none mb-1">= Expected Cash</p>
+                    <p className="text-lg font-headline font-extrabold text-white/90 font-mono">
+                      {isLoadingSummary ? '...' : formatCurrency(expectedClosingFloat)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-8 items-center border-t border-white/5 pt-6">
+                <div className="col-span-4 flex flex-col gap-2">
+                  <p className="text-[11px] font-bold text-[#d84315] uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#d84315] animate-pulse" />
+                    Enter Physical Cash Count (Closing Float)
+                  </p>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d84315] font-bold text-xl">$</div>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={actualAmounts['Cash Float']}
+                      onChange={(e) => handleActualChange('Cash Float', e.target.value)}
+                      placeholder="0.00"
+                      className="w-full bg-[#1a1d21] border-2 border-[#d84315] rounded-2xl pl-10 pr-4 py-5 text-3xl font-bold focus:outline-none focus:ring-4 focus:ring-[#d84315]/20 transition-all text-white placeholder:text-white/5 shadow-[0_20px_40px_rgba(216,67,21,0.1)]"
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-8">
+                  {actualAmounts['Cash Float'] !== '' && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`flex items-center gap-5 p-5 rounded-2xl border-2 transition-all duration-300 ${
+                        discrepancy === 0 
+                          ? 'bg-tertiary/10 border-tertiary/20 text-tertiary' 
+                          : isToleranceExceeded 
+                            ? 'bg-secondary/10 border-secondary/30 text-secondary shadow-[0_0_40px_rgba(239,68,68,0.15)]' 
+                            : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+                      }`}
+                    >
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        discrepancy === 0 ? 'bg-tertiary/20' : isToleranceExceeded ? 'bg-secondary/20' : 'bg-amber-500/20'
+                      }`}>
+                        <span className="material-symbols-outlined text-3xl">
+                          {discrepancy === 0 ? 'verified' : isToleranceExceeded ? 'warning' : 'info'}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Discrepancy Calculation</p>
+                        <p className="text-xl font-black uppercase tracking-wider leading-none">
+                          {discrepancy === 0 
+                            ? 'Balanced' 
+                            : `${discrepancy > 0 ? '+' : ''}${formatCurrency(discrepancy)} ${discrepancy > 0 ? 'OVERAGE' : 'SHORTAGE'}`
+                          }
+                        </p>
+                        <p className="text-[10px] font-bold opacity-40 uppercase tracking-tighter mt-1">
+                          {isToleranceExceeded ? 'Action Required: Please provide a comment below explaining this variation.' : 'Variation within acceptable tolerance.'}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Table Header */}
             <div className="grid grid-cols-7 text-center border-b border-white/10 bg-[#22252a] shadow-sm">
               <div className="p-4 text-[11px] font-bold text-white/50 border-r border-white/10 uppercase tracking-wider">Payment</div>
@@ -258,85 +356,28 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
             {/* Notes & Total */}
             <div className="grid grid-cols-2 bg-[#1a1d21]">
               <div className="p-4 border-r border-white/10">
-                <p className="text-[9px] uppercase font-bold text-white/40 mb-1.5 tracking-widest">COMMENTS / PRIVATE NOTES</p>
+                <p className="text-[9px] uppercase font-bold text-white/40 mb-1.5 tracking-widest">CLOSING NOTES / COMMENTS {isNoteRequired && <span className="text-secondary ml-2">(REQUIRED)</span>}</p>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add a comment if the amount is not as expected..."
-                  className="w-full h-16 p-2.5 bg-white/[0.02] border border-white/10 rounded text-sm focus:outline-none focus:border-[#d84315]/50 transition-colors resize-none placeholder:text-white/20 text-white"
+                  placeholder="Required if there is a discrepancy. Add any notes about the shift or cash count..."
+                  className={`w-full h-20 p-3 bg-white/[0.02] border rounded-xl text-sm focus:outline-none transition-all resize-none placeholder:text-white/20 text-white ${isNoteRequired ? 'border-secondary/50 focus:border-secondary shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/10 focus:border-[#d84315]'}`}
                 />
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
-                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL IN REGISTER</p>
+                  <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES</p>
                   <p className="text-3xl font-headline font-extrabold text-white/80">
                     {formatCurrency(totalActual)}
                   </p>
                   {totalDifference !== 0 && (
                     <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${totalDifference > 0 ? 'text-tertiary' : 'text-secondary'}`}>
-                      GLOBAL DIFFERENCE: {totalDifference > 0 ? '+' : '-'}{formatCurrency(Math.abs(totalDifference))}
+                      NET DISCREPANCY: {totalDifference > 0 ? '+' : '-'}{formatCurrency(Math.abs(totalDifference))}
                     </p>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* Cash Float Summary Section */}
-            <div className="bg-[#1a1d21] border-t border-white/5 p-6 flex flex-col gap-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#d84315] text-lg">payments</span>
-                <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-widest">Cash Float Summary</h3>
-                <div className="group relative">
-                  <span className="material-symbols-outlined text-white/20 text-sm cursor-help">info</span>
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-[#1a1d21] border border-white/10 rounded-xl text-[10px] text-white/60 leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl">
-                    Expected Float = Opening Cash + Cash Collected from Orders − Cash Withdrawals
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-8">
-                <div className="flex flex-col gap-1">
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Opening Float</p>
-                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.opening_float ?? 0)}</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">+ Cash Collected</p>
-                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.net_cash_collected ?? expectedCash)}</p>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">− Cash Withdrawn</p>
-                  <p className="text-sm font-bold text-white/60 font-mono">{formatCurrency(floatSummary?.total_cash_withdrawn ?? 0)}</p>
-                </div>
-                <div className="flex flex-col gap-1 p-3 bg-white/[0.03] rounded-xl border border-white/5">
-                  <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest">= Expected Float</p>
-                  <p className="text-lg font-headline font-extrabold text-white/90 font-mono">{formatCurrency(expectedClosingFloat)}</p>
-                </div>
-              </div>
-
-              {/* Discrepancy Indicator */}
-              {actualAmounts['Cash Float'] !== '' && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex items-center gap-3 p-3 rounded-xl border transition-colors duration-300 ${
-                    discrepancy === 0 
-                      ? 'bg-tertiary/10 border-tertiary/20 text-tertiary' 
-                      : isToleranceExceeded 
-                        ? 'bg-secondary/10 border-secondary/20 text-secondary' 
-                        : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-lg">
-                    {discrepancy === 0 ? 'check_circle' : isToleranceExceeded ? 'error' : 'warning'}
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-widest">
-                    {discrepancy === 0 
-                      ? '✓ Float matches exactly' 
-                      : `${discrepancy > 0 ? '+' : ''}${formatCurrency(discrepancy)} – ${isToleranceExceeded ? 'Discrepancy detected' : 'Minor difference'}`
-                    }
-                  </p>
-                </motion.div>
-              )}
               
               {isNoteRequired && (
                 <motion.p 
@@ -352,9 +393,13 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
             {/* Footer */}
             <div className="p-6 bg-[#22252a] border-t border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-8">
-                <button onClick={handlePrintReport} className="flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest">
+                <button 
+                  onClick={handlePrintReport} 
+                  disabled={isLoadingSummary}
+                  className={`flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest ${isLoadingSummary ? 'opacity-30 cursor-not-allowed' : ''}`}
+                >
                   <span className="material-symbols-outlined text-2xl">print</span>
-                  Print Report
+                  {isLoadingSummary ? 'Loading Summary...' : 'Print Report'}
                 </button>
               </div>
               <div className="flex gap-6">
