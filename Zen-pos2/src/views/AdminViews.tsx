@@ -5520,6 +5520,8 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
@@ -5545,18 +5547,34 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
 
   const handleSave = async () => {
     setError('');
+    
+    // Password validation
     if (newPassword || confirmPassword || currentPassword) {
       if (!currentPassword) { setError('Enter your current password to change it.'); return; }
       if (newPassword.length < 8) { setError('New password must be at least 8 characters.'); return; }
       if (newPassword !== confirmPassword) { setError('New passwords do not match.'); return; }
     }
+
+    // PIN validation
+    if (newPin || confirmPin) {
+      if (newPin.length !== 4 || isNaN(Number(newPin))) { setError('PIN must be 4 digits.'); return; }
+      if (newPin !== confirmPin) { setError('PINs do not match.'); return; }
+    }
+
     setSaving(true);
     try {
       await api.users.updateUser(currentUser.id, { name, email, phone, image: imagePreview || undefined });
+      
       if (newPassword) {
         await api.auth.changePassword(currentPassword, newPassword);
         setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
       }
+
+      if (newPin) {
+        await api.users.updatePin(currentUser.id, newPin);
+        setNewPin(''); setConfirmPin('');
+      }
+
       onUserUpdate({ ...currentUser, name, email, phone, image: imagePreview });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -5661,6 +5679,39 @@ const ProfileSettingsView = ({ currentUser, onUserUpdate }: {
                 <div className="w-full px-4 py-3 bg-surface-container border border-outline-variant/20 rounded-xl text-sm text-on-surface-variant cursor-not-allowed select-none">
                   {currentUser.role || '—'}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* PIN Security */}
+          <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+            <div className="px-6 py-4 border-b border-outline-variant/10 flex items-center gap-3">
+              <span className="material-symbols-outlined text-primary">pin</span>
+              <span className="font-bold text-on-surface text-sm uppercase tracking-widest">PIN Security</span>
+              <span className="ml-auto text-[10px] text-on-surface-variant">4-digit code for kiosk & lock screen</span>
+            </div>
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">New PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={newPin}
+                  onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-colors tracking-widest"
+                  placeholder="••••"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Confirm PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={confirmPin}
+                  onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                  className="w-full px-4 py-3 bg-surface-container-high border border-outline-variant/30 rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-colors tracking-widest"
+                  placeholder="••••"
+                />
               </div>
             </div>
           </div>
