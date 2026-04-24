@@ -656,7 +656,12 @@ function AppShell() {
     if (reportData) {
       try {
         await api.register.submitRegisterReport({
-          openedAt: parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || new Date().setHours(0,0,0,0),
+          openedAt: (() => {
+            const val = sessionStorage.getItem('sessionOpenedAt');
+            if (!val) return new Date().setHours(0,0,0,0);
+            const d = new Date(isNaN(Number(val)) ? val : Number(val));
+            return isNaN(d.getTime()) ? new Date().setHours(0,0,0,0) : d.getTime();
+          })(),
           closedAt: Date.now(),
           cashierName: currentUser?.name || 'Unknown',
           expectedSales: reportData.expectedSales,

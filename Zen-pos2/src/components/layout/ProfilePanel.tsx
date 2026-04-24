@@ -65,7 +65,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   };
 
   const handlePrintReport = () => {
-    const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+    const openedAt = (() => {
+      const v = sessionStorage.getItem('sessionOpenedAt');
+      if (!v) return 0;
+      const d = new Date(isNaN(Number(v)) ? v : Number(v));
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    })();
     const openedLabel = openedAt
       ? new Date(openedAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
       : 'Unknown';
@@ -123,7 +128,12 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
             {/* Top Info */}
             {(() => {
-              const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+              const openedAt = (() => {
+                const v = sessionStorage.getItem('sessionOpenedAt');
+                if (!v) return 0;
+                const d = new Date(isNaN(Number(v)) ? v : Number(v));
+                return isNaN(d.getTime()) ? 0 : d.getTime();
+              })();
               const openedDate = openedAt ? new Date(openedAt) : null;
               const hoursAgo = openedAt ? Math.floor((Date.now() - openedAt) / 3600000) : null;
               const openedLabel = openedDate
@@ -389,7 +399,12 @@ export const ProfilePanel = ({
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
   
-  const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0') || new Date().setHours(0,0,0,0);
+  const openedAt = (() => {
+    const v = sessionStorage.getItem('sessionOpenedAt');
+    if (!v) return new Date().setHours(0,0,0,0);
+    const d = new Date(isNaN(Number(v)) ? v : Number(v));
+    return isNaN(d.getTime()) ? new Date().setHours(0,0,0,0) : d.getTime();
+  })();
   
   // Create a robust shift filter. 
   // If we have a session start time, use it with a very generous 1-hour grace period for clock skew.
@@ -554,7 +569,12 @@ export const ProfilePanel = ({
                 <div className="p-6">
                   <p className="text-[10px] uppercase font-bold opacity-40 mb-2">Open</p>
                   {(() => {
-                    const openedAt = parseInt(sessionStorage.getItem('sessionOpenedAt') || '0');
+                    const openedAt = (() => {
+                      const v = sessionStorage.getItem('sessionOpenedAt');
+                      if (!v) return 0;
+                      const d = new Date(isNaN(Number(v)) ? v : Number(v));
+                      return isNaN(d.getTime()) ? 0 : d.getTime();
+                    })();
                     if (!openedAt) return <p className="text-sm font-bold opacity-60">—</p>;
                     const h = Math.floor((Date.now() - openedAt) / 3600000);
                     const m = Math.floor(((Date.now() - openedAt) % 3600000) / 60000);
