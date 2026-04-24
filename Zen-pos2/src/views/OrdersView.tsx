@@ -69,9 +69,16 @@ export const OrdersView = ({
   onClearRecentlyUpdated?: (id: string) => void,
 }) => {
   const { formatCurrency, localization } = useLocalization();
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-  const lastWeek = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+  const getLocalYYYYMMDD = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const today = getLocalYYYYMMDD(new Date());
+  const yesterday = getLocalYYYYMMDD(new Date(Date.now() - 86400000));
+  const lastWeek = getLocalYYYYMMDD(new Date(Date.now() - 7 * 86400000));
 
   const [dateFilter, setDateFilter] = useState<{
     type: 'today' | 'yesterday' | 'week' | 'custom';
@@ -138,7 +145,25 @@ export const OrdersView = ({
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end)
+    let d = dateFilter.date;
+    let s = dateFilter.start;
+    let e = dateFilter.end;
+
+    // Session-aware "today" fetching
+    if (dateFilter.type === 'today') {
+      const openedAtStr = sessionStorage.getItem('sessionOpenedAt');
+      if (openedAtStr) {
+        const openedAtTime = isNaN(Number(openedAtStr)) ? Date.parse(openedAtStr) : Number(openedAtStr);
+        if (!isNaN(openedAtTime)) {
+          const sd = new Date(openedAtTime);
+          sd.setHours(sd.getHours() - 2);
+          s = getLocalYYYYMMDD(sd);
+          d = undefined;
+        }
+      }
+    }
+
+    api.orders.listOrders(users, d, undefined, s, e)
       .then(setOrders)
       .catch(console.error);
   }, [dateFilter, users]);
@@ -173,7 +198,25 @@ export const OrdersView = ({
 
   // Listen for new online orders arriving from the storefront (WebSocket + storage)
   useEffect(() => {
-    const refetch = () => api.orders.listOrders(users, dateFilter.date, undefined, dateFilter.start, dateFilter.end).then(setOrders).catch(() => {});
+    const refetch = () => {
+      let d = dateFilter.date;
+      let s = dateFilter.start;
+      let e = dateFilter.end;
+
+      if (dateFilter.type === 'today') {
+        const openedAtStr = sessionStorage.getItem('sessionOpenedAt');
+        if (openedAtStr) {
+          const openedAtTime = isNaN(Number(openedAtStr)) ? Date.parse(openedAtStr) : Number(openedAtStr);
+          if (!isNaN(openedAtTime)) {
+            const sd = new Date(openedAtTime);
+            sd.setHours(sd.getHours() - 2);
+            s = getLocalYYYYMMDD(sd);
+            d = undefined;
+          }
+        }
+      }
+      return api.orders.listOrders(users, d, undefined, s, e).then(setOrders).catch(() => {});
+    };
     const onStorage = (e: StorageEvent) => { if (e.key === 'zenpos_mock_online_orders') refetch(); };
 
     window.addEventListener('storage', onStorage);
