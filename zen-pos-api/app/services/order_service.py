@@ -21,7 +21,7 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
     "Out for delivery": ["Queued", "Done", "Cancelled"],
     "Verification":     ["Queued", "Cancelled"],
     "Cancelled":        [],
-    "Done":             [],
+    "Done":             ["Cancelled"],
 }
 
 
