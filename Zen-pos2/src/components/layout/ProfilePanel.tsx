@@ -4,7 +4,6 @@ import { Order, RegisterReport } from '../../data';
 import type { Location } from '../../api/locations';
 import { useLocalization } from '../../context/LocalizationContext';
 import * as api from '../../api';
-import { FloatSummary } from '../../api/register';
 import { BrandingData } from '../../api/settings';
 
 // ─── CloseRegisterModal ────────────────────────────────────────────────────────
@@ -26,37 +25,14 @@ interface CloseRegisterModalProps {
 const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS', openedAt, branding }: CloseRegisterModalProps) => {
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
-    'Cash Float': '',
-    'Remaining Float': '',
+    'Cash': '',
     'Credit Card': '',
     'Other': '',
   });
+  const [fondDeCaisse, setFondDeCaisse] = useState('');
   const [notes, setNotes] = useState('');
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [floatSummary, setFloatSummary] = useState<FloatSummary | null>(null);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsLoadingSummary(true);
-      api.register.getSessionFloatSummary()
-        .then(summary => {
-          setFloatSummary(summary);
-          if (summary) {
-            // Pre-fill Remaining Float with the Opening Float (Fond de caisse logic)
-            setActualAmounts(prev => ({
-              ...prev,
-              'Remaining Float': summary.opening_float.toString()
-            }));
-          }
-        })
-        .catch(err => console.error('Failed to fetch float summary:', err))
-        .finally(() => setIsLoadingSummary(false));
-    }
-  }, [isOpen]);
-
-  const FLOAT_TOLERANCE = 50; // Configurable threshold
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
   const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid');
@@ -69,15 +45,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const expectedCard  = cardOrders.reduce((sum, o) => sum + o.total, 0);
   const expectedOther = otherOrders.reduce((sum, o) => sum + o.total, 0);
 
-  const expectedClosingFloat = floatSummary?.expected_closing_float ?? expectedCash;
   const paymentMethods = [
-    { 
-      name: 'Cash Float', 
-      ordersCount: cashOrders.length, 
-      total: expectedClosingFloat, 
-      refunds: 0,
-      isFloat: true 
-    },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,  refunds: 0 },
     { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,  refunds: 0 },
     { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther, refunds: 0 },
   ];
@@ -85,24 +54,9 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const expectedSales = expectedCash + expectedCard + expectedOther;
 
   let totalActual = 0;
-  Object.entries(actualAmounts).forEach(([key, val]) => {
-    if (key !== 'Remaining Float') {
-      totalActual += parseFloat(val) || 0;
-    }
+  (Object.values(actualAmounts) as string[]).forEach(val => {
+    totalActual += parseFloat(val) || 0;
   });
-
-  const countedCash = parseFloat(actualAmounts['Cash Float']) || 0;
-  const discrepancy = countedCash - expectedClosingFloat;
-
-  // Global difference = Sum of all differences in the table
-  const totalDifference = paymentMethods.reduce((sum, pm) => {
-    const expected = pm.total - pm.refunds;
-    const actual = parseFloat(actualAmounts[pm.name]) || 0;
-    return sum + (actual - expected);
-  }, 0);
-
-  const isToleranceExceeded = Math.abs(discrepancy) > FLOAT_TOLERANCE;
-  const isNoteRequired = isToleranceExceeded && notes.trim().length === 0;
 
   const handleActualChange = (method: string, value: string) => {
     if (/^\d*\.?\d*$/.test(value)) {
@@ -134,7 +88,7 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
         actualSales: totalActual,
         difference: totalActual - expectedSales,
         notes,
-        floatSummary: floatSummary || undefined,
+        fondDeCaisse: parseFloat(fondDeCaisse) || 0,
         formatCurrency
       });
       m.firePrint(html);
@@ -196,114 +150,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               );
             })()}
 
-            {/* Reconciliation Summary (Moved to Top) */}
-            <div className="bg-[#22252a] border-b border-white/10 p-6 flex flex-col gap-6 shadow-lg relative z-[50]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#d84315]/10 flex items-center justify-center border border-[#d84315]/20">
-                    <span className="material-symbols-outlined text-[#d84315] text-2xl">account_balance_wallet</span>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black text-white uppercase tracking-tighter">Fond de Caisse & Revenue</h3>
-                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest flex items-center gap-1">
-                      <span className="w-1 h-1 rounded-full bg-tertiary" /> 
-                      Shift Reconciliation
-                    </p>
-                  </div>
-                </div>
 
-                <div className="flex gap-10">
-                   <div className="flex flex-col gap-1">
-                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Opening Float</p>
-                    <p className="text-sm font-bold text-white/60 font-mono">
-                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.opening_float ?? 0)}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">+ Cash Sales</p>
-                    <p className="text-sm font-bold text-white/60 font-mono">
-                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.net_cash_collected ?? expectedCash)}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest">− Withdrawals</p>
-                    <p className="text-sm font-bold text-white/60 font-mono">
-                      {isLoadingSummary ? '...' : formatCurrency(floatSummary?.total_cash_withdrawn ?? 0)}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 px-5 bg-white/[0.03] rounded-2xl border border-white/5 shadow-inner">
-                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest leading-none mb-1">Expected in Drawer</p>
-                    <p className="text-xl font-headline font-extrabold text-white/95 font-mono">
-                      {isLoadingSummary ? '...' : formatCurrency(expectedClosingFloat)}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-12 gap-6 items-start border-t border-white/5 pt-6">
-                {/* Input 1: Total Counted */}
-                <div className="col-span-3 flex flex-col gap-2">
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-1">1. Total Cash Counted</p>
-                  <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-xl">$</div>
-                    <input
-                      type="text"
-                      autoFocus
-                      value={actualAmounts['Cash Float']}
-                      onChange={(e) => handleActualChange('Cash Float', e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-[#1a1d21] border-2 border-white/10 rounded-2xl pl-10 pr-4 py-4 text-2xl font-bold focus:outline-none focus:border-[#d84315] transition-all text-white placeholder:text-white/5"
-                    />
-                  </div>
-                </div>
-
-                <div className="col-span-1 flex items-center justify-center pt-8">
-                  <span className="material-symbols-outlined text-white/20">arrow_forward</span>
-                </div>
-
-                {/* Input 2: Remaining Float */}
-                <div className="col-span-3 flex flex-col gap-2">
-                  <p className="text-[10px] font-bold text-[#d84315] uppercase tracking-widest pl-1">2. Fond de Caisse (Stay)</p>
-                  <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d84315]/40 font-bold text-xl">$</div>
-                    <input
-                      type="text"
-                      value={actualAmounts['Remaining Float']}
-                      onChange={(e) => handleActualChange('Remaining Float', e.target.value)}
-                      placeholder="0.00"
-                      className="w-full bg-[#1a1d21] border-2 border-[#d84315]/30 rounded-2xl pl-10 pr-4 py-4 text-2xl font-bold focus:outline-none focus:border-[#d84315] transition-all text-white placeholder:text-white/5"
-                    />
-                    <p className="absolute -bottom-5 left-1 text-[9px] font-bold text-white/30 uppercase tracking-tighter italic">Amount left for next shift</p>
-                  </div>
-                </div>
-
-                {/* Result: Deposit */}
-                <div className="col-span-5 flex flex-col gap-2">
-                  <p className="text-[10px] font-bold text-tertiary uppercase tracking-widest pl-1">3. Net Cash to Deposit (Take out)</p>
-                  <div className="bg-tertiary/5 border-2 border-tertiary/20 rounded-2xl p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-tertiary/20 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-tertiary">payments</span>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Deposit Amount</p>
-                        <p className="text-2xl font-black text-tertiary leading-none">
-                          {formatCurrency(Math.max(0, (parseFloat(actualAmounts['Cash Float']) || 0) - (parseFloat(actualAmounts['Remaining Float']) || 0)))}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {actualAmounts['Cash Float'] !== '' && (
-                      <div className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${
-                        discrepancy === 0 ? 'bg-tertiary/10 border-tertiary/30 text-tertiary' : isToleranceExceeded ? 'bg-secondary/10 border-secondary/30 text-secondary' : 'bg-amber-500/10 border-amber-500/30 text-amber-500'
-                      }`}>
-                        {discrepancy === 0 ? 'Balanced' : `${discrepancy > 0 ? '+' : ''}${formatCurrency(discrepancy)} ${discrepancy > 0 ? 'Over' : 'Short'}`}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Table Header */}
             <div className="grid grid-cols-7 text-center border-b border-white/10 bg-[#22252a] shadow-sm">
@@ -326,11 +174,8 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
 
                 return (
                   <div key={pm.name} className="grid grid-cols-7 text-center border-b border-white/5 last:border-b-0 items-stretch relative">
-                    <div className="p-6 text-sm font-bold text-white/70 text-left pl-8 bg-white/[0.02] border-r border-white/5 flex flex-col justify-center">
+                    <div className="p-6 text-sm font-bold text-white/70 text-left pl-8 bg-white/[0.02] border-r border-white/5 flex items-center">
                       <span>{pm.name}</span>
-                      {pm.isFloat && (
-                        <span className="text-[9px] font-medium text-white/30 uppercase tracking-tighter mt-0.5">Incl. Opening Float</span>
-                      )}
                     </div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{pm.ordersCount}</div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{formatCurrency(pm.total)}</div>
@@ -371,30 +216,39 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               })}
             </div>
 
-            {/* Pagination Footer */}
-            <div className="bg-[#1a1d21] border-b border-white/10 p-3 flex justify-end items-center pr-8">
-              <span className="text-xs text-white/40 font-medium">1-{paymentMethods.length} of {paymentMethods.length}</span>
+            {/* Fond de Caisse Row */}
+            <div className="bg-[#22252a] border-b border-white/10 px-8 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-[#d84315]/10 flex items-center justify-center border border-[#d84315]/20">
+                  <span className="material-symbols-outlined text-[#d84315] text-xl">account_balance_wallet</span>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white/80">Fond de Caisse</p>
+                  <p className="text-[10px] text-white/40 font-medium">Cash left in register for next shift opening</p>
+                </div>
+              </div>
+              <div className="relative w-[200px]">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#d84315]/50 font-bold text-lg">$</div>
+                <input
+                  type="text"
+                  value={fondDeCaisse}
+                  onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setFondDeCaisse(e.target.value); }}
+                  placeholder="0.00"
+                  className="w-full bg-[#1a1d21] border-2 border-[#d84315]/30 rounded-xl pl-10 pr-4 py-3 text-xl font-bold focus:outline-none focus:border-[#d84315] transition-all text-white placeholder:text-white/10"
+                />
+              </div>
             </div>
 
             {/* Notes & Total */}
             <div className="grid grid-cols-2 bg-[#1a1d21]">
               <div className="p-4 border-r border-white/10">
-                <p className="text-[9px] uppercase font-bold text-white/40 mb-1.5 tracking-widest">CLOSING NOTES / COMMENTS {isNoteRequired && <span className="text-secondary ml-2">(REQUIRED)</span>}</p>
+                <p className="text-[9px] uppercase font-bold text-white/40 mb-1.5 tracking-widest">CLOSING NOTES / COMMENTS</p>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Required if there is a discrepancy. Add any notes about the shift or cash count..."
-                  className={`w-full h-20 p-3 bg-white/[0.02] border rounded-xl text-sm focus:outline-none transition-all resize-none placeholder:text-white/20 text-white ${isNoteRequired ? 'border-secondary/50 focus:border-secondary shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/10 focus:border-[#d84315]'}`}
+                  placeholder="Add any notes about the shift or cash count..."
+                  className="w-full h-20 p-3 bg-white/[0.02] border border-white/10 rounded-xl text-sm focus:outline-none transition-all resize-none placeholder:text-white/20 text-white focus:border-[#d84315]"
                 />
-                {isNoteRequired && (
-                  <motion.p 
-                    initial={{ opacity: 0 }} 
-                    animate={{ opacity: 1 }} 
-                    className="text-[10px] font-bold text-secondary uppercase tracking-widest mt-2"
-                  >
-                    ⚠️ Closing note required due to discrepancy
-                  </motion.p>
-                )}
               </div>
               <div className="p-4 flex flex-col justify-center items-end pr-10">
                 <div className="text-right">
@@ -402,11 +256,6 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                   <p className="text-3xl font-headline font-extrabold text-white/80">
                     {formatCurrency(totalActual)}
                   </p>
-                  {totalDifference !== 0 && (
-                    <p className={`text-[9px] font-bold mt-1 uppercase tracking-widest ${totalDifference > 0 ? 'text-tertiary' : 'text-secondary'}`}>
-                      NET DISCREPANCY: {totalDifference > 0 ? '+' : '-'}{formatCurrency(Math.abs(totalDifference))}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -416,11 +265,10 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
               <div className="flex items-center gap-8">
                 <button 
                   onClick={handlePrintReport} 
-                  disabled={isLoadingSummary}
-                  className={`flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest ${isLoadingSummary ? 'opacity-30 cursor-not-allowed' : ''}`}
+                  className="flex items-center gap-3 text-sm font-bold text-[#d84315] hover:underline uppercase tracking-widest"
                 >
                   <span className="material-symbols-outlined text-2xl">print</span>
-                  {isLoadingSummary ? 'Loading Summary...' : 'Print Report'}
+                  Print Report
                 </button>
               </div>
               <div className="flex gap-6">
@@ -433,25 +281,18 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
                       onConfirm({ 
                         actualSales: totalActual, 
                         expectedSales, 
-                        difference: totalDifference, 
+                        difference: totalActual - expectedSales, 
                         notes,
                         openedAt: openedAt || Date.now(),
                         closedAt: Date.now(),
                         cashierName,
-                        openingFloat: floatSummary?.opening_float ?? 0,
-                        netCashCollected: floatSummary?.net_cash_collected ?? expectedCash,
-                        totalCashWithdrawn: floatSummary?.total_cash_withdrawn ?? 0,
-                        countedClosingFloat: countedCash,
-                        discrepancy: discrepancy
+                        countedClosingFloat: parseFloat(fondDeCaisse) || 0,
                       });
                     } else {
                       onClose();
                     }
                   }}
-                  disabled={isNoteRequired || isLoadingSummary}
-                  className={`px-12 py-4 bg-[#d84315] text-white rounded-lg text-sm font-bold uppercase tracking-widest transition-all shadow-lg shadow-[#d84315]/20 ${
-                    (isNoteRequired || isLoadingSummary) ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:bg-[#bf360c]'
-                  }`}
+                  className="px-12 py-4 bg-[#d84315] text-white rounded-lg text-sm font-bold uppercase tracking-widest transition-all shadow-lg shadow-[#d84315]/20 hover:bg-[#bf360c]"
                 >
                   Close Register
                 </button>

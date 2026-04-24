@@ -1,5 +1,4 @@
 import { BrandingData } from '../api/settings';
-import { FloatSummary } from '../api/register';
 import { firePrint } from './printUtils';
 
 export interface RegisterReportPrintData {
@@ -19,7 +18,7 @@ export interface RegisterReportPrintData {
   actualSales: number;
   difference: number;
   notes?: string;
-  floatSummary?: FloatSummary;
+  fondDeCaisse?: number;
   formatCurrency: (n: number) => string;
 }
 
@@ -61,33 +60,11 @@ export function buildRegisterReportHtml(d: RegisterReportPrintData): string {
     </div>
   `).join('');
 
-  const cashFloatSection = d.floatSummary ? `
-    ${SEP}
-    <div style="font-weight:900;font-size:15px;margin-bottom:4px;text-align:center;text-decoration:underline;">CASH RECONCILIATION</div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;">
-      <span>Opening Float:</span>
-      <span>${formatCurrency(d.floatSummary.opening_float)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;">
-      <span>Net Cash Collected:</span>
-      <span>+${formatCurrency(d.floatSummary.net_cash_collected)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:13px;">
-      <span>Total Withdrawals:</span>
-      <span>-${formatCurrency(d.floatSummary.total_cash_withdrawn)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;margin-top:4px;">
-      <span>EXPECTED IN DRAWER:</span>
-      <span>${formatCurrency(d.floatSummary.expected_closing_float)}</span>
-    </div>
+  const cashFloatSection = d.fondDeCaisse ? `
     ${SEP}
     <div style="display:flex;justify-content:space-between;font-weight:900;font-size:14px;">
-      <span>ACTUAL COUNTED:</span>
-      <span>${formatCurrency(d.paymentMethods.find(p => p.name.includes('Cash'))?.actual || 0)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-weight:900;font-size:16px;margin-top:2px;border:1px solid #000;padding:2px;">
-      <span>DISCREPANCY:</span>
-      <span>${(d.paymentMethods.find(p => p.name.includes('Cash'))?.difference || 0) >= 0 ? '+' : ''}${formatCurrency(d.paymentMethods.find(p => p.name.includes('Cash'))?.difference || 0)}</span>
+      <span>FOND DE CAISSE (STAY):</span>
+      <span>${formatCurrency(d.fondDeCaisse)}</span>
     </div>
   ` : '';
 
