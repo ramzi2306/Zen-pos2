@@ -2516,6 +2516,7 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
   const [price, setPrice] = useState(ingredient?.pricePerUnit?.toString() || '');
   const [capacity, setCapacity] = useState(ingredient?.capacity?.toString() || '');
   const [inStock, setInStock] = useState(ingredient?.inStock?.toString() || '0');
+  const [minStock, setMinStock] = useState(ingredient?.minStock?.toString() || '0');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2524,9 +2525,9 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
     setIsLoading(true);
     try {
       if (ingredient) {
-        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0 });
+        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
       } else {
-        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0 });
+        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
       }
       if (onCreated) onCreated();
       onClose();
@@ -2629,17 +2630,32 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
             </div>
           </div>
 
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Current Stock</label>
-            <div className="relative">
-              <input
-                type="number"
-                value={inStock}
-                onChange={e => setInStock(e.target.value)}
-                placeholder="0"
-                className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
-              />
-              <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{unit}</span>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Current Stock</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={inStock}
+                  onChange={e => setInStock(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                />
+                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{unit}</span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Low Stock Alert At</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={minStock}
+                  onChange={e => setMinStock(e.target.value)}
+                  placeholder="0"
+                  className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+                />
+                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{unit}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2863,6 +2879,12 @@ export const InventoryView = () => {
                     <td className="px-8 py-6">
                       <p className="text-sm font-bold text-on-surface">{item.inStock} {item.unit} /</p>
                       <p className="text-[10px] text-on-surface-variant">{item.capacity} {item.unit}</p>
+                      {item.minStock > 0 && item.inStock <= item.minStock && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-bold uppercase tracking-widest text-secondary bg-secondary/10 px-2 py-0.5 rounded-full">
+                          <span className="material-symbols-outlined text-[10px]">warning</span>
+                          Low Stock
+                        </span>
+                      )}
                     </td>
                     <td className="px-8 py-6 min-w-[200px]">
                       <div className="flex items-center justify-between mb-2">
@@ -3143,11 +3165,13 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const [supplements, setSupplements] = useState<any[]>(product?.supplements || []);
   const [ingredients, setIngredients] = useState<Ingredient[]>(product?.ingredients || []);
   const [apiCategories, setApiCategories] = useState<string[]>([]);
+  const [availableIngredients, setAvailableIngredients] = useState<{id: string; name: string; unit: string}[]>([]);
   const [inStock, setInStock] = useState(product?.inStock !== false);
   const [imageUploading, setImageUploading] = useState(false);
 
   useEffect(() => {
     api.products.listCategories().then(cats => setApiCategories(cats.map(c => c.name))).catch(console.error);
+    api.inventory.listIngredients().then(ings => setAvailableIngredients(ings.map(i => ({ id: i.id, name: i.name, unit: i.unit })))).catch(console.error);
   }, []);
 
   const [imageUploadError, setImageUploadError] = useState('');
@@ -3245,8 +3269,27 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     setVariations(newVars);
   };
 
+  const selectIngredient = (index: number, ingredientId: string) => {
+    const found = availableIngredients.find(i => i.id === ingredientId);
+    if (!found) return;
+    const newIngs = [...ingredients];
+    newIngs[index] = { ...newIngs[index], id: found.id, name: found.name, unit: found.unit };
+    setIngredients(newIngs);
+  };
+
+  const selectOptionIngredient = (groupIndex: number, optionIndex: number, ingIndex: number, ingredientId: string) => {
+    const found = availableIngredients.find(i => i.id === ingredientId);
+    if (!found) return;
+    const newVars = [...variations];
+    const opt = newVars[groupIndex].options[optionIndex];
+    if (opt.ingredients) {
+      opt.ingredients[ingIndex] = { ...opt.ingredients[ingIndex], id: found.id, name: found.name, unit: found.unit };
+    }
+    setVariations(newVars);
+  };
+
   const addIngredient = () => {
-    setIngredients([...ingredients, { id: crypto.randomUUID(), name: '', amount: 0, unit: 'g' }]);
+    setIngredients([...ingredients, { id: '', name: '', amount: 0, unit: 'g' }]);
   };
 
   const updateIngredient = (index: number, field: keyof Ingredient, value: any) => {
@@ -3263,7 +3306,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const newVars = [...variations];
     const option = newVars[groupIndex].options[optionIndex];
     if (!option.ingredients) option.ingredients = [];
-    option.ingredients.push({ id: crypto.randomUUID(), name: '', amount: 0, unit: 'g' });
+    option.ingredients.push({ id: '', name: '', amount: 0, unit: 'g' });
     setVariations(newVars);
   };
 
@@ -3310,7 +3353,7 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
     const payload = {
       name: name.trim(), description, price: finalPrice, category, image: safeImage,
       in_stock: inStock,
-      ingredients: ingredients.map(mapIng),
+      ingredients: ingredients.filter(i => i.id).map(mapIng),
       variations: variations.map(vg => ({ id: vg.id, name: vg.name, options: vg.options.map((o: any) => ({ id: o.id, name: o.name, price: o.price || 0, ingredients: (o.ingredients || []).map(mapIng) })) })),
       supplements: supplements.map(sg => ({ id: sg.id, name: sg.name, options: sg.options.map((o: any) => ({ id: o.id, name: o.name, price_adjustment: o.priceAdjustment ?? o.price_adjustment ?? 0, ingredients: (o.ingredients || []).map(mapIng) })) })),
     };
@@ -3481,13 +3524,17 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
 
             <div className="space-y-3">
               {ingredients.map((ing, iIndex) => (
-                <div key={ing.id} className="flex gap-3 items-center">
-                  <input 
-                    value={ing.name} 
-                    onChange={e => updateIngredient(iIndex, 'name', e.target.value)} 
-                    placeholder="Ingredient (e.g. Tuna)" 
-                    className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all" 
-                  />
+                <div key={iIndex} className="flex gap-3 items-center">
+                  <select
+                    value={ing.id}
+                    onChange={e => selectIngredient(iIndex, e.target.value)}
+                    className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+                  >
+                    <option value="">Select ingredient…</option>
+                    {availableIngredients.map(ai => (
+                      <option key={ai.id} value={ai.id}>{ai.name}</option>
+                    ))}
+                  </select>
                   <div className="relative w-24 shrink-0">
                     <input 
                       type="number" 
@@ -3610,14 +3657,18 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
                             <span className="material-symbols-outlined text-[12px]">add</span> Add Ingredient
                           </button>
                         </div>
-                        {opt.ingredients?.map((ing, ingIndex) => (
-                          <div key={ing.id} className="flex gap-2 items-center">
-                            <input 
-                              value={ing.name} 
-                              onChange={e => updateOptionIngredient(gIndex, oIndex, ingIndex, 'name', e.target.value)} 
-                              placeholder="Ingredient" 
-                              className="flex-1 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:border-primary outline-none transition-all" 
-                            />
+                        {opt.ingredients?.map((ing: any, ingIndex: number) => (
+                          <div key={ingIndex} className="flex gap-2 items-center">
+                            <select
+                              value={ing.id}
+                              onChange={e => selectOptionIngredient(gIndex, oIndex, ingIndex, e.target.value)}
+                              className="flex-1 bg-surface-container-highest/50 border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:border-primary outline-none transition-all"
+                            >
+                              <option value="">Select ingredient…</option>
+                              {availableIngredients.map(ai => (
+                                <option key={ai.id} value={ai.id}>{ai.name}</option>
+                              ))}
+                            </select>
                             <input 
                               type="number" 
                               value={ing.amount || ''} 

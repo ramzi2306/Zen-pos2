@@ -14,7 +14,7 @@ from app.database import connect_db, disconnect_db
 from app.seeders import seed_system_roles, seed_settings
 
 # ── Routers ───────────────────────────────────────────────
-from app.routers import auth, products, orders, attendance, payroll, users, roles, inventory
+from app.routers import auth, products, orders, attendance, payroll, users, roles
 from app.routers import ingredients, customers, analytics, locations
 from app.routers import settings as settings_router
 from app.routers import ws as ws_router
@@ -75,7 +75,6 @@ app.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
 app.include_router(payroll.router,    prefix="/payroll",    tags=["Payroll"])
 app.include_router(users.router,      prefix="/users",      tags=["Users"])
 app.include_router(roles.router,      prefix="/roles",      tags=["Roles"])
-app.include_router(inventory.router,    prefix="/inventory",    tags=["Inventory"])
 app.include_router(ingredients.router,  prefix="/ingredients",  tags=["Ingredients"])
 app.include_router(customers.router,    prefix="/customers",    tags=["Customers"])
 app.include_router(analytics.router,    prefix="/analytics",    tags=["Analytics"])

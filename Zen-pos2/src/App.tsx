@@ -1329,6 +1329,7 @@ function _notifTitle(event: WsEvent): string {
     case 'status_update':return `Order ${event.order_number || ''} — ${event.status || ''}`;
     case 'order_done':   return `Order ${event.order_number || ''} Completed`;
     case 'attendance_update': return 'Attendance Update';
+    case 'low_stock':    return `Low Stock: ${(event as any).name || 'Ingredient'}`;
     default:             return 'Notification';
   }
 }

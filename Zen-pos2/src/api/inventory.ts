@@ -7,6 +7,7 @@ export interface IngredientItem {
   category: string[];
   unit: string;
   inStock: number;
+  minStock: number;
   capacity: number;
   pricePerUnit: number;
   icon: string;
@@ -43,6 +44,7 @@ interface ApiIngredient {
   category: string[];
   unit: string;
   in_stock: number;
+  min_stock: number;
   capacity: number;
   price_per_unit: number;
   icon: string;
@@ -80,6 +82,7 @@ function mapIngredient(raw: ApiIngredient): IngredientItem {
     category: raw.category,
     unit: raw.unit,
     inStock: raw.in_stock,
+    minStock: raw.min_stock,
     capacity: raw.capacity,
     pricePerUnit: raw.price_per_unit,
     icon: raw.icon,
@@ -103,12 +106,21 @@ export interface IngredientCreatePayload {
   price_per_unit: number;
   icon?: string;
   in_stock?: number;
+  min_stock?: number;
 }
 
 export async function createIngredient(payload: IngredientCreatePayload): Promise<IngredientItem> {
   const raw = await apiRequest<ApiIngredient>('/ingredients/', {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+  return mapIngredient(raw);
+}
+
+export async function adjustStock(id: string, actualStock: number, reason: string = 'Stock count'): Promise<IngredientItem> {
+  const raw = await apiRequest<ApiIngredient>(`/ingredients/${id}/adjust`, {
+    method: 'PATCH',
+    body: JSON.stringify({ actual_stock: actualStock, reason }),
   });
   return mapIngredient(raw);
 }
@@ -155,8 +167,12 @@ export async function logUsage(payload: {
   };
 }
 
-export async function listPurchases(): Promise<PurchaseLog[]> {
-  const raw = await apiRequest<ApiPurchase[]>('/ingredients/purchases/');
+export async function listPurchases(start?: string, end?: string): Promise<PurchaseLog[]> {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  const qs = params.toString() ? `?${params}` : '';
+  const raw = await apiRequest<ApiPurchase[]>(`/ingredients/purchases/${qs}`);
   return raw.map(r => ({
     id: r.id,
     ingredientId: r.ingredient_id,
@@ -169,8 +185,12 @@ export async function listPurchases(): Promise<PurchaseLog[]> {
   }));
 }
 
-export async function listUsage(): Promise<UsageLog[]> {
-  const raw = await apiRequest<ApiUsage[]>('/ingredients/usage/');
+export async function listUsage(start?: string, end?: string): Promise<UsageLog[]> {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  const qs = params.toString() ? `?${params}` : '';
+  const raw = await apiRequest<ApiUsage[]>(`/ingredients/usage/${qs}`);
   return raw.map(r => ({
     id: r.id,
     ingredientId: r.ingredient_id,

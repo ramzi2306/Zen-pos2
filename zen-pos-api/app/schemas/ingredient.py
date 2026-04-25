@@ -9,6 +9,7 @@ class IngredientOut(BaseModel):
     category: list[str]
     unit: str
     in_stock: float
+    min_stock: float
     capacity: float
     price_per_unit: float
     icon: str
@@ -22,6 +23,7 @@ class IngredientCreate(BaseModel):
     category: list[str] = []
     unit: str = "kg"
     in_stock: float = 0
+    min_stock: float = 0
     capacity: float = 0
     price_per_unit: float = 0
     icon: str = "restaurant"
@@ -33,9 +35,15 @@ class IngredientUpdate(BaseModel):
     category: Optional[list[str]] = None
     unit: Optional[str] = None
     in_stock: Optional[float] = None
+    min_stock: Optional[float] = None
     capacity: Optional[float] = None
     price_per_unit: Optional[float] = None
     icon: Optional[str] = None
+
+
+class StockAdjustRequest(BaseModel):
+    actual_stock: float
+    reason: str = "Stock count"
 
 
 class PurchaseLogCreate(BaseModel):

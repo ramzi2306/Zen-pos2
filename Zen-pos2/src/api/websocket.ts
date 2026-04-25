@@ -19,7 +19,8 @@ export type WsEventType =
   | 'user_update'
   | 'order_update'
   | 'ingredient_update'
-  | 'customer_update';
+  | 'customer_update'
+  | 'low_stock';
 
 export interface WsEvent {
   type: WsEventType;

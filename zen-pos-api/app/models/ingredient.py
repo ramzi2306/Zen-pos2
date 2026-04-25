@@ -10,6 +10,7 @@ class IngredientInventoryDocument(Document):
     category: list[str] = Field(default_factory=list)
     unit: str = "kg"
     in_stock: float = 0
+    min_stock: float = 0
     capacity: float = 0
     price_per_unit: float = 0
     icon: str = "restaurant"
