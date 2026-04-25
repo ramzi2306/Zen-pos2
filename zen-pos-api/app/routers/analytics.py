@@ -386,39 +386,40 @@ async def finance_report(
         method_totals[method]["count"] += cnt
 
     # ── Purchases ───────────────────────────────────────
-    purchases_raw = await PurchaseLogDocument.find(
-        PurchaseLogDocument.date >= start_date,
-        PurchaseLogDocument.date <= end_date,
-    ).to_list()
-
-    await PurchaseLogDocument.fetch_all_links()
+    purchase_pipeline = [
+        {"$match": {"date": {"$gte": start_date, "$lte": end_date}}},
+        {"$lookup": {
+            "from": "ingredient_inventory",
+            "localField": "ingredient.$id",
+            "foreignField": "_id",
+            "as": "ing_doc",
+        }},
+        {"$unwind": {"path": "$ing_doc", "preserveNullAndEmptyArrays": True}},
+    ]
+    purchase_raw = await PurchaseLogDocument.aggregate(purchase_pipeline).to_list()
 
     purchases_list: List[PurchaseItem] = []
     purchases_by_day: dict[str, float] = {}
     purchases_total = 0.0
 
-    for p in purchases_raw:
-        try:
-            await p.fetch_all_links()
-        except Exception:
-            pass
-        ing_name = p.ingredient.name if hasattr(p.ingredient, "name") else "Unknown"
+    for p in purchase_raw:
+        ing_name = (p.get("ing_doc") or {}).get("name", "Unknown")
+        cost = p.get("total_cost", 0.0)
+        date = p.get("date", "")
         purchases_list.append(PurchaseItem(
-            date=p.date,
+            date=date,
             ingredient=ing_name,
-            vendor=p.vendor or "",
-            quantity=p.quantity,
-            unit=p.unit,
-            cost=p.total_cost,
+            vendor=p.get("vendor") or "",
+            quantity=p.get("quantity", 0),
+            unit=p.get("unit", ""),
+            cost=cost,
         ))
-        purchases_by_day[p.date] = purchases_by_day.get(p.date, 0.0) + p.total_cost
-        purchases_total += p.total_cost
+        purchases_by_day[date] = purchases_by_day.get(date, 0.0) + cost
+        purchases_total += cost
 
     # ── Salary payments ─────────────────────────────────
     salary_pipeline = [
-        {"$match": {
-            "date": {"$gte": start_date, "$lte": end_date},
-        }},
+        {"$match": {"date": {"$gte": start_date, "$lte": end_date}}},
         {"$lookup": {
             "from": "users",
             "localField": "user.$id",
@@ -434,7 +435,7 @@ async def finance_report(
     salaries_total = 0.0
 
     for r in salary_raw:
-        user_name = r.get("user_doc", {}).get("name", "Unknown") if r.get("user_doc") else "Unknown"
+        user_name = (r.get("user_doc") or {}).get("name", "Unknown")
         net = r.get("net_amount", 0.0)
         date = r.get("date", "")
         salaries_list.append(SalaryItem(
@@ -447,9 +448,7 @@ async def finance_report(
         salaries_total += net
 
     # ── Cash advances from user withdrawal_logs ─────────
-    users_with_withdrawals = await UserDocument.find(
-        UserDocument.withdrawal_logs.as_array().size() > 0  # type: ignore[attr-defined]
-    ).to_list()
+    users_with_withdrawals = await UserDocument.find().to_list()
 
     cash_advances_list: List[CashAdvanceItem] = []
     cash_advances_by_day: dict[str, float] = {}
