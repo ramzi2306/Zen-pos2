@@ -4169,9 +4169,31 @@ const FinanceDashboard = () => {
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-72 gap-4">
-          <span className="material-symbols-outlined animate-spin text-primary text-5xl">sync</span>
-          <p className="text-xs text-on-surface-variant uppercase tracking-widest">Loading financial data…</p>
+        <div className="space-y-4">
+          {/* KPI strip skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 animate-pulse">
+                <div className="h-3 w-16 bg-on-surface/10 rounded mb-3" />
+                <div className="h-7 w-24 bg-on-surface/10 rounded mb-2" />
+                <div className="h-3 w-20 bg-on-surface/10 rounded" />
+              </div>
+            ))}
+          </div>
+          {/* Chart skeleton */}
+          <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 animate-pulse">
+            <div className="h-4 w-32 bg-on-surface/10 rounded mb-4" />
+            <div className="h-56 bg-on-surface/10 rounded-xl" />
+          </div>
+          {/* Pie + table skeletons */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10 animate-pulse">
+                <div className="h-3 w-24 bg-on-surface/10 rounded mb-4" />
+                <div className="h-36 bg-on-surface/10 rounded-xl" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : !report ? null : (
         <>
@@ -4282,32 +4304,7 @@ const FinanceDashboard = () => {
           )}
 
           {/* ── Pie charts ───────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {report.income_by_payment_method.length > 0 && (
-              <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
-                <p className="text-xs font-bold text-on-surface mb-1">Income by Payment Method</p>
-                <p className="text-[10px] text-on-surface-variant mb-4 uppercase tracking-widest">How customers pay</p>
-                <div className="flex items-center gap-4">
-                  <PieChart width={140} height={140}>
-                    <Pie data={report.income_by_payment_method} dataKey="amount" nameKey="method" cx="50%" cy="50%" outerRadius={65} innerRadius={38} paddingAngle={2}>
-                      {report.income_by_payment_method.map((_, i) => <Cell key={i} fill={FIN_METHOD_COLORS[i % FIN_METHOD_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                  </PieChart>
-                  <div className="flex-1 space-y-2">
-                    {report.income_by_payment_method.map((m, i) => (
-                      <div key={m.method} className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: FIN_METHOD_COLORS[i % FIN_METHOD_COLORS.length] }} />
-                        <span className="text-[11px] text-on-surface-variant flex-1 truncate">{m.method}</span>
-                        <span className="text-[11px] font-bold text-on-surface">{formatCurrency(m.amount)}</span>
-                        <span className="text-[9px] text-on-surface-variant/60 w-8 text-right">{m.count}x</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
+          <div className="grid grid-cols-1 gap-4">
             {expensePieData.length > 0 && (
               <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
                 <p className="text-xs font-bold text-on-surface mb-1">Expense Breakdown</p>
