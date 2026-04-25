@@ -207,6 +207,8 @@ export interface SalesSummary {
   avgOrderValue: number;
   ordersThisMonth: number;
   revenueThisMonth: number;
+  reviewsCount: number;
+  reviewsAvgRating: number;
 }
 
 export interface RegisterReport {

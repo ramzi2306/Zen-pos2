@@ -352,9 +352,9 @@ const CloseRegisterModal = ({
                         closedAt: Date.now(),
                         cashierName,
                         countedClosingFloat: parseFloat(fondDeCaisse) || 0,
-                        opening_float: openingFloat,
-                        total_cash_withdrawn: withdrawnCash,
-                        net_cash_collected: totalSales,
+                        openingFloat: openingFloat,
+                        totalCashWithdrawn: withdrawnCash,
+                        netCashCollected: totalSales,
                         discrepancy: totalActual - expectedSales,
                       });
                     } else {
@@ -463,6 +463,7 @@ export const ProfilePanel = ({
   activeLocationId,
   setActiveLocationId,
   branding,
+  sessionOpenedAt: sessionOpenedAtProp,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -481,6 +482,7 @@ export const ProfilePanel = ({
   activeLocationId?: string | null;
   setActiveLocationId?: (id: string | null) => void;
   branding?: BrandingData;
+  sessionOpenedAt?: number | null;
 }) => {
   const { formatCurrency } = useLocalization();
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
@@ -506,10 +508,11 @@ export const ProfilePanel = ({
   };
   
   const openedAt = (() => {
+    if (sessionOpenedAtProp != null) return sessionOpenedAtProp;
     const v = sessionStorage.getItem('sessionOpenedAt');
-    if (!v) return new Date().setHours(0,0,0,0);
+    if (!v) return new Date().setHours(0, 0, 0, 0);
     const d = new Date(isNaN(Number(v)) ? v : Number(v));
-    return isNaN(d.getTime()) ? new Date().setHours(0,0,0,0) : d.getTime();
+    return isNaN(d.getTime()) ? new Date().setHours(0, 0, 0, 0) : d.getTime();
   })();
   
   // Create a robust shift filter. 

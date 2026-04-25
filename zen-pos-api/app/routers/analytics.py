@@ -39,6 +39,8 @@ class SalesSummary(BaseModel):
     avg_order_value: float
     orders_this_month: int
     revenue_this_month: float
+    reviews_count: int
+    reviews_avg_rating: float
 
 class DailySalesItem(BaseModel):
     date: str
@@ -179,12 +181,28 @@ async def sales_summary():
     month_orders = h["month_orders"] + t["count"]
     month_rev = h["month_revenue"] + t["revenue"]
 
+    # Aggregate review data from all reviewed orders
+    review_pipeline = [
+        {"$match": {"review": {"$ne": None}, "review.stars": {"$exists": True}}},
+        {"$group": {
+            "_id": None,
+            "count": {"$sum": 1},
+            "total_stars": {"$sum": "$review.stars"},
+        }}
+    ]
+    review_results = await OrderDocument.aggregate(review_pipeline).to_list()
+    rv = review_results[0] if review_results else {"count": 0, "total_stars": 0}
+    reviews_count = rv["count"]
+    reviews_avg = round(rv["total_stars"] / reviews_count, 2) if reviews_count else 0.0
+
     return SalesSummary(
         total_orders=total_orders,
         total_revenue=round(total_rev, 2),
         avg_order_value=round(total_rev / total_orders, 2) if total_orders else 0.0,
         orders_this_month=month_orders,
         revenue_this_month=round(month_rev, 2),
+        reviews_count=reviews_count,
+        reviews_avg_rating=reviews_avg,
     )
 
 

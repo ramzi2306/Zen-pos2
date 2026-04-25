@@ -5,7 +5,7 @@ import { User, PerformanceLog, Role, Permission, Product, VariationGroup, Variat
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
-import type { IngredientItem, PurchaseLog } from '../api/inventory';
+import type { IngredientItem, PurchaseLog, UsageLog } from '../api/inventory';
 import { DEFAULT_BRANDING } from '../api/settings';
 import type { BrandingData } from '../api/settings';
 import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
@@ -2491,6 +2491,7 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
   const [unit, setUnit] = useState(ingredient?.unit || 'kg');
   const [price, setPrice] = useState(ingredient?.pricePerUnit?.toString() || '');
   const [capacity, setCapacity] = useState(ingredient?.capacity?.toString() || '');
+  const [inStock, setInStock] = useState(ingredient?.inStock?.toString() || '0');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -2499,9 +2500,9 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
     setIsLoading(true);
     try {
       if (ingredient) {
-        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0 });
+        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0 });
       } else {
-        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0 });
+        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0 });
       }
       if (onCreated) onCreated();
       onClose();
@@ -2580,8 +2581,8 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Avg. Unit Price</label>
               <div className="relative">
                 <CurrencySymbol />
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={price}
                   onChange={e => setPrice(e.target.value)}
                   placeholder="0.00"
@@ -2592,8 +2593,8 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Storage Capacity</label>
               <div className="relative">
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   value={capacity}
                   onChange={e => setCapacity(e.target.value)}
                   placeholder="0.00"
@@ -2601,6 +2602,20 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
                 />
                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{unit}</span>
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Current Stock</label>
+            <div className="relative">
+              <input
+                type="number"
+                value={inStock}
+                onChange={e => setInStock(e.target.value)}
+                placeholder="0"
+                className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+              />
+              <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{unit}</span>
             </div>
           </div>
         </div>
@@ -2633,11 +2648,15 @@ export const InventoryView = () => {
   const [editingIngredient, setEditingIngredient] = useState<IngredientItem | null>(null);
   const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
   const [deliveries, setDeliveries] = useState<PurchaseLog[]>([]);
+  const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'Healthy' | 'Low' | 'Critical'>('all');
 
   const loadData = useCallback(() => {
     api.inventory.listIngredients().then(setIngredients).catch(console.error);
     api.inventory.listPurchases().then(setDeliveries).catch(console.error);
+    api.inventory.listUsage().then(setUsageLogs).catch(console.error);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -2657,7 +2676,7 @@ export const InventoryView = () => {
 
   const totalValue = ingredients.reduce((acc, item) => acc + (item.inStock * item.pricePerUnit), 0);
   const lowStockCount = ingredients.filter(item => item.stockLevel === 'Critical' || item.stockLevel === 'Low').length;
-  
+
   const monthlySpend = deliveries.reduce((acc, d) => {
     const dDate = new Date(d.date);
     const now = new Date();
@@ -2667,11 +2686,23 @@ export const InventoryView = () => {
     return acc;
   }, 0);
 
+  // Real health data computed from actual ingredients
+  const total = ingredients.length || 1;
+  const healthyCount = ingredients.filter(i => i.stockLevel === 'Healthy').length;
+  const lowCount = ingredients.filter(i => i.stockLevel === 'Low').length;
+  const criticalCount = ingredients.filter(i => i.stockLevel === 'Critical').length;
+  const healthScore = total > 1 ? Math.round((healthyCount / ingredients.length) * 100) : 100;
   const healthData = [
-    { name: 'Healthy', value: 90, color: 'var(--color-tertiary)' },
-    { name: 'Low Stock', value: 7, color: 'var(--color-secondary)' },
-    { name: 'Critical', value: 3, color: 'var(--color-error)' },
+    { name: 'Healthy', value: Math.round((healthyCount / total) * 100), color: 'var(--color-tertiary)' },
+    { name: 'Low Stock', value: Math.round((lowCount / total) * 100), color: 'var(--color-secondary)' },
+    { name: 'Critical', value: Math.round((criticalCount / total) * 100), color: 'var(--color-error)' },
   ];
+
+  const filteredIngredients = ingredients.filter(item => {
+    const matchesSearch = !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()) || item.sku.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStock = stockFilter === 'all' || item.stockLevel === stockFilter;
+    return matchesSearch && matchesStock;
+  });
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -2752,15 +2783,23 @@ export const InventoryView = () => {
 
         {/* Manifest Section */}
         <div className="bg-surface-container rounded-3xl border border-outline-variant/10 overflow-hidden mb-10">
-          <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low/50">
+          <div className="p-8 border-b border-outline-variant/10 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/50">
             <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight">Ingredient Manifest</h3>
-            <div className="flex gap-4">
-              <button className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors">
-                <span className="material-symbols-outlined text-sm">filter_list</span> FILTER
-              </button>
-              <button className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors">
-                <span className="material-symbols-outlined text-sm">download</span> EXPORT
-              </button>
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by name or SKU…"
+                className="bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all w-48"
+              />
+              {(['all', 'Healthy', 'Low', 'Critical'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setStockFilter(f)}
+                  className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors ${stockFilter === f ? 'bg-primary text-on-primary' : 'text-on-surface-variant hover:text-on-surface'}`}
+                >{f === 'all' ? 'All' : f}</button>
+              ))}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -2777,7 +2816,10 @@ export const InventoryView = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
-                {ingredients.map((item, idx) => (
+                {filteredIngredients.length === 0 && (
+                  <tr><td colSpan={7} className="px-8 py-12 text-center text-on-surface-variant text-sm">No ingredients match the current filter.</td></tr>
+                )}
+                {filteredIngredients.map((item, idx) => (
                   <tr key={idx} className="hover:bg-surface-container-high/50 transition-colors group">
                     <td className="px-8 py-6">
                       <p className="font-bold text-on-surface">{item.name}</p>
@@ -2841,34 +2883,56 @@ export const InventoryView = () => {
             </table>
           </div>
           <div className="p-6 bg-surface-container-low/30 border-t border-outline-variant/10 flex items-center justify-between">
-            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Showing {ingredients.length} items</p>
-            <div className="flex gap-4">
-              <button className="text-[10px] font-bold text-on-surface-variant hover:text-on-surface transition-colors uppercase tracking-widest">Previous</button>
-              <button className="text-[10px] font-bold text-on-surface hover:text-secondary transition-colors uppercase tracking-widest">Next</button>
-            </div>
+            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+              Showing {filteredIngredients.length} of {ingredients.length} items
+            </p>
           </div>
         </div>
 
         {/* Bottom Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Deliveries */}
-          <div className="lg:col-span-2 bg-surface-container rounded-3xl border border-outline-variant/10 p-8">
-            <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight mb-8">Recent Deliveries</h3>
-            <div className="space-y-4">
-              {deliveries.map((delivery, idx) => (
-                <div key={idx} className="flex items-center justify-between p-6 bg-surface-container-low/50 rounded-2xl border border-outline-variant/5 hover:border-secondary/20 transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center">
-                      <span className="material-symbols-outlined text-sm">check_circle</span>
+          {/* Recent Deliveries + Usage Logs */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-surface-container rounded-3xl border border-outline-variant/10 p-8">
+              <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight mb-6">Recent Deliveries</h3>
+              {deliveries.length === 0 && <p className="text-sm text-on-surface-variant">No purchase logs yet.</p>}
+              <div className="space-y-3">
+                {deliveries.slice(0, 8).map((delivery, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant/5 hover:border-secondary/20 transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-9 h-9 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center flex-shrink-0">
+                        <span className="material-symbols-outlined text-sm">local_shipping</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-on-surface text-sm">{delivery.ingredientName || '—'}</p>
+                        <p className="text-[10px] text-on-surface-variant">{delivery.vendor} · {delivery.date} · +{delivery.quantity} {delivery.unit}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-on-surface group-hover:text-secondary transition-colors">{delivery.vendor}</p>
-                      <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">{delivery.date}</p>
-                    </div>
+                    <p className="text-sm font-headline font-extrabold text-tertiary">+{formatCurrency(delivery.totalCost)}</p>
                   </div>
-                  <p className="text-lg font-headline font-extrabold text-secondary">+{formatCurrency(delivery.totalCost)}</p>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-surface-container rounded-3xl border border-outline-variant/10 p-8">
+              <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight mb-6">Recent Usage</h3>
+              {usageLogs.length === 0 && <p className="text-sm text-on-surface-variant">No usage logs yet. Stock is decremented automatically when orders are marked Done.</p>}
+              <div className="space-y-3">
+                {usageLogs.slice(0, 8).map((log, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant/5 hover:border-error/20 transition-all group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-9 h-9 rounded-full bg-error/10 text-error flex items-center justify-center flex-shrink-0">
+                        <span className="material-symbols-outlined text-sm">remove_circle</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-on-surface text-sm">{log.ingredientName || '—'}</p>
+                        <p className="text-[10px] text-on-surface-variant">{log.reason} · {log.date}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-headline font-extrabold text-error">−{log.quantity} {log.unit}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -2895,8 +2959,10 @@ export const InventoryView = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-4xl font-headline font-extrabold text-on-surface">90</p>
-                <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">OPTIMAL</p>
+                <p className="text-4xl font-headline font-extrabold text-on-surface">{healthScore}</p>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${healthScore >= 80 ? 'text-tertiary' : healthScore >= 50 ? 'text-secondary' : 'text-error'}`}>
+                  {healthScore >= 80 ? 'OPTIMAL' : healthScore >= 50 ? 'WARNING' : 'CRITICAL'}
+                </p>
               </div>
             </div>
             <div className="w-full space-y-3">
@@ -4103,12 +4169,13 @@ const SalesView = () => {
         </div>
 
         {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           {[
             { label: 'Period Revenue', value: formatCurrency(filteredKPIs.totalRevenue), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: dailyLoading },
             { label: 'Period Orders', value: filteredKPIs.totalOrders.toLocaleString(), icon: <span className="material-symbols-outlined text-[18px]">tag</span>, loading: dailyLoading },
             { label: 'Avg Order Value', value: formatCurrency(filteredKPIs.avgOrderValue), icon: <span className="material-symbols-outlined text-[18px]">shopping_bag</span>, loading: dailyLoading },
             { label: 'All-Time Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <span className="material-symbols-outlined text-[18px]">calendar_month</span>, loading: summaryLoading },
+            { label: 'Avg Rating', value: summary ? `${summary.reviewsAvgRating.toFixed(1)} ★ (${summary.reviewsCount})` : '—', icon: <span className="material-symbols-outlined text-[18px]">star</span>, loading: summaryLoading },
           ].map((stat, i) => (
             <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-4">
@@ -6320,15 +6387,17 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             contributionRecords.push(rec ? {
               date: iso, hours: rec.hours || 0, isLate: rec.isLate,
               isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
+              isEarlyArrival: false,
               checkIn: rec.checkIn, checkOut: rec.checkOut,
-            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false, isEarlyArrival: false });
           } else {
             const rec = user.monthlyAttendance.find(a => a.day === iso);
             contributionRecords.push(rec ? {
               date: iso, hours: rec.hours || 0, isLate: rec.isLate,
               isEarlyDeparture: rec.isEarlyDeparture, isOvertime: rec.isOvertime,
+              isEarlyArrival: (rec as any).isEarlyArrival ?? false,
               checkIn: rec.checkIn, checkOut: rec.checkOut,
-            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false });
+            } : { date: iso, hours: 0, isLate: false, isEarlyDeparture: false, isOvertime: false, isEarlyArrival: false });
           }
         }
       }

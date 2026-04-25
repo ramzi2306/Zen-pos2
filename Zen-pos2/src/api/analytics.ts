@@ -32,6 +32,8 @@ export async function getSalesSummary(): Promise<SalesSummary> {
     avg_order_value: number;
     orders_this_month: number;
     revenue_this_month: number;
+    reviews_count: number;
+    reviews_avg_rating: number;
   }>('/analytics/summary');
   return {
     totalOrders: raw.total_orders,
@@ -39,6 +41,8 @@ export async function getSalesSummary(): Promise<SalesSummary> {
     avgOrderValue: raw.avg_order_value,
     ordersThisMonth: raw.orders_this_month,
     revenueThisMonth: raw.revenue_this_month,
+    reviewsCount: raw.reviews_count,
+    reviewsAvgRating: raw.reviews_avg_rating,
   };
 }
 

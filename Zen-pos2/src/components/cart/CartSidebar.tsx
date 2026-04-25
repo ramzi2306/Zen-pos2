@@ -275,7 +275,7 @@ export const CartSidebar = ({
           method
         );
       } else {
-        newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus, method);
+        newOrder = await api.orders.createOrder(cart, orderType, '', customer, orderNote, paymentStatus, orderStatus as 'Queued' | 'Draft', method);
       }
 
       setCreatedOrderNumber(newOrder.orderNumber ?? null);

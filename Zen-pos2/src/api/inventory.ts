@@ -169,6 +169,19 @@ export async function listPurchases(): Promise<PurchaseLog[]> {
   }));
 }
 
+export async function listUsage(): Promise<UsageLog[]> {
+  const raw = await apiRequest<ApiUsage[]>('/ingredients/usage/');
+  return raw.map(r => ({
+    id: r.id,
+    ingredientId: r.ingredient_id,
+    ingredientName: r.ingredient_name,
+    quantity: r.quantity,
+    unit: r.unit,
+    reason: r.reason,
+    date: r.date,
+  }));
+}
+
 export async function updateIngredient(id: string, payload: Partial<IngredientCreatePayload>): Promise<IngredientItem> {
   const raw = await apiRequest<ApiIngredient>(`/ingredients/${id}`, {
     method: 'PATCH',

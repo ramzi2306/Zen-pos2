@@ -46,7 +46,7 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
         - early_deduction
     )
 
-    return PayrollSummary(
+    summary = PayrollSummary(
         user_id=user_id,
         user_name=user.name,
         base_salary=user.base_salary,
@@ -62,6 +62,12 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
         early_arrival_count=early_arrival_count,
         overtime_hours=round(overtime_hours, 2),
     )
+
+    # Keep user.payroll_due in sync so list views show current value without re-fetching
+    user.payroll_due = str(round(net, 2))
+    await user.save()
+
+    return summary
 
 
 async def process_withdrawal(data: WithdrawalRequest) -> PayrollWithdrawalDocument:

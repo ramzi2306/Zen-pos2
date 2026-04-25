@@ -71,6 +71,26 @@ function AppShell() {
   // Register gate: false = attendance screen is locked (must check in before using POS)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
+  // Session start timestamp — React state keeps it in sync so ProfilePanel
+  // never reads a stale sessionStorage value during the render after login.
+  const [sessionOpenedAt, setSessionOpenedAtState] = useState<number | null>(() => {
+    try {
+      const v = sessionStorage.getItem('sessionOpenedAt');
+      if (!v) return null;
+      const n = Number(v);
+      return isNaN(n) ? null : n;
+    } catch { return null; }
+  });
+
+  const setSessionOpenedAt = (ts: number | null) => {
+    if (ts === null) {
+      sessionStorage.removeItem('sessionOpenedAt');
+    } else {
+      sessionStorage.setItem('sessionOpenedAt', ts.toString());
+    }
+    setSessionOpenedAtState(ts);
+  };
+
   // Lock Screen & Shift Resume State
   const [isLocked, setIsLocked] = useState(false);
   const [lockPin, setLockPin] = useState('');
@@ -199,7 +219,8 @@ function AppShell() {
     
     // Sync register session from user data if present
     if (u.register_session?.opened_at) {
-      sessionStorage.setItem('sessionOpenedAt', u.register_session.opened_at);
+      const ts = Number(u.register_session.opened_at);
+      setSessionOpenedAt(isNaN(ts) ? Date.now() : ts);
       setIsRegisterOpen(true);
     } else if (sessionStorage.getItem('sessionOpenedAt')) {
       setIsRegisterOpen(true);
@@ -614,12 +635,11 @@ function AppShell() {
 
   const _finalizeLogin = (user: User, registerSession?: any) => {
     localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
+    const openedTs = registerSession?.opened_at ? Number(registerSession.opened_at) : Date.now();
     if (registerSession) {
       sessionStorage.setItem('zenpos_register_session', JSON.stringify(registerSession));
-      sessionStorage.setItem('sessionOpenedAt', registerSession.opened_at || Date.now().toString());
-    } else {
-      sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
     }
+    setSessionOpenedAt(isNaN(openedTs) ? Date.now() : openedTs);
     unlockAudio(); // Unlock AudioContext — login IS a user gesture
     setCurrentUser(user);
     setIsLocked(false);
@@ -671,7 +691,7 @@ function AppShell() {
   const handleLogout = () => {
     api.auth.logout().catch(console.error);
     localStorage.removeItem(SESSION_CACHE_KEY);
-    sessionStorage.removeItem('sessionOpenedAt');
+    setSessionOpenedAt(null);
     sessionStorage.removeItem('zenpos_register_session');
     setCurrentUser(null);
     setOrders([]);
@@ -702,7 +722,7 @@ function AppShell() {
       }
     }
 
-    sessionStorage.removeItem('sessionOpenedAt');
+    setSessionOpenedAt(null);
     sessionStorage.removeItem('zenpos_register_session');
     setOrders([]);
     setNotifications([]);
@@ -895,20 +915,16 @@ function AppShell() {
                           api.auth.me().then(fresh => {
                             setCurrentUser(fresh);
                             localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(fresh));
-                            if (fresh.register_session?.opened_at) {
-                              sessionStorage.setItem('sessionOpenedAt', fresh.register_session.opened_at);
-                              setIsRegisterOpen(true);
-                            } else {
-                              // Fallback if backend didn't create one yet
-                              sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
-                              setIsRegisterOpen(true);
-                            }
+                            const ts = fresh.register_session?.opened_at
+                              ? Number(fresh.register_session.opened_at)
+                              : Date.now();
+                            setSessionOpenedAt(isNaN(ts) ? Date.now() : ts);
+                            setIsRegisterOpen(true);
                             _routeToLanding(fresh);
                           }).catch(() => {
-                             // Fallback if API fails
-                             sessionStorage.setItem('sessionOpenedAt', Date.now().toString());
-                             setIsRegisterOpen(true);
-                             _routeToLanding(currentUser!);
+                            setSessionOpenedAt(Date.now());
+                            setIsRegisterOpen(true);
+                            _routeToLanding(currentUser!);
                           });
                         }}
                       />
@@ -987,6 +1003,7 @@ function AppShell() {
         activeLocationId={activeLocationId}
         setActiveLocationId={setActiveLocationId}
         branding={branding}
+        sessionOpenedAt={sessionOpenedAt}
       />
 
       {/* Toast notification — bottom-right, auto-dismisses */}
@@ -1212,8 +1229,8 @@ function AppShell() {
           <div className="bg-surface-container-lowest rounded-3xl p-10 max-w-md w-full shadow-2xl border border-outline-variant/10">
             <div className="text-center mb-8">
               <div className="w-20 h-20 rounded-full bg-surface-container-high text-on-surface mx-auto mb-4 flex items-center justify-center shadow-inner overflow-hidden">
-                {currentUser.avatar_url ? (
-                  <img src={currentUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                {currentUser.image ? (
+                  <img src={currentUser.image} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl font-bold">{currentUser.name.charAt(0)}</span>
                 )}
