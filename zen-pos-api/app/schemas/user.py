@@ -115,10 +115,5 @@ class VerifyPinRequest(BaseModel):
     pin: str
 
 
-class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
-
-
 class AdminResetPasswordRequest(BaseModel):
     new_password: str                         # plain password — hashed server-side

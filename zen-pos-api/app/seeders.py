@@ -10,8 +10,16 @@ SYSTEM_ROLES = [
     {
         "name": "Super Admin",
         "permissions": [
-            "view_menu", "view_orders", "view_attendance", "view_staff",
-            "view_hr", "view_settings", "view_inventory", "manage_roles",
+            # POS Operations
+            "view_menu", "view_orders", "apply_discounts", "cancel_completed_order",
+            # Administration
+            "view_settings", "manage_roles", "manage_locations",
+            # Products & Inventory
+            "manage_menu", "view_inventory", "manage_inventory",
+            # Staff & HR
+            "view_staff", "manage_staff", "view_hr", "manage_payroll", "manage_withdrawals",
+            # Reports
+            "view_reports", "view_attendance",
         ],
         "exclude_from_attendance": True,
         "is_system": True,

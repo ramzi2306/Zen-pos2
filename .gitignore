@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Knowledge graph outputs — never commit, exposes full codebase structure
+graphify-out/

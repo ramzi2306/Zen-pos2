@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { showError } from '../../utils/toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Order, RegisterReport } from '../../data';
 import type { Location } from '../../api/locations';
@@ -745,13 +746,15 @@ export const ProfilePanel = ({
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={() => setIsWithdrawModalOpen(true)}
-                  className="w-full py-3 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-secondary/20 flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-lg">payments</span>
-                  Withdraw Cash (Drop)
-                </button>
+                {hasPermission('manage_withdrawals') && (
+                  <button
+                    onClick={() => setIsWithdrawModalOpen(true)}
+                    className="w-full py-3 bg-secondary/10 hover:bg-secondary/20 text-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border border-secondary/20 flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-lg">payments</span>
+                    Withdraw Cash (Drop)
+                  </button>
+                )}
               </div>
 
               {isLoggedIn && (
@@ -807,8 +810,7 @@ export const ProfilePanel = ({
             await fetchSessionSummary();
             setIsWithdrawModalOpen(false);
           } catch (err) {
-            console.error('Failed to record withdrawal', err);
-            alert('Failed to record withdrawal. Please try again.');
+            showError('Failed to record withdrawal. Please try again.');
           }
         }}
       />
@@ -925,8 +927,7 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
       await fetchHistory();
       await onRefresh();
     } catch (err) {
-      console.error('Failed to delete withdrawal', err);
-      alert('Failed to delete withdrawal.');
+      showError('Failed to delete withdrawal: ' + ((err as any)?.message || 'Unknown error'));
     }
   };
 

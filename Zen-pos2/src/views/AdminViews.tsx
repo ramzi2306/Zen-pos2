@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
+import { showError, showSuccess } from '../utils/toast';
 import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
@@ -160,7 +161,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
       };
       user.withdrawalLogs.unshift(newLog);
     } catch (err: any) {
-      console.error('Withdrawal failed:', err.message);
+      showError('Withdrawal failed: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsPrinting(false);
       setShowReceipt(true);
@@ -604,7 +605,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
       setNewLogForm({ type: 'Reward', title: '', amount: '' });
       setIsAddingLog(false);
     } catch (err: any) {
-      console.error('Failed to add log:', err.message);
+      showError('Failed to add log: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -613,7 +614,7 @@ const DossierModal = ({ user, dateRange, onClose, onSaved, initialIsEditing = fa
       await api.payroll.deletePerformanceLog(logId);
       setPerformanceLogs(prev => prev.filter(l => l.id !== logId));
     } catch (err: any) {
-      console.error('Failed to delete log:', err.message);
+      showError('Failed to delete log: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -1779,7 +1780,7 @@ const EditScheduleModal = ({ onClose, users }: { onClose: () => void, users: Use
       );
       onClose();
     } catch (err) {
-      console.error('Failed to save schedule', err);
+      showError('Failed to save schedule: ' + ((err as any)?.message || 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -1936,16 +1937,29 @@ const RoleManagementView = () => {
   const [isAddingRole, setIsAddingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
 
-  const allPermissions: { id: Permission; label: string; description: string }[] = [
-    { id: 'view_menu', label: 'View Menu', description: 'Access to the POS menu and item selection.' },
-    { id: 'view_orders', label: 'View Orders', description: 'Monitor and manage active and past orders.' },
-    { id: 'view_attendance', label: 'View Attendance', description: 'Access to staff attendance records and clock-in/out logs.' },
-    { id: 'view_staff', label: 'View Staff', description: 'View the personnel registry and staff details.' },
-    { id: 'view_hr', label: 'View HR', description: 'Access to human resources reports, payroll, and performance logs.' },
-    { id: 'view_inventory', label: 'View Inventory', description: 'Monitor and manage stock levels and inventory items.' },
-    { id: 'view_settings', label: 'View Settings', description: 'Access to POS branding, hardware, and general settings.' },
-    { id: 'manage_roles', label: 'Manage Roles', description: 'Create and edit user roles and their associated permissions.' },
-    { id: 'manage_locations', label: 'Manage Locations', description: 'Create, edit, and assign physical business locations.' },
+  const allPermissions: { id: Permission; label: string; description: string; group: string }[] = [
+    // POS Operations
+    { id: 'view_menu',               group: 'POS Operations',       label: 'View Menu',               description: 'Access the POS screen, browse items, and add to cart.' },
+    { id: 'view_orders',             group: 'POS Operations',       label: 'View Orders',             description: 'Monitor and manage active and past orders.' },
+    { id: 'apply_discounts',         group: 'POS Operations',       label: 'Apply Discounts',         description: 'Apply manual price discounts or overrides to order items.' },
+    { id: 'cancel_completed_order',  group: 'POS Operations',       label: 'Cancel Completed Order',  description: 'Cancel an order that has already been marked as Done.' },
+    // Administration
+    { id: 'view_settings',           group: 'Administration',       label: 'View Settings',           description: 'Access POS branding, hardware, and general configuration.' },
+    { id: 'manage_roles',            group: 'Administration',       label: 'Manage Roles',            description: 'Create, edit, and assign roles and their permission sets.' },
+    { id: 'manage_locations',        group: 'Administration',       label: 'Manage Locations',        description: 'Create, edit, and configure physical business locations.' },
+    // Products & Inventory
+    { id: 'manage_menu',             group: 'Products & Inventory', label: 'Manage Menu',             description: 'Create, edit, and delete menu items and categories.' },
+    { id: 'view_inventory',          group: 'Products & Inventory', label: 'View Inventory',          description: 'View stock levels, ingredient list, and usage logs.' },
+    { id: 'manage_inventory',        group: 'Products & Inventory', label: 'Manage Inventory',        description: 'Add/edit ingredients, log purchases, and adjust stock.' },
+    // Staff & HR
+    { id: 'view_staff',              group: 'Staff & HR',           label: 'View Staff',              description: 'View the personnel registry and staff profiles.' },
+    { id: 'manage_staff',            group: 'Staff & HR',           label: 'Manage Staff',            description: 'Create, edit, and deactivate staff member accounts.' },
+    { id: 'view_hr',                 group: 'Staff & HR',           label: 'View HR',                 description: 'Access HR reports, performance logs, and payroll overview.' },
+    { id: 'manage_payroll',          group: 'Staff & HR',           label: 'Manage Payroll',          description: 'Process payroll cycles and adjust salary information.' },
+    { id: 'manage_withdrawals',      group: 'Staff & HR',           label: 'Manage Withdrawals',      description: 'Approve, record, and delete mid-session cash withdrawals.' },
+    { id: 'view_attendance',         group: 'Staff & HR',           label: 'View Attendance',         description: 'Access staff attendance records and clock-in/out logs.' },
+    // Reports
+    { id: 'view_reports',            group: 'Reports',              label: 'View Reports',            description: 'Access sales analytics, revenue dashboards, and export data.' },
   ];
 
   const handleTogglePermission = (roleId: string, permission: Permission) => {
@@ -1994,7 +2008,7 @@ const RoleManagementView = () => {
           }, 2000);
       }
     } catch (err: any) {
-      console.error('Failed to update role:', err.message);
+      showError('Failed to update role: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -2007,7 +2021,7 @@ const RoleManagementView = () => {
       setIsAddingRole(false);
       setSelectedRole(created);
     } catch (err: any) {
-      console.error('Failed to create role:', err.message);
+      showError('Failed to create role: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -2017,7 +2031,7 @@ const RoleManagementView = () => {
       setRoles(prev => prev.filter(r => r.id !== roleId));
       setSelectedRole(null);
     } catch (err: any) {
-      console.error('Failed to delete role:', err.message);
+      showError('Failed to delete role: ' + (err?.message || 'Unknown error'));
     }
   };
 
@@ -2104,37 +2118,47 @@ const RoleManagementView = () => {
                 )}
               </div>
 
-              <div className={`p-8 grid grid-cols-1 md:grid-cols-2 gap-6 ${selectedRole.isSystem ? 'opacity-50 pointer-events-none select-none' : ''}`}>
-                {allPermissions.map(perm => {
-                  const isActive = roles.find(r => r.id === selectedRole.id)?.permissions.includes(perm.id);
-                  return (
-                    <button
-                      key={perm.id}
-                      onClick={() => !selectedRole.isSystem && handleTogglePermission(selectedRole.id, perm.id)}
-                      className={`p-6 rounded-2xl border-2 transition-all text-left flex items-start gap-4 group ${
-                        isActive
-                          ? 'border-secondary bg-secondary/5'
-                          : 'border-outline-variant/10 bg-surface-container-lowest hover:border-outline-variant/30'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                        isActive ? 'bg-secondary text-on-secondary' : 'bg-surface-container-highest text-on-surface-variant group-hover:text-on-surface'
-                      }`}>
-                        <span className="material-symbols-outlined text-xl">
-                          {isActive ? 'check_circle' : 'radio_button_unchecked'}
-                        </span>
-                      </div>
-                      <div>
-                        <p className={`text-sm font-bold uppercase tracking-wider mb-1 ${isActive ? 'text-secondary' : 'text-on-surface'}`}>
-                          {perm.label}
-                        </p>
-                        <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                          {perm.description}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className={`p-8 space-y-8 ${selectedRole.isSystem ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+                {Array.from(new Set(allPermissions.map(p => p.group))).map(group => (
+                  <div key={group}>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-on-surface-variant mb-4 flex items-center gap-2">
+                      <span className="block w-6 h-px bg-outline-variant/40" />
+                      {group}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {allPermissions.filter(p => p.group === group).map(perm => {
+                        const isActive = roles.find(r => r.id === selectedRole.id)?.permissions.includes(perm.id);
+                        return (
+                          <button
+                            key={perm.id}
+                            onClick={() => !selectedRole.isSystem && handleTogglePermission(selectedRole.id, perm.id)}
+                            className={`p-5 rounded-2xl border-2 transition-all text-left flex items-start gap-4 group ${
+                              isActive
+                                ? 'border-secondary bg-secondary/5'
+                                : 'border-outline-variant/10 bg-surface-container-lowest hover:border-outline-variant/30'
+                            }`}
+                          >
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                              isActive ? 'bg-secondary text-on-secondary' : 'bg-surface-container-highest text-on-surface-variant group-hover:text-on-surface'
+                            }`}>
+                              <span className="material-symbols-outlined text-lg">
+                                {isActive ? 'check_circle' : 'radio_button_unchecked'}
+                              </span>
+                            </div>
+                            <div>
+                              <p className={`text-sm font-bold uppercase tracking-wider mb-1 ${isActive ? 'text-secondary' : 'text-on-surface'}`}>
+                                {perm.label}
+                              </p>
+                              <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                                {perm.description}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Exclusion Toggle Section */}
@@ -2671,7 +2695,7 @@ export const InventoryView = () => {
     try {
       await api.inventory.deleteIngredient(id);
       loadData();
-    } catch(err) { console.error('Delete failed:', err); }
+    } catch(err) { showError('Failed to delete ingredient: ' + ((err as any)?.message || 'Unknown error')); }
   };
 
   const totalValue = ingredients.reduce((acc, item) => acc + (item.inStock * item.pricePerUnit), 0);
@@ -3138,7 +3162,6 @@ const ProductModal = ({ product, onClose, onSaved }: { product?: Product, onClos
       const { url } = await api.settings.uploadFile(file);
       setImage(url);
     } catch (err: any) {
-      console.error('Image upload failed:', err);
       setImageUploadError(err?.message || 'Upload failed — check BunnyNet settings or try again.');
     } finally {
       setImageUploading(false);
@@ -3785,7 +3808,6 @@ const ProductManagementView = () => {
         await api.products.deleteProduct(id);
         setProducts(prev => prev.filter(p => p.id !== id));
       } catch (err: any) {
-        console.error('Delete failed for', id, err);
         failed.push(id);
       }
     }
@@ -4505,7 +4527,7 @@ const CustomersView = () => {
       }
       setSelectedCustomerIds(new Set());
       loadCustomers(search || undefined);
-    } catch(err) { console.error('Delete failed', err); }
+    } catch(err) { showError('Failed to delete customers: ' + ((err as any)?.message || 'Unknown error')); }
   };
 
   const loadCustomers = useCallback((q?: string) => {
@@ -6342,7 +6364,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     try {
       await api.locations.deleteLocation(id);
       setLocations(prev => prev.filter(l => l.id !== id));
-    } catch (err: any) { console.error('Delete failed:', err.message); }
+    } catch (err: any) { showError('Failed to delete location: ' + (err?.message || 'Unknown error')); }
   };
 
   const handleSaveBranding = async () => {

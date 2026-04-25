@@ -15,6 +15,7 @@ import { Product, CartItem, VariationOption, SupplementOption, SupplementGroup, 
 import { BrandingData, DEFAULT_BRANDING } from './api/settings';
 import { LocalizationProvider } from './context/LocalizationContext';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { zenWs, WsEvent } from './api/websocket';
 import { playSound, unlockAudio } from './utils/sounds';
 import { useLocalization } from './context/LocalizationContext';
@@ -68,6 +69,26 @@ function AppShell() {
 
   const [toast, setToast] = useState<AppNotification | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Global zen:toast event listener — lets any component fire a toast via showError()/showSuccess()
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { message, level } = (e as CustomEvent<{ message: string; level: string }>).detail;
+      const notif: AppNotification = {
+        id: Date.now().toString(),
+        title: level === 'error' ? 'Error' : level === 'success' ? 'Done' : 'Notice',
+        message,
+        type: level === 'error' ? 'urgent' : 'order_done',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        read: false,
+      };
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      setToast(notif);
+      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+    };
+    document.addEventListener('zen:toast', handler);
+    return () => document.removeEventListener('zen:toast', handler);
+  }, []);
   // Register gate: false = attendance screen is locked (must check in before using POS)
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
@@ -566,35 +587,7 @@ function AppShell() {
 
   const hasPermission = (permission: Permission): boolean => {
     if (!currentUser) return false;
-    if (currentUser.permissions.includes(permission)) return true;
-
-    // Role/Email-based fallback for critical views
-    const roleName = (currentUser.role || '').toLowerCase();
-    const email = (currentUser.email || '').toLowerCase();
-
-    // Cashier roles → menu + orders access
-    const isCashier = roleName.includes('cashier') || roleName.includes('caissier') || roleName.includes('caissière');
-    if (isCashier && (permission === 'view_menu' || permission === 'view_orders')) return true;
-
-    // Manager roles → broad access
-    const isManager = roleName.includes('manager') || roleName.includes('gérant') || roleName.includes('responsable');
-    if (isManager && (permission === 'view_menu' || permission === 'view_orders' || permission === 'view_staff' || permission === 'view_inventory' || permission === 'view_attendance')) return true;
-
-    // Chef / kitchen roles → menu + orders
-    const isChef = roleName.includes('chef') || roleName.includes('cook') || roleName.includes('cuisinier') || roleName.includes('kitchen');
-    if (isChef && (permission === 'view_menu' || permission === 'view_orders')) return true;
-
-    // Admin / owner roles → full access
-    const isAdmin = roleName.includes('admin') || roleName.includes('owner') || roleName.includes('propriétaire');
-    if (isAdmin) return true;
-
-    // Attendance / pointeur roles
-    if (permission === 'view_attendance' && (roleName.includes('attendance') || roleName.includes('pointeur') || email.includes('pointeur'))) return true;
-    if (permission === 'view_hr' && (roleName.includes('hr') || isManager)) return true;
-    if (permission === 'view_staff' && (roleName.includes('staff') || isManager)) return true;
-    if (permission === 'view_settings' && isAdmin) return true;
-
-    return false;
+    return currentUser.permissions.includes(permission);
   };
 
   // Derive "currentView" from URL so layout components stay in sync
@@ -810,16 +803,18 @@ function AppShell() {
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname) || location.pathname.startsWith('/track/');
   if (isPublicPath) {
     return (
-      <Suspense fallback={<AppSpinner />}>
-        <PublicCartProvider>
-          <Routes>
-            <Route path="/" element={<PublicMenuPage />} />
-            <Route path="/checkout" element={<PublicMenuPage />} />
-            <Route path="/history" element={<PublicMenuPage />} />
-            <Route path="/track/:token" element={<PublicMenuPage />} />
-          </Routes>
-        </PublicCartProvider>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<AppSpinner />}>
+          <PublicCartProvider>
+            <Routes>
+              <Route path="/" element={<PublicMenuPage />} />
+              <Route path="/checkout" element={<PublicMenuPage />} />
+              <Route path="/history" element={<PublicMenuPage />} />
+              <Route path="/track/:token" element={<PublicMenuPage />} />
+            </Routes>
+          </PublicCartProvider>
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
@@ -876,6 +871,7 @@ function AppShell() {
           )}
 
           <main className="flex-1 flex flex-col overflow-hidden relative">
+            <ErrorBoundary>
             <Suspense fallback={<AppSpinner />}>
               <Routes>
                 <Route path="/admin" element={<Navigate to="/menu" replace />} />
@@ -898,6 +894,7 @@ function AppShell() {
                         branding={branding}
                         recentlyUpdatedIds={recentlyUpdatedIds}
                         onClearRecentlyUpdated={(id) => setRecentlyUpdatedIds(prev => { const next = new Set(prev); next.delete(id); return next; })}
+                        hasPermission={hasPermission}
                       />
                     : <AccessDenied />
                 } />
@@ -942,6 +939,7 @@ function AppShell() {
                 <Route path="*" element={<Navigate to="/menu" replace />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
 
             <VirtualKeyboard />
           </main>

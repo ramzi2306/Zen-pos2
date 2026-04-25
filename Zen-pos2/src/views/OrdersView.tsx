@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Order, CartItem, User } from '../data';
+import { Order, CartItem, User, Permission } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCartItemPrice, getSubtotal } from '../utils/cartUtils';
 import { buildReceiptHtml, firePrint } from '../utils/printReceipt';
@@ -57,6 +57,7 @@ export const OrdersView = ({
   branding,
   recentlyUpdatedIds,
   onClearRecentlyUpdated,
+  hasPermission,
 }: {
   orders: Order[],
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>,
@@ -67,6 +68,7 @@ export const OrdersView = ({
   branding?: BrandingData,
   recentlyUpdatedIds?: Set<string>,
   onClearRecentlyUpdated?: (id: string) => void,
+  hasPermission?: (p: Permission) => boolean,
 }) => {
   const { formatCurrency, localization } = useLocalization();
   const getLocalYYYYMMDD = (d: Date) => {
@@ -1194,15 +1196,17 @@ export const OrdersView = ({
                           Edit Order
                         </button>
                       )}
-                      <button
-                        onClick={() => setIsCancelDialogOpen(true)}
-                        className="flex-1 py-3 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors shadow-sm flex items-center justify-center gap-1.5"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">
-                          {selectedOrder.paymentStatus?.toLowerCase() === 'paid' ? 'currency_exchange' : 'cancel'}
-                        </span>
-                        {selectedOrder.paymentStatus?.toLowerCase() === 'paid' ? 'Refund' : 'Cancel'}
-                      </button>
+                      {(selectedOrder.status !== 'Done' || hasPermission?.('cancel_completed_order')) && (
+                        <button
+                          onClick={() => setIsCancelDialogOpen(true)}
+                          className="flex-1 py-3 bg-error/10 text-error rounded-lg text-xs font-bold hover:bg-error/20 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">
+                            {selectedOrder.paymentStatus?.toLowerCase() === 'paid' ? 'currency_exchange' : 'cancel'}
+                          </span>
+                          {selectedOrder.paymentStatus?.toLowerCase() === 'paid' ? 'Refund' : 'Cancel'}
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 </>
