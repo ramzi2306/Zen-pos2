@@ -131,6 +131,7 @@ async def record_withdrawal(
 ):
     """Record a mid-session cash withdrawal (drop) from the register."""
     from app.services.register_service import record_cash_withdrawal
+    print(f"DEBUG: Recording withdrawal for user {current_user.id}: {body.amount}")
     await record_cash_withdrawal(str(current_user.id), body.amount, body.notes)
     return {"status": "success", "amount": body.amount}
 
