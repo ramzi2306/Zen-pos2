@@ -1002,7 +1002,7 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
                             e.stopPropagation();
                             setDeletingId(h.id);
                           }}
-                          className="w-7 h-7 rounded-full bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error hover:text-on-error"
+                          className="w-7 h-7 rounded-full bg-error/10 text-error flex items-center justify-center transition-all hover:bg-error hover:text-on-error"
                           title="Delete withdrawal"
                         >
                           <span className="material-symbols-outlined text-[16px]">delete</span>
