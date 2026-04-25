@@ -50,10 +50,19 @@ async def get_session_summary(cashier_id: str):
     if not session:
         return None
         
+    # Ensure all withdrawals have an id (backwards compatibility)
+    withdrawals = []
+    if session.withdrawals:
+        import uuid
+        for w in session.withdrawals:
+            if not hasattr(w, 'id') or not w.id:
+                w.id = str(uuid.uuid4())
+            withdrawals.append(w)
+
     return {
         "opening_float": session.opening_float,
         "net_cash_collected": session.net_cash_collected,
         "total_cash_withdrawn": session.total_cash_withdrawn,
-        "withdrawals": session.withdrawals or [],
+        "withdrawals": withdrawals,
         "expected_closing_float": session.opening_float + session.net_cash_collected - session.total_cash_withdrawn
     }
