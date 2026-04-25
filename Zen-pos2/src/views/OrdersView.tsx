@@ -507,15 +507,22 @@ export const OrdersView = ({
     } catch (err: any) { console.error(err.message); }
   };
 
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+
   const handleAddReview = async () => {
-    if (reviewModalOrder) {
-      try {
-        await api.orders.submitReview(reviewModalOrder.id, reviewForm.stars, reviewForm.comment);
-        setOrders(prev => prev.map(o => o.id === reviewModalOrder.id
-          ? { ...o, review: { stars: reviewForm.stars, comment: reviewForm.comment }, status: 'Done' } : o));
-      } catch (err: any) { console.error(err.message); }
+    if (!reviewModalOrder) return;
+    setReviewSubmitting(true);
+    setReviewError('');
+    try {
+      const updated = await api.orders.submitReview(reviewModalOrder.id, reviewForm.stars, reviewForm.comment);
+      setOrders(prev => prev.map(o => o.id === reviewModalOrder.id ? updated : o));
       setReviewModalOrder(null);
       setReviewForm({ stars: 5, comment: '' });
+    } catch (err: any) {
+      setReviewError(err.message || 'Failed to submit review. Please try again.');
+    } finally {
+      setReviewSubmitting(false);
     }
   };
 
@@ -813,12 +820,13 @@ export const OrdersView = ({
                 Mark as Done
               </button>
             )}
-            {(['Out for delivery', 'Done'].includes(order.status) || (order.status === 'Packaging' && order.orderType !== 'delivery')) && !order.review && (
+            {(order.status === 'Done' || (order.status === 'Packaging' && order.orderType !== 'delivery')) && !order.review && (
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
                   onClearRecentlyUpdated?.(order.id);
-                  onClearRecentlyUpdated?.(order.id);
+                  setReviewError('');
+                  setReviewForm({ stars: 5, comment: '' });
                   setReviewModalOrder(order);
                 }}
                 className="flex-1 py-2 bg-tertiary text-on-tertiary rounded-lg text-[10px] font-bold uppercase tracking-wider hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
@@ -1378,17 +1386,25 @@ export const OrdersView = ({
                 </div>
               </div>
 
+              {reviewError && (
+                <div className="px-6 pb-4">
+                  <p className="text-xs font-bold text-error uppercase tracking-widest">{reviewError}</p>
+                </div>
+              )}
               <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low flex justify-end gap-3">
-                <button 
-                  onClick={() => setReviewModalOrder(null)}
-                  className="px-6 py-2.5 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors"
+                <button
+                  onClick={() => { setReviewModalOrder(null); setReviewError(''); setReviewForm({ stars: 5, comment: '' }); }}
+                  disabled={reviewSubmitting}
+                  className="px-6 py-2.5 text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={handleAddReview}
-                  className="px-6 py-2.5 bg-tertiary text-on-tertiary rounded-xl text-sm font-bold hover:opacity-90 transition-opacity shadow-md"
+                  disabled={reviewSubmitting}
+                  className="px-6 py-2.5 bg-tertiary text-on-tertiary rounded-xl text-sm font-bold hover:opacity-90 transition-opacity shadow-md disabled:opacity-50 flex items-center gap-2"
                 >
+                  {reviewSubmitting && <span className="material-symbols-outlined text-sm animate-spin">sync</span>}
                   Submit Review
                 </button>
               </div>
