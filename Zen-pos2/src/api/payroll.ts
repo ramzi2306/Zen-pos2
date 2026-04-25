@@ -155,3 +155,7 @@ export async function createPerformanceLog(
   });
   return mapPerformanceLog(raw);
 }
+
+export async function deleteSalaryWithdrawal(withdrawalId: string): Promise<void> {
+  await apiRequest<void>(`/payroll/withdrawals/${encodeURIComponent(withdrawalId)}`, { method: 'DELETE' });
+}

@@ -294,6 +294,7 @@ class PurchaseItem(BaseModel):
 
 
 class SalaryItem(BaseModel):
+    id: str
     date: str
     user_name: str
     base_salary: float
@@ -439,6 +440,7 @@ async def finance_report(
         net = r.get("net_amount", 0.0)
         date = r.get("date", "")
         salaries_list.append(SalaryItem(
+            id=str(r.get("_id", "")),
             date=date,
             user_name=user_name,
             base_salary=r.get("base_salary", 0.0),

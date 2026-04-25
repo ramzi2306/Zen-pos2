@@ -4038,91 +4038,112 @@ const ProductManagementView = () => {
 };
 
 // ── Finance Dashboard ─────────────────────────────────────────────────────────
-const EXPENSE_COLORS = ['#ef4444', '#f97316', '#a855f7'];
-const METHOD_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#06b6d4'];
+const FIN_EXPENSE_COLORS = ['#ef4444', '#f97316', '#a855f7'];
+const FIN_METHOD_COLORS  = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#06b6d4'];
+
+const getPeriodDates = (type: string): { start: string; end: string } | null => {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  if (type === 'this_week') {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    return { start: new Date(now.getFullYear(), now.getMonth(), diff).toISOString().split('T')[0], end: today };
+  }
+  if (type === 'this_month') return { start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], end: today };
+  if (type === 'last_month') return {
+    start: new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0],
+    end: new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0],
+  };
+  if (type === 'last_90') return { start: new Date(now.getTime() - 90 * 86400000).toISOString().split('T')[0], end: today };
+  if (type === 'this_year') return { start: new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0], end: today };
+  return null;
+};
 
 const FinanceDashboard = () => {
   const { formatCurrency } = useLocalization();
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [openTable, setOpenTable] = useState<'purchases' | 'salaries' | 'advances' | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
-    const now = new Date();
-    return {
-      type: 'this_month',
-      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
-      end: now.toISOString().split('T')[0],
-    };
+    const d = getPeriodDates('this_month')!;
+    return { type: 'this_month', ...d };
   });
 
-  const periods = [
-    { id: 'this_week',   label: 'This Week' },
-    { id: 'this_month',  label: 'This Month' },
-    { id: 'last_month',  label: 'Last Month' },
-    { id: 'last_90',     label: 'Last 90 Days' },
-    { id: 'this_year',   label: 'This Year' },
-    { id: 'custom',      label: 'Custom' },
-  ];
-
-  const applyPeriod = (type: string) => {
-    const now = new Date();
-    let start = '';
-    let end = now.toISOString().split('T')[0];
-    if (type === 'this_week') {
-      const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      start = new Date(now.getFullYear(), now.getMonth(), diff).toISOString().split('T')[0];
-    } else if (type === 'this_month') {
-      start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    } else if (type === 'last_month') {
-      start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-      end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-    } else if (type === 'last_90') {
-      start = new Date(now.getTime() - 90 * 86400000).toISOString().split('T')[0];
-    } else if (type === 'this_year') {
-      start = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-    } else {
-      return;
-    }
-    setDateFilter({ type, start, end });
+  const fetchReport = (start: string, end: string) => {
+    setLoading(true);
+    api.analytics.getFinanceReport(start, end)
+      .then(setReport)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     if (dateFilter.type === 'custom' && (!dateFilter.start || !dateFilter.end)) return;
-    setLoading(true);
-    api.analytics.getFinanceReport(dateFilter.start, dateFilter.end)
-      .then(setReport)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    fetchReport(dateFilter.start, dateFilter.end);
   }, [dateFilter.start, dateFilter.end]);
 
-  const fmtDate = (d: string) => {
-    const [y, m, day] = d.split('-');
-    return `${day}/${m}`;
+  const selectPeriod = (type: string) => {
+    if (type === 'custom') { setDateFilter(prev => ({ ...prev, type })); return; }
+    const d = getPeriodDates(type);
+    if (d) setDateFilter({ type, ...d });
   };
 
+  const handleDeleteSalary = async (id: string) => {
+    if (!id) return;
+    setDeletingId(id);
+    try {
+      await api.payroll.deleteSalaryWithdrawal(id);
+      fetchReport(dateFilter.start, dateFilter.end);
+    } catch (e) {
+      showError('Failed to delete record');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const fmtDate = (d: string) => { const [,m,day] = d.split('-'); return `${day}/${m}`; };
+  const fmtFull = (d: string) => { const [y,m,day] = d.split('-'); return `${day}/${m}/${y}`; };
+
   const expensePieData = report ? [
-    { name: 'Purchases', value: report.expenses.purchases_total },
-    { name: 'Salaries', value: report.expenses.salaries_total },
+    { name: 'Purchases',     value: report.expenses.purchases_total },
+    { name: 'Salaries',      value: report.expenses.salaries_total },
     { name: 'Cash Advances', value: report.expenses.cash_advances_total },
   ].filter(d => d.value > 0) : [];
 
-  const profitColor = (report?.profit ?? 0) >= 0 ? 'text-tertiary' : 'text-error';
-  const profitBg = (report?.profit ?? 0) >= 0 ? 'bg-tertiary/10' : 'bg-error/10';
+  const isProfit  = (report?.profit ?? 0) >= 0;
+  const profitClr = isProfit ? '#22c55e' : '#ef4444';
+
+  const PERIODS = [
+    { id: 'this_week',  label: 'Week'     },
+    { id: 'this_month', label: 'Month'    },
+    { id: 'last_month', label: 'Last Mo.' },
+    { id: 'last_90',    label: '90 Days'  },
+    { id: 'this_year',  label: 'Year'     },
+    { id: 'custom',     label: 'Custom'   },
+  ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      {/* Period picker */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2 flex-wrap">
-          {periods.map(p => (
+    <div className="space-y-6 pb-8">
+
+      {/* ── Header bar ───────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold font-headline tracking-tight text-on-surface">Finance</h1>
+          <p className="text-xs text-on-surface-variant mt-1 uppercase tracking-widest">
+            {dateFilter.start} → {dateFilter.end}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {PERIODS.map(p => (
             <button
               key={p.id}
-              onClick={() => { if (p.id !== 'custom') applyPeriod(p.id); setDateFilter(prev => ({ ...prev, type: p.id })); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors ${
+              onClick={() => selectPeriod(p.id)}
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all ${
                 dateFilter.type === p.id
-                  ? 'bg-primary text-on-primary'
+                  ? 'bg-primary text-on-primary shadow-md'
                   : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
               }`}
             >
@@ -4130,120 +4151,156 @@ const FinanceDashboard = () => {
             </button>
           ))}
         </div>
-        {dateFilter.type === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={dateFilter.start}
-              onChange={e => setDateFilter(prev => ({ ...prev, start: e.target.value }))}
-              className="bg-surface-container rounded-xl px-3 py-2 text-xs border border-outline-variant/20 text-on-surface"
-            />
-            <span className="text-on-surface-variant text-xs">→</span>
-            <input
-              type="date"
-              value={dateFilter.end}
-              onChange={e => setDateFilter(prev => ({ ...prev, end: e.target.value }))}
-              className="bg-surface-container rounded-xl px-3 py-2 text-xs border border-outline-variant/20 text-on-surface"
-            />
-          </div>
-        )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <span className="material-symbols-outlined animate-spin text-primary text-4xl">sync</span>
+      {/* Custom date inputs */}
+      {dateFilter.type === 'custom' && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <input type="date" value={dateFilter.start}
+            onChange={e => setDateFilter(prev => ({ ...prev, start: e.target.value }))}
+            className="bg-surface-container rounded-xl px-4 py-2 text-sm border border-outline-variant/20 text-on-surface focus:outline-none focus:border-primary"
+          />
+          <span className="material-symbols-outlined text-on-surface-variant">arrow_forward</span>
+          <input type="date" value={dateFilter.end}
+            onChange={e => setDateFilter(prev => ({ ...prev, end: e.target.value }))}
+            className="bg-surface-container rounded-xl px-4 py-2 text-sm border border-outline-variant/20 text-on-surface focus:outline-none focus:border-primary"
+          />
         </div>
-      ) : report && (
+      )}
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-72 gap-4">
+          <span className="material-symbols-outlined animate-spin text-primary text-5xl">sync</span>
+          <p className="text-xs text-on-surface-variant uppercase tracking-widest">Loading financial data…</p>
+        </div>
+      ) : !report ? null : (
         <>
-          {/* KPI cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Income</p>
-              <p className="text-2xl font-extrabold text-tertiary font-headline">{formatCurrency(report.income_total)}</p>
+          {/* ── KPI strip ────────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Income */}
+            <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#22c55e]/8 to-transparent pointer-events-none" />
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-[#22c55e]/15 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[#22c55e] text-sm">trending_up</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Income</span>
+              </div>
+              <p className="text-2xl font-extrabold font-headline text-[#22c55e]">{formatCurrency(report.income_total)}</p>
               <p className="text-[10px] text-on-surface-variant mt-1">{report.income_order_count} paid orders</p>
             </div>
-            <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Expenses</p>
-              <p className="text-2xl font-extrabold text-error font-headline">{formatCurrency(report.expenses.total)}</p>
-              <p className="text-[10px] text-on-surface-variant mt-1">
-                Purchases + HR + Advances
-              </p>
+            {/* Expenses */}
+            <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-[#ef4444]/8 to-transparent pointer-events-none" />
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-[#ef4444]/15 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[#ef4444] text-sm">trending_down</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Expenses</span>
+              </div>
+              <p className="text-2xl font-extrabold font-headline text-[#ef4444]">{formatCurrency(report.expenses.total)}</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">All costs combined</p>
             </div>
-            <div className={`rounded-2xl p-5 border border-outline-variant/10 ${profitBg}`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Net Profit</p>
-              <p className={`text-2xl font-extrabold font-headline ${profitColor}`}>{formatCurrency(report.profit)}</p>
+            {/* Profit */}
+            <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br pointer-events-none" style={{ background: `linear-gradient(135deg, ${profitClr}12, transparent)` }} />
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${profitClr}20` }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: profitClr }}>{isProfit ? 'savings' : 'money_off'}</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Net Profit</span>
+              </div>
+              <p className="text-2xl font-extrabold font-headline" style={{ color: profitClr }}>{formatCurrency(report.profit)}</p>
               <p className="text-[10px] text-on-surface-variant mt-1">Income − Expenses</p>
             </div>
-            <div className={`rounded-2xl p-5 border border-outline-variant/10 ${profitBg}`}>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Profit Margin</p>
-              <p className={`text-2xl font-extrabold font-headline ${profitColor}`}>{report.profit_margin}%</p>
-              <p className="text-[10px] text-on-surface-variant mt-1">
-                {report.profit >= 0 ? 'Profitable' : 'Operating at a loss'}
-              </p>
+            {/* Margin */}
+            <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br pointer-events-none" style={{ background: `linear-gradient(135deg, ${profitClr}12, transparent)` }} />
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${profitClr}20` }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: profitClr }}>percent</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Margin</span>
+              </div>
+              <p className="text-2xl font-extrabold font-headline" style={{ color: profitClr }}>{report.profit_margin}%</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">{isProfit ? 'Profitable ✓' : 'At a loss'}</p>
             </div>
           </div>
 
-          {/* Expense sub-totals */}
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Purchases', value: report.expenses.purchases_total, icon: 'shopping_cart', color: 'text-error' },
-              { label: 'Salaries', value: report.expenses.salaries_total, icon: 'badge', color: 'text-orange-400' },
-              { label: 'Cash Advances', value: report.expenses.cash_advances_total, icon: 'payments', color: 'text-purple-400' },
-            ].map(e => (
-              <div key={e.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center">
-                  <span className={`material-symbols-outlined ${e.color}`}>{e.icon}</span>
+          {/* ── Expense sub-cards ─────────────────────────── */}
+          <div className="grid grid-cols-3 gap-3">
+            {([
+              { label: 'Purchases',     val: report.expenses.purchases_total,     icon: 'shopping_cart', clr: '#ef4444' },
+              { label: 'Salaries',      val: report.expenses.salaries_total,      icon: 'badge',         clr: '#f97316' },
+              { label: 'Cash Advances', val: report.expenses.cash_advances_total, icon: 'payments',      clr: '#a855f7' },
+            ] as const).map(e => (
+              <div key={e.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${e.clr}18` }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: e.clr }}>{e.icon}</span>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{e.label}</p>
-                  <p className={`text-lg font-extrabold font-headline ${e.color}`}>{formatCurrency(e.value)}</p>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant truncate">{e.label}</p>
+                  <p className="text-base font-extrabold font-headline truncate" style={{ color: e.clr }}>{formatCurrency(e.val)}</p>
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Main chart */}
+          {/* ── Main chart ───────────────────────────────── */}
           {report.income_by_day.length > 0 && (
-            <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
-              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Income vs Expenses</p>
-              <ResponsiveContainer width="100%" height={280}>
-                <ComposedChart data={report.income_by_day}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.1)" />
-                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} width={55} tickFormatter={v => formatCurrency(v)} />
-                  <Tooltip
-                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                    contentStyle={{ background: 'var(--color-surface-container-high)', border: 'none', borderRadius: '12px', fontSize: '11px' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar dataKey="income" name="Income" fill="#22c55e" radius={[4, 4, 0, 0]} opacity={0.85} />
-                  <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.85} />
-                  <Line dataKey="profit" name="Profit" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <div className="px-6 pt-5 pb-2 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Cash Flow</p>
+                  <p className="text-[10px] text-on-surface-variant mt-0.5">Income vs Expenses · daily</p>
+                </div>
+                <div className="flex items-center gap-4 text-[10px] font-bold text-on-surface-variant">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#22c55e] inline-block" />Income</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#ef4444] inline-block" />Expenses</span>
+                  <span className="flex items-center gap-1.5"><span className="w-6 border-t-2 border-[#3b82f6] border-dashed inline-block" />Profit</span>
+                </div>
+              </div>
+              <div className="px-2 pb-4">
+                <ResponsiveContainer width="100%" height={260}>
+                  <ComposedChart data={report.income_by_day} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} width={52} tickFormatter={v => formatCurrency(v)} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                      labelFormatter={fmtDate}
+                      contentStyle={{ background: 'var(--color-surface-container-high)', border: '1px solid rgba(128,128,128,0.1)', borderRadius: '12px', fontSize: '11px', padding: '8px 12px' }}
+                      cursor={{ fill: 'rgba(128,128,128,0.06)' }}
+                    />
+                    <Bar dataKey="income"   name="Income"   fill="#22c55e" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
+                    <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
+                    <Line dataKey="profit" name="Profit" stroke="#3b82f6" strokeWidth={2} strokeDasharray="4 2" dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
 
-          {/* Pie charts */}
+          {/* ── Pie charts ───────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Income by payment method */}
             {report.income_by_payment_method.length > 0 && (
-              <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
-                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Income by Payment Method</p>
-                <div className="flex items-center gap-6">
-                  <PieChart width={160} height={160}>
-                    <Pie data={report.income_by_payment_method} dataKey="amount" nameKey="method" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
-                      {report.income_by_payment_method.map((_, i) => (
-                        <Cell key={i} fill={METHOD_COLORS[i % METHOD_COLORS.length]} />
-                      ))}
+              <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+                <p className="text-xs font-bold text-on-surface mb-1">Income by Payment Method</p>
+                <p className="text-[10px] text-on-surface-variant mb-4 uppercase tracking-widest">How customers pay</p>
+                <div className="flex items-center gap-4">
+                  <PieChart width={140} height={140}>
+                    <Pie data={report.income_by_payment_method} dataKey="amount" nameKey="method" cx="50%" cy="50%" outerRadius={65} innerRadius={38} paddingAngle={2}>
+                      {report.income_by_payment_method.map((_, i) => <Cell key={i} fill={FIN_METHOD_COLORS[i % FIN_METHOD_COLORS.length]} />)}
                     </Pie>
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
                   </PieChart>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-1 space-y-2">
                     {report.income_by_payment_method.map((m, i) => (
                       <div key={m.method} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ background: METHOD_COLORS[i % METHOD_COLORS.length] }} />
-                        <span className="text-xs text-on-surface-variant">{m.method}</span>
-                        <span className="text-xs font-bold text-on-surface ml-auto">{formatCurrency(m.amount)}</span>
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: FIN_METHOD_COLORS[i % FIN_METHOD_COLORS.length] }} />
+                        <span className="text-[11px] text-on-surface-variant flex-1 truncate">{m.method}</span>
+                        <span className="text-[11px] font-bold text-on-surface">{formatCurrency(m.amount)}</span>
+                        <span className="text-[9px] text-on-surface-variant/60 w-8 text-right">{m.count}x</span>
                       </div>
                     ))}
                   </div>
@@ -4251,24 +4308,26 @@ const FinanceDashboard = () => {
               </div>
             )}
 
-            {/* Expense breakdown */}
             {expensePieData.length > 0 && (
-              <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
-                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Expense Breakdown</p>
-                <div className="flex items-center gap-6">
-                  <PieChart width={160} height={160}>
-                    <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
-                      {expensePieData.map((_, i) => (
-                        <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
-                      ))}
+              <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+                <p className="text-xs font-bold text-on-surface mb-1">Expense Breakdown</p>
+                <p className="text-[10px] text-on-surface-variant mb-4 uppercase tracking-widest">Where money goes</p>
+                <div className="flex items-center gap-4">
+                  <PieChart width={140} height={140}>
+                    <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} innerRadius={38} paddingAngle={2}>
+                      {expensePieData.map((_, i) => <Cell key={i} fill={FIN_EXPENSE_COLORS[i % FIN_EXPENSE_COLORS.length]} />)}
                     </Pie>
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
                   </PieChart>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-1 space-y-2">
                     {expensePieData.map((e, i) => (
                       <div key={e.name} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
-                        <span className="text-xs text-on-surface-variant">{e.name}</span>
-                        <span className="text-xs font-bold text-on-surface ml-auto">{formatCurrency(e.value)}</span>
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: FIN_EXPENSE_COLORS[i % FIN_EXPENSE_COLORS.length] }} />
+                        <span className="text-[11px] text-on-surface-variant flex-1">{e.name}</span>
+                        <span className="text-[11px] font-bold text-on-surface">{formatCurrency(e.value)}</span>
+                        <span className="text-[9px] text-on-surface-variant/60 w-10 text-right">
+                          {report.expenses.total > 0 ? Math.round((e.value / report.expenses.total) * 100) : 0}%
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -4277,85 +4336,139 @@ const FinanceDashboard = () => {
             )}
           </div>
 
-          {/* Detail tables */}
-          {[
-            {
-              key: 'purchases' as const,
-              label: 'Purchases',
-              icon: 'shopping_cart',
-              count: report.expenses.purchases.length,
-              total: report.expenses.purchases_total,
-              color: 'text-error',
-              rows: report.expenses.purchases.map(p => ({
-                cols: [p.date, p.ingredient, p.vendor || '—', `${p.quantity} ${p.unit}`, formatCurrency(p.cost)],
-              })),
-              headers: ['Date', 'Ingredient', 'Vendor', 'Qty', 'Cost'],
-            },
-            {
-              key: 'salaries' as const,
-              label: 'Salary Payments',
-              icon: 'badge',
-              count: report.expenses.salaries.length,
-              total: report.expenses.salaries_total,
-              color: 'text-orange-400',
-              rows: report.expenses.salaries.map(s => ({
-                cols: [s.date, s.user_name, formatCurrency(s.base_salary), formatCurrency(s.net_amount)],
-              })),
-              headers: ['Date', 'Employee', 'Base Salary', 'Net Paid'],
-            },
-            {
-              key: 'advances' as const,
-              label: 'Cash Advances',
-              icon: 'payments',
-              count: report.expenses.cash_advances.length,
-              total: report.expenses.cash_advances_total,
-              color: 'text-purple-400',
-              rows: report.expenses.cash_advances.map(a => ({
-                cols: [a.date, a.user_name, formatCurrency(a.amount), a.status],
-              })),
-              headers: ['Date', 'Employee', 'Amount', 'Status'],
-            },
-          ].map(table => (
-            <div key={table.key} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
-              <button
-                onClick={() => setOpenTable(openTable === table.key ? null : table.key)}
-                className="w-full flex items-center gap-3 px-6 py-4 hover:bg-surface-container-high transition-colors"
-              >
-                <span className={`material-symbols-outlined ${table.color}`}>{table.icon}</span>
-                <span className="text-sm font-bold text-on-surface">{table.label}</span>
-                <span className="text-xs text-on-surface-variant ml-1">({table.count} records)</span>
-                <span className={`ml-auto text-sm font-extrabold font-headline ${table.color}`}>{formatCurrency(table.total)}</span>
-                <span className="material-symbols-outlined text-on-surface-variant ml-2">
-                  {openTable === table.key ? 'expand_less' : 'expand_more'}
-                </span>
+          {/* ── Detail tables ─────────────────────────────── */}
+          <div className="space-y-3">
+            {/* Purchases */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <button onClick={() => setOpenTable(openTable === 'purchases' ? null : 'purchases')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
+                <div className="w-8 h-8 rounded-xl bg-[#ef4444]/12 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[#ef4444] text-sm">shopping_cart</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-on-surface">Purchases</p>
+                  <p className="text-[10px] text-on-surface-variant">{report.expenses.purchases.length} records</p>
+                </div>
+                <p className="text-base font-extrabold font-headline text-[#ef4444]">{formatCurrency(report.expenses.purchases_total)}</p>
+                <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'purchases' ? 'expand_less' : 'expand_more'}</span>
               </button>
-              {openTable === table.key && table.rows.length > 0 && (
+              {openTable === 'purchases' && (
                 <div className="border-t border-outline-variant/10 overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-surface-container-high">
-                        {table.headers.map(h => (
-                          <th key={h} className="px-4 py-3 text-left font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {table.rows.map((row, i) => (
-                        <tr key={i} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50">
-                          {row.cols.map((col, j) => (
-                            <td key={j} className="px-4 py-3 text-on-surface">{col}</td>
+                  {report.expenses.purchases.length === 0
+                    ? <p className="px-5 py-4 text-xs text-on-surface-variant">No purchases in this period.</p>
+                    : <table className="w-full text-xs">
+                        <thead><tr className="bg-surface-container-high/70">
+                          {['Date','Ingredient','Vendor','Qty','Cost'].map(h => <th key={h} className="px-4 py-3 text-left text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {report.expenses.purchases.map((p, i) => (
+                            <tr key={i} className="border-t border-outline-variant/8 hover:bg-surface-container-high/40 transition-colors">
+                              <td className="px-4 py-3 text-on-surface-variant">{fmtFull(p.date)}</td>
+                              <td className="px-4 py-3 font-medium text-on-surface">{p.ingredient}</td>
+                              <td className="px-4 py-3 text-on-surface-variant">{p.vendor || '—'}</td>
+                              <td className="px-4 py-3 text-on-surface-variant">{p.quantity} {p.unit}</td>
+                              <td className="px-4 py-3 font-bold text-[#ef4444]">{formatCurrency(p.cost)}</td>
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </tbody>
+                      </table>
+                  }
                 </div>
               )}
-              {openTable === table.key && table.rows.length === 0 && (
-                <p className="px-6 py-4 text-xs text-on-surface-variant border-t border-outline-variant/10">No records for this period.</p>
+            </div>
+
+            {/* Salary Payments */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <button onClick={() => setOpenTable(openTable === 'salaries' ? null : 'salaries')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
+                <div className="w-8 h-8 rounded-xl bg-[#f97316]/12 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[#f97316] text-sm">badge</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-on-surface">Salary Payments</p>
+                  <p className="text-[10px] text-on-surface-variant">{report.expenses.salaries.length} records</p>
+                </div>
+                <p className="text-base font-extrabold font-headline text-[#f97316]">{formatCurrency(report.expenses.salaries_total)}</p>
+                <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'salaries' ? 'expand_less' : 'expand_more'}</span>
+              </button>
+              {openTable === 'salaries' && (
+                <div className="border-t border-outline-variant/10 overflow-x-auto">
+                  {report.expenses.salaries.length === 0
+                    ? <p className="px-5 py-4 text-xs text-on-surface-variant">No salary payments in this period.</p>
+                    : <table className="w-full text-xs">
+                        <thead><tr className="bg-surface-container-high/70">
+                          {['Date','Employee','Base Salary','Net Paid',''].map((h,i) => <th key={i} className="px-4 py-3 text-left text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {report.expenses.salaries.map((s, i) => (
+                            <tr key={i} className="border-t border-outline-variant/8 hover:bg-surface-container-high/40 transition-colors">
+                              <td className="px-4 py-3 text-on-surface-variant">{fmtFull(s.date)}</td>
+                              <td className="px-4 py-3 font-medium text-on-surface">{s.user_name}</td>
+                              <td className="px-4 py-3 text-on-surface-variant">{formatCurrency(s.base_salary)}</td>
+                              <td className="px-4 py-3 font-bold text-[#f97316]">{formatCurrency(s.net_amount)}</td>
+                              <td className="px-4 py-3">
+                                {s.id && (
+                                  <button
+                                    onClick={() => handleDeleteSalary(s.id)}
+                                    disabled={deletingId === s.id}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40"
+                                  >
+                                    {deletingId === s.id
+                                      ? <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                      : <span className="material-symbols-outlined text-sm">delete</span>}
+                                    Delete
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                  }
+                </div>
               )}
             </div>
-          ))}
+
+            {/* Cash Advances */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <button onClick={() => setOpenTable(openTable === 'advances' ? null : 'advances')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
+                <div className="w-8 h-8 rounded-xl bg-[#a855f7]/12 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[#a855f7] text-sm">payments</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-on-surface">Cash Advances</p>
+                  <p className="text-[10px] text-on-surface-variant">{report.expenses.cash_advances.length} records</p>
+                </div>
+                <p className="text-base font-extrabold font-headline text-[#a855f7]">{formatCurrency(report.expenses.cash_advances_total)}</p>
+                <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'advances' ? 'expand_less' : 'expand_more'}</span>
+              </button>
+              {openTable === 'advances' && (
+                <div className="border-t border-outline-variant/10 overflow-x-auto">
+                  {report.expenses.cash_advances.length === 0
+                    ? <p className="px-5 py-4 text-xs text-on-surface-variant">No cash advances in this period.</p>
+                    : <table className="w-full text-xs">
+                        <thead><tr className="bg-surface-container-high/70">
+                          {['Date','Employee','Amount','Status'].map(h => <th key={h} className="px-4 py-3 text-left text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {report.expenses.cash_advances.map((a, i) => (
+                            <tr key={i} className="border-t border-outline-variant/8 hover:bg-surface-container-high/40 transition-colors">
+                              <td className="px-4 py-3 text-on-surface-variant">{fmtFull(a.date)}</td>
+                              <td className="px-4 py-3 font-medium text-on-surface">{a.user_name}</td>
+                              <td className="px-4 py-3 font-bold text-[#a855f7]">{formatCurrency(a.amount)}</td>
+                              <td className="px-4 py-3">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-tertiary/10 text-tertiary">{a.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                  }
+                </div>
+              )}
+            </div>
+          </div>
         </>
       )}
     </div>

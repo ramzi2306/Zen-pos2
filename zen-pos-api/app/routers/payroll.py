@@ -57,6 +57,15 @@ async def user_withdrawals(user_id: str):
     ]
 
 
+@router.delete("/withdrawals/{withdrawal_id}", status_code=204,
+               dependencies=[Depends(require_permission("view_hr"))])
+async def delete_salary_withdrawal(withdrawal_id: str):
+    record = await PayrollWithdrawalDocument.get(withdrawal_id)
+    if not record:
+        raise NotFoundError("Withdrawal record not found")
+    await record.delete()
+
+
 @router.get("/performance-logs", response_model=list[PerformanceLogOut],
             dependencies=[Depends(require_permission("view_hr"))])
 async def list_performance_logs(user_id: Optional[str] = None):
