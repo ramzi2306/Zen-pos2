@@ -827,8 +827,7 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
 
   const fetchHistory = async () => {
     try {
-      const m = await import('../../api/index');
-      const summary = await m.default.register.getSessionFloatSummary();
+      const summary = await api.register.getSessionFloatSummary();
       if (summary && summary.withdrawals) {
         setHistory(summary.withdrawals);
       }
@@ -866,8 +865,7 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
   const handleDeleteWithdrawal = async (id: string) => {
     if (!confirm('Are you sure you want to delete this withdrawal? It will be returned to the register expected balance.')) return;
     try {
-      const m = await import('../../api/index');
-      await m.default.register.deleteWithdrawal(id);
+      await api.register.deleteWithdrawal(id);
       await fetchHistory();
     } catch (err) {
       console.error('Failed to delete withdrawal', err);
@@ -927,27 +925,37 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
               />
             </div>
 
-            {history.length > 0 && (
-              <div className="pt-4 border-t border-outline-variant/10">
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Previous Withdrawals (This Session)</label>
-                <div className="max-h-[140px] overflow-y-auto space-y-2 pr-2 scrollbar-thin">
-                  {history.map((h, i) => (
-                    <div key={h.id} className="group flex justify-between items-center p-3 bg-surface-container/50 rounded-xl border border-outline-variant/5 hover:bg-surface-container transition-colors">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Withdrawal #{history.length - i}</span>
-                        <span className="text-[11px] text-on-surface-variant line-clamp-1">{h.notes || 'No reason provided'}</span>
+            {(history || []).length > 0 && (
+              <div className="pt-6 border-t border-outline-variant/10">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recent Withdrawals</label>
+                  <span className="text-[10px] bg-surface-container-highest px-2 py-0.5 rounded-full text-on-surface-variant font-bold">Session</span>
+                </div>
+                <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                  {[...history].reverse().map((h, i) => (
+                    <div key={h.id || i} className="group flex justify-between items-center p-3 bg-surface-container/40 rounded-2xl border border-outline-variant/5 hover:bg-surface-container transition-all">
+                      <div className="flex flex-col min-w-0 flex-1 mr-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-secondary uppercase tracking-tighter">#{history.length - i}</span>
+                          <span className="text-[11px] font-bold text-on-surface truncate">{h.notes || 'No Reason'}</span>
+                        </div>
+                        <span className="text-[9px] text-on-surface-variant opacity-60">Withdrawal recorded</span>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="font-bold text-secondary text-sm">-{formatCurrency(h.amount)}</span>
                         <button 
-                          onClick={() => handleDeleteWithdrawal(h.id)}
-                          className="w-8 h-8 rounded-full bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-error/20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteWithdrawal(h.id);
+                          }}
+                          className="w-7 h-7 rounded-full bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-error hover:text-on-error"
+                          title="Delete withdrawal"
                         >
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
                         </button>
                       </div>
                     </div>
-                  )).reverse()}
+                  ))}
                 </div>
               </div>
             )}
