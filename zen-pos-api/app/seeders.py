@@ -38,9 +38,15 @@ async def seed_system_roles() -> None:
     for role_data in SYSTEM_ROLES:
         existing = await RoleDocument.find_one(RoleDocument.name == role_data["name"])
         if existing:
-            # Ensure is_system flag is set in case of legacy data
+            changed = False
             if not existing.is_system:
                 existing.is_system = True
+                changed = True
+            # Always sync permissions so new permissions land on restart
+            if existing.permissions != role_data["permissions"]:
+                existing.permissions = role_data["permissions"]
+                changed = True
+            if changed:
                 await existing.save()
         else:
             role = RoleDocument(**role_data)
