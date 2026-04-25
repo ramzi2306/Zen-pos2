@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Optional
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 from beanie import PydanticObjectId
 from beanie.operators import In
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.dependencies import require_permission
@@ -265,5 +265,254 @@ async def daily_sales(start_date: str, end_date: str):
     unique_results = {}
     for item in results:
         unique_results[item.date] = item
-    
+
     return sorted(unique_results.values(), key=lambda x: x.date)
+
+
+# ── Finance Dashboard ─────────────────────────────────────
+
+class FinanceDayItem(BaseModel):
+    date: str
+    income: float
+    expenses: float
+    profit: float
+
+
+class PaymentMethodBreakdown(BaseModel):
+    method: str
+    amount: float
+    count: int
+
+
+class PurchaseItem(BaseModel):
+    date: str
+    ingredient: str
+    vendor: str
+    quantity: float
+    unit: str
+    cost: float
+
+
+class SalaryItem(BaseModel):
+    date: str
+    user_name: str
+    base_salary: float
+    net_amount: float
+
+
+class CashAdvanceItem(BaseModel):
+    date: str
+    user_name: str
+    amount: float
+    status: str
+
+
+class ExpensesBreakdown(BaseModel):
+    total: float
+    purchases_total: float
+    salaries_total: float
+    cash_advances_total: float
+    purchases: List[PurchaseItem]
+    salaries: List[SalaryItem]
+    cash_advances: List[CashAdvanceItem]
+
+
+class FinanceReport(BaseModel):
+    period_start: str
+    period_end: str
+    income_total: float
+    income_order_count: int
+    income_by_day: List[FinanceDayItem]
+    income_by_payment_method: List[PaymentMethodBreakdown]
+    expenses: ExpensesBreakdown
+    profit: float
+    profit_margin: float
+
+
+@router.get("/finance", response_model=FinanceReport,
+            dependencies=[Depends(require_permission("view_orders"))])
+async def finance_report(
+    start_date: str = Query(...),
+    end_date: str = Query(...),
+):
+    from app.models.ingredient import PurchaseLogDocument
+    from app.models.payroll import PayrollWithdrawalDocument
+
+    try:
+        period_start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        period_end = datetime.strptime(end_date, "%Y-%m-%d").replace(
+            hour=23, minute=59, second=59, tzinfo=timezone.utc
+        )
+    except ValueError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+
+    # ── Income from orders ──────────────────────────────
+    income_pipeline = [
+        {"$match": {
+            "status": {"$ne": "Cancelled"},
+            "payment_status": "Paid",
+            "created_at": {"$gte": period_start, "$lte": period_end},
+        }},
+        {"$group": {
+            "_id": {
+                "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+                "method": "$payment_method",
+            },
+            "revenue": {"$sum": "$total"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    income_raw = await OrderDocument.aggregate(income_pipeline).to_list()
+
+    income_by_day: dict[str, float] = {}
+    method_totals: dict[str, dict] = {}
+    income_total = 0.0
+    income_order_count = 0
+
+    for r in income_raw:
+        date = r["_id"]["date"]
+        method = r["_id"]["method"] or "Other"
+        rev = r["revenue"]
+        cnt = r["count"]
+
+        income_by_day[date] = income_by_day.get(date, 0.0) + rev
+        income_total += rev
+        income_order_count += cnt
+
+        if method not in method_totals:
+            method_totals[method] = {"amount": 0.0, "count": 0}
+        method_totals[method]["amount"] += rev
+        method_totals[method]["count"] += cnt
+
+    # ── Purchases ───────────────────────────────────────
+    purchases_raw = await PurchaseLogDocument.find(
+        PurchaseLogDocument.date >= start_date,
+        PurchaseLogDocument.date <= end_date,
+    ).to_list()
+
+    await PurchaseLogDocument.fetch_all_links()
+
+    purchases_list: List[PurchaseItem] = []
+    purchases_by_day: dict[str, float] = {}
+    purchases_total = 0.0
+
+    for p in purchases_raw:
+        try:
+            await p.fetch_all_links()
+        except Exception:
+            pass
+        ing_name = p.ingredient.name if hasattr(p.ingredient, "name") else "Unknown"
+        purchases_list.append(PurchaseItem(
+            date=p.date,
+            ingredient=ing_name,
+            vendor=p.vendor or "",
+            quantity=p.quantity,
+            unit=p.unit,
+            cost=p.total_cost,
+        ))
+        purchases_by_day[p.date] = purchases_by_day.get(p.date, 0.0) + p.total_cost
+        purchases_total += p.total_cost
+
+    # ── Salary payments ─────────────────────────────────
+    salary_pipeline = [
+        {"$match": {
+            "date": {"$gte": start_date, "$lte": end_date},
+        }},
+        {"$lookup": {
+            "from": "users",
+            "localField": "user.$id",
+            "foreignField": "_id",
+            "as": "user_doc",
+        }},
+        {"$unwind": {"path": "$user_doc", "preserveNullAndEmptyArrays": True}},
+    ]
+    salary_raw = await PayrollWithdrawalDocument.aggregate(salary_pipeline).to_list()
+
+    salaries_list: List[SalaryItem] = []
+    salaries_by_day: dict[str, float] = {}
+    salaries_total = 0.0
+
+    for r in salary_raw:
+        user_name = r.get("user_doc", {}).get("name", "Unknown") if r.get("user_doc") else "Unknown"
+        net = r.get("net_amount", 0.0)
+        date = r.get("date", "")
+        salaries_list.append(SalaryItem(
+            date=date,
+            user_name=user_name,
+            base_salary=r.get("base_salary", 0.0),
+            net_amount=net,
+        ))
+        salaries_by_day[date] = salaries_by_day.get(date, 0.0) + net
+        salaries_total += net
+
+    # ── Cash advances from user withdrawal_logs ─────────
+    users_with_withdrawals = await UserDocument.find(
+        UserDocument.withdrawal_logs.as_array().size() > 0  # type: ignore[attr-defined]
+    ).to_list()
+
+    cash_advances_list: List[CashAdvanceItem] = []
+    cash_advances_by_day: dict[str, float] = {}
+    cash_advances_total = 0.0
+
+    for user in users_with_withdrawals:
+        for w in (user.withdrawal_logs or []):
+            if w.date >= start_date and w.date <= end_date and w.status == "Completed":
+                cash_advances_list.append(CashAdvanceItem(
+                    date=w.date,
+                    user_name=user.name,
+                    amount=w.amount,
+                    status=w.status,
+                ))
+                cash_advances_by_day[w.date] = cash_advances_by_day.get(w.date, 0.0) + w.amount
+                cash_advances_total += w.amount
+
+    # ── Merge all dates into unified day timeline ────────
+    all_dates = sorted(set(
+        list(income_by_day.keys())
+        + list(purchases_by_day.keys())
+        + list(salaries_by_day.keys())
+        + list(cash_advances_by_day.keys())
+    ))
+
+    income_by_day_list: List[FinanceDayItem] = []
+    for date in all_dates:
+        inc = income_by_day.get(date, 0.0)
+        exp = (
+            purchases_by_day.get(date, 0.0)
+            + salaries_by_day.get(date, 0.0)
+            + cash_advances_by_day.get(date, 0.0)
+        )
+        income_by_day_list.append(FinanceDayItem(
+            date=date,
+            income=round(inc, 2),
+            expenses=round(exp, 2),
+            profit=round(inc - exp, 2),
+        ))
+
+    expenses_total = purchases_total + salaries_total + cash_advances_total
+    profit = income_total - expenses_total
+    margin = round((profit / income_total) * 100, 1) if income_total > 0 else 0.0
+
+    return FinanceReport(
+        period_start=start_date,
+        period_end=end_date,
+        income_total=round(income_total, 2),
+        income_order_count=income_order_count,
+        income_by_day=income_by_day_list,
+        income_by_payment_method=[
+            PaymentMethodBreakdown(method=m, amount=round(v["amount"], 2), count=v["count"])
+            for m, v in sorted(method_totals.items(), key=lambda x: -x[1]["amount"])
+        ],
+        expenses=ExpensesBreakdown(
+            total=round(expenses_total, 2),
+            purchases_total=round(purchases_total, 2),
+            salaries_total=round(salaries_total, 2),
+            cash_advances_total=round(cash_advances_total, 2),
+            purchases=sorted(purchases_list, key=lambda x: x.date, reverse=True),
+            salaries=sorted(salaries_list, key=lambda x: x.date, reverse=True),
+            cash_advances=sorted(cash_advances_list, key=lambda x: x.date, reverse=True),
+        ),
+        profit=round(profit, 2),
+        profit_margin=margin,
+    )

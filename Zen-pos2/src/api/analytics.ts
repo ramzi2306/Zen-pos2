@@ -51,3 +51,63 @@ export async function getDailySales(start: string, end: string): Promise<{ date:
     `/analytics/daily?start_date=${start}&end_date=${end}`
   );
 }
+
+export interface FinanceDayItem {
+  date: string;
+  income: number;
+  expenses: number;
+  profit: number;
+}
+
+export interface PaymentMethodBreakdown {
+  method: string;
+  amount: number;
+  count: number;
+}
+
+export interface PurchaseItem {
+  date: string;
+  ingredient: string;
+  vendor: string;
+  quantity: number;
+  unit: string;
+  cost: number;
+}
+
+export interface SalaryItem {
+  date: string;
+  user_name: string;
+  base_salary: number;
+  net_amount: number;
+}
+
+export interface CashAdvanceItem {
+  date: string;
+  user_name: string;
+  amount: number;
+  status: string;
+}
+
+export interface FinanceReport {
+  period_start: string;
+  period_end: string;
+  income_total: number;
+  income_order_count: number;
+  income_by_day: FinanceDayItem[];
+  income_by_payment_method: PaymentMethodBreakdown[];
+  expenses: {
+    total: number;
+    purchases_total: number;
+    salaries_total: number;
+    cash_advances_total: number;
+    purchases: PurchaseItem[];
+    salaries: SalaryItem[];
+    cash_advances: CashAdvanceItem[];
+  };
+  profit: number;
+  profit_margin: number;
+}
+
+export async function getFinanceReport(start: string, end: string): Promise<FinanceReport> {
+  return apiRequest<FinanceReport>(`/analytics/finance?start_date=${start}&end_date=${end}`);
+}

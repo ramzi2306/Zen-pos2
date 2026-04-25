@@ -39,6 +39,7 @@ export const Sidebar = ({
 
     // Administration
     { id: 'sales',      icon: 'bar_chart',       label: 'Sales',           category: 'admin_panel', permission: 'view_orders'     },
+    { id: 'finance',    icon: 'account_balance',  label: 'Finance',         category: 'admin_panel', permission: 'view_orders'     },
     { id: 'customers',  icon: 'groups',          label: 'Customers',       category: 'admin_panel', permission: 'view_orders'     },
     { id: 'products',   icon: 'restaurant_menu', label: 'Products',        category: 'admin_panel', permission: 'view_menu'       },
     { id: 'inventory',  icon: 'inventory_2',     label: 'Inventory',       category: 'admin_panel', permission: 'view_inventory'  },

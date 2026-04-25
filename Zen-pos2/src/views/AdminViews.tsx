@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { showError, showSuccess } from '../utils/toast';
-import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid, Legend } from 'recharts';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
 import type { IngredientItem, PurchaseLog, UsageLog } from '../api/inventory';
+import type { FinanceReport } from '../api/analytics';
 import { DEFAULT_BRANDING } from '../api/settings';
 import type { BrandingData } from '../api/settings';
 import { getSoundConfig, saveSoundConfig, playSound } from '../utils/sounds';
@@ -4036,6 +4037,331 @@ const ProductManagementView = () => {
   );
 };
 
+// ── Finance Dashboard ─────────────────────────────────────────────────────────
+const EXPENSE_COLORS = ['#ef4444', '#f97316', '#a855f7'];
+const METHOD_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#06b6d4'];
+
+const FinanceDashboard = () => {
+  const { formatCurrency } = useLocalization();
+  const [report, setReport] = useState<FinanceReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [openTable, setOpenTable] = useState<'purchases' | 'salaries' | 'advances' | null>(null);
+
+  const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
+    const now = new Date();
+    return {
+      type: 'this_month',
+      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0],
+      end: now.toISOString().split('T')[0],
+    };
+  });
+
+  const periods = [
+    { id: 'this_week',   label: 'This Week' },
+    { id: 'this_month',  label: 'This Month' },
+    { id: 'last_month',  label: 'Last Month' },
+    { id: 'last_90',     label: 'Last 90 Days' },
+    { id: 'this_year',   label: 'This Year' },
+    { id: 'custom',      label: 'Custom' },
+  ];
+
+  const applyPeriod = (type: string) => {
+    const now = new Date();
+    let start = '';
+    let end = now.toISOString().split('T')[0];
+    if (type === 'this_week') {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      start = new Date(now.getFullYear(), now.getMonth(), diff).toISOString().split('T')[0];
+    } else if (type === 'this_month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    } else if (type === 'last_month') {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+      end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+    } else if (type === 'last_90') {
+      start = new Date(now.getTime() - 90 * 86400000).toISOString().split('T')[0];
+    } else if (type === 'this_year') {
+      start = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+    } else {
+      return;
+    }
+    setDateFilter({ type, start, end });
+  };
+
+  useEffect(() => {
+    if (dateFilter.type === 'custom' && (!dateFilter.start || !dateFilter.end)) return;
+    setLoading(true);
+    api.analytics.getFinanceReport(dateFilter.start, dateFilter.end)
+      .then(setReport)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [dateFilter.start, dateFilter.end]);
+
+  const fmtDate = (d: string) => {
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}`;
+  };
+
+  const expensePieData = report ? [
+    { name: 'Purchases', value: report.expenses.purchases_total },
+    { name: 'Salaries', value: report.expenses.salaries_total },
+    { name: 'Cash Advances', value: report.expenses.cash_advances_total },
+  ].filter(d => d.value > 0) : [];
+
+  const profitColor = (report?.profit ?? 0) >= 0 ? 'text-tertiary' : 'text-error';
+  const profitBg = (report?.profit ?? 0) >= 0 ? 'bg-tertiary/10' : 'bg-error/10';
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      {/* Period picker */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2 flex-wrap">
+          {periods.map(p => (
+            <button
+              key={p.id}
+              onClick={() => { if (p.id !== 'custom') applyPeriod(p.id); setDateFilter(prev => ({ ...prev, type: p.id })); }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors ${
+                dateFilter.type === p.id
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {dateFilter.type === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFilter.start}
+              onChange={e => setDateFilter(prev => ({ ...prev, start: e.target.value }))}
+              className="bg-surface-container rounded-xl px-3 py-2 text-xs border border-outline-variant/20 text-on-surface"
+            />
+            <span className="text-on-surface-variant text-xs">→</span>
+            <input
+              type="date"
+              value={dateFilter.end}
+              onChange={e => setDateFilter(prev => ({ ...prev, end: e.target.value }))}
+              className="bg-surface-container rounded-xl px-3 py-2 text-xs border border-outline-variant/20 text-on-surface"
+            />
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <span className="material-symbols-outlined animate-spin text-primary text-4xl">sync</span>
+        </div>
+      ) : report && (
+        <>
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Income</p>
+              <p className="text-2xl font-extrabold text-tertiary font-headline">{formatCurrency(report.income_total)}</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">{report.income_order_count} paid orders</p>
+            </div>
+            <div className="bg-surface-container rounded-2xl p-5 border border-outline-variant/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Expenses</p>
+              <p className="text-2xl font-extrabold text-error font-headline">{formatCurrency(report.expenses.total)}</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">
+                Purchases + HR + Advances
+              </p>
+            </div>
+            <div className={`rounded-2xl p-5 border border-outline-variant/10 ${profitBg}`}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Net Profit</p>
+              <p className={`text-2xl font-extrabold font-headline ${profitColor}`}>{formatCurrency(report.profit)}</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">Income − Expenses</p>
+            </div>
+            <div className={`rounded-2xl p-5 border border-outline-variant/10 ${profitBg}`}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Profit Margin</p>
+              <p className={`text-2xl font-extrabold font-headline ${profitColor}`}>{report.profit_margin}%</p>
+              <p className="text-[10px] text-on-surface-variant mt-1">
+                {report.profit >= 0 ? 'Profitable' : 'Operating at a loss'}
+              </p>
+            </div>
+          </div>
+
+          {/* Expense sub-totals */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Purchases', value: report.expenses.purchases_total, icon: 'shopping_cart', color: 'text-error' },
+              { label: 'Salaries', value: report.expenses.salaries_total, icon: 'badge', color: 'text-orange-400' },
+              { label: 'Cash Advances', value: report.expenses.cash_advances_total, icon: 'payments', color: 'text-purple-400' },
+            ].map(e => (
+              <div key={e.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center">
+                  <span className={`material-symbols-outlined ${e.color}`}>{e.icon}</span>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{e.label}</p>
+                  <p className={`text-lg font-extrabold font-headline ${e.color}`}>{formatCurrency(e.value)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Main chart */}
+          {report.income_by_day.length > 0 && (
+            <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
+              <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Income vs Expenses</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={report.income_by_day}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.1)" />
+                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} width={55} tickFormatter={v => formatCurrency(v)} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [formatCurrency(v), name]}
+                    contentStyle={{ background: 'var(--color-surface-container-high)', border: 'none', borderRadius: '12px', fontSize: '11px' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Bar dataKey="income" name="Income" fill="#22c55e" radius={[4, 4, 0, 0]} opacity={0.85} />
+                  <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} opacity={0.85} />
+                  <Line dataKey="profit" name="Profit" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Pie charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Income by payment method */}
+            {report.income_by_payment_method.length > 0 && (
+              <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
+                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Income by Payment Method</p>
+                <div className="flex items-center gap-6">
+                  <PieChart width={160} height={160}>
+                    <Pie data={report.income_by_payment_method} dataKey="amount" nameKey="method" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
+                      {report.income_by_payment_method.map((_, i) => (
+                        <Cell key={i} fill={METHOD_COLORS[i % METHOD_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                  <div className="flex flex-col gap-2">
+                    {report.income_by_payment_method.map((m, i) => (
+                      <div key={m.method} className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ background: METHOD_COLORS[i % METHOD_COLORS.length] }} />
+                        <span className="text-xs text-on-surface-variant">{m.method}</span>
+                        <span className="text-xs font-bold text-on-surface ml-auto">{formatCurrency(m.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Expense breakdown */}
+            {expensePieData.length > 0 && (
+              <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
+                <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">Expense Breakdown</p>
+                <div className="flex items-center gap-6">
+                  <PieChart width={160} height={160}>
+                    <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
+                      {expensePieData.map((_, i) => (
+                        <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                  <div className="flex flex-col gap-2">
+                    {expensePieData.map((e, i) => (
+                      <div key={e.name} className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
+                        <span className="text-xs text-on-surface-variant">{e.name}</span>
+                        <span className="text-xs font-bold text-on-surface ml-auto">{formatCurrency(e.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Detail tables */}
+          {[
+            {
+              key: 'purchases' as const,
+              label: 'Purchases',
+              icon: 'shopping_cart',
+              count: report.expenses.purchases.length,
+              total: report.expenses.purchases_total,
+              color: 'text-error',
+              rows: report.expenses.purchases.map(p => ({
+                cols: [p.date, p.ingredient, p.vendor || '—', `${p.quantity} ${p.unit}`, formatCurrency(p.cost)],
+              })),
+              headers: ['Date', 'Ingredient', 'Vendor', 'Qty', 'Cost'],
+            },
+            {
+              key: 'salaries' as const,
+              label: 'Salary Payments',
+              icon: 'badge',
+              count: report.expenses.salaries.length,
+              total: report.expenses.salaries_total,
+              color: 'text-orange-400',
+              rows: report.expenses.salaries.map(s => ({
+                cols: [s.date, s.user_name, formatCurrency(s.base_salary), formatCurrency(s.net_amount)],
+              })),
+              headers: ['Date', 'Employee', 'Base Salary', 'Net Paid'],
+            },
+            {
+              key: 'advances' as const,
+              label: 'Cash Advances',
+              icon: 'payments',
+              count: report.expenses.cash_advances.length,
+              total: report.expenses.cash_advances_total,
+              color: 'text-purple-400',
+              rows: report.expenses.cash_advances.map(a => ({
+                cols: [a.date, a.user_name, formatCurrency(a.amount), a.status],
+              })),
+              headers: ['Date', 'Employee', 'Amount', 'Status'],
+            },
+          ].map(table => (
+            <div key={table.key} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <button
+                onClick={() => setOpenTable(openTable === table.key ? null : table.key)}
+                className="w-full flex items-center gap-3 px-6 py-4 hover:bg-surface-container-high transition-colors"
+              >
+                <span className={`material-symbols-outlined ${table.color}`}>{table.icon}</span>
+                <span className="text-sm font-bold text-on-surface">{table.label}</span>
+                <span className="text-xs text-on-surface-variant ml-1">({table.count} records)</span>
+                <span className={`ml-auto text-sm font-extrabold font-headline ${table.color}`}>{formatCurrency(table.total)}</span>
+                <span className="material-symbols-outlined text-on-surface-variant ml-2">
+                  {openTable === table.key ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+              {openTable === table.key && table.rows.length > 0 && (
+                <div className="border-t border-outline-variant/10 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-surface-container-high">
+                        {table.headers.map(h => (
+                          <th key={h} className="px-4 py-3 text-left font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.rows.map((row, i) => (
+                        <tr key={i} className="border-t border-outline-variant/10 hover:bg-surface-container-high/50">
+                          {row.cols.map((col, j) => (
+                            <td key={j} className="px-4 py-3 text-on-surface">{col}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {openTable === table.key && table.rows.length === 0 && (
+                <p className="px-6 py-4 text-xs text-on-surface-variant border-t border-outline-variant/10">No records for this period.</p>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── Sales View ────────────────────────────────────────────────────────────────
 const SalesView = () => {
   const { formatCurrency } = useLocalization();
@@ -6519,6 +6845,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
       <div className="max-w-6xl mx-auto">
         {currentSetting === 'sales' && <SalesView />}
+        {currentSetting === 'finance' && <FinanceDashboard />}
         {currentSetting === 'customers' && <CustomersView />}
         {currentSetting === 'products' && <ProductManagementView />}
         {currentSetting === 'inventory' && <InventoryView />}
