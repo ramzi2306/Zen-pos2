@@ -113,7 +113,7 @@ function AppShell() {
   };
 
   // Lock Screen & Shift Resume State
-  const [isLocked, setIsLocked] = useState(false);
+  const [isLocked, setIsLocked] = useState(() => !!sessionStorage.getItem('zenpos_locked'));
   const [lockPin, setLockPin] = useState('');
   const [lockError, setLockError] = useState('');
   const [showResumeModal, setShowResumeModal] = useState(false);
@@ -132,7 +132,10 @@ function AppShell() {
     if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     if (!currentUserRef.current || isLockedRef.current || !isRegisterOpenRef.current) return;
     // Lock after 5 minutes of inactivity
-    idleTimeoutRef.current = setTimeout(() => setIsLocked(true), 5 * 60 * 1000);
+    idleTimeoutRef.current = setTimeout(() => {
+      sessionStorage.setItem('zenpos_locked', '1');
+      setIsLocked(true);
+    }, 5 * 60 * 1000);
   };
 
   useEffect(() => {
@@ -686,6 +689,8 @@ function AppShell() {
     localStorage.removeItem(SESSION_CACHE_KEY);
     setSessionOpenedAt(null);
     sessionStorage.removeItem('zenpos_register_session');
+    sessionStorage.removeItem('zenpos_locked');
+    setIsLocked(false);
     setCurrentUser(null);
     setOrders([]);
     setRecentlyUpdatedIds(new Set());
@@ -1257,6 +1262,7 @@ function AppShell() {
                         if (newPin.length === 4) {
                           const isValid = await api.users.verifyPin(newPin);
                           if (isValid) {
+                            sessionStorage.removeItem('zenpos_locked');
                             setIsLocked(false);
                             setLockPin('');
                             setLockError('');
@@ -1288,6 +1294,7 @@ function AppShell() {
                       if (newPin.length === 4) {
                         const isValid = await api.users.verifyPin(newPin);
                         if (isValid) {
+                          sessionStorage.removeItem('zenpos_locked');
                           setIsLocked(false);
                           setLockPin('');
                           setLockError('');
