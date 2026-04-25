@@ -31,11 +31,23 @@ async def delete_cash_withdrawal(cashier_id: str, withdrawal_id: str):
         RegisterSessionDocument.status == "OPEN"
     )
     if session and session.withdrawals:
-        # Find the withdrawal
-        record = next((w for w in session.withdrawals if w.id == withdrawal_id), None)
+        # Find the withdrawal safely (handling both objects and dicts)
+        record = None
+        for w in session.withdrawals:
+            w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
+            if str(w_id) == str(withdrawal_id):
+                record = w
+                break
+                
         if record:
-            session.total_cash_withdrawn -= record.amount
-            session.withdrawals = [w for w in session.withdrawals if w.id != withdrawal_id]
+            session.total_cash_withdrawn -= (getattr(record, 'amount', 0) if hasattr(record, 'amount') else record.get('amount', 0))
+            # Filter out the record
+            new_withdrawals = []
+            for w in session.withdrawals:
+                w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
+                if str(w_id) != str(withdrawal_id):
+                    new_withdrawals.append(w)
+            session.withdrawals = new_withdrawals
             await session.save()
             return True
     return False
@@ -55,9 +67,19 @@ async def get_session_summary(cashier_id: str):
     if session.withdrawals:
         import uuid
         for w in session.withdrawals:
-            if not hasattr(w, 'id') or not w.id:
-                w.id = str(uuid.uuid4())
-            withdrawals.append(w)
+            # Robustly extract fields whether w is a model or a dict
+            w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
+            w_amount = getattr(w, 'amount', 0) if hasattr(w, 'amount') else w.get('amount', 0)
+            w_notes = getattr(w, 'notes', None) if hasattr(w, 'notes') else w.get('notes')
+            
+            if not w_id:
+                w_id = str(uuid.uuid4())
+                
+            withdrawals.append({
+                "id": str(w_id),
+                "amount": float(w_amount),
+                "notes": w_notes
+            })
 
     return {
         "opening_float": session.opening_float,
