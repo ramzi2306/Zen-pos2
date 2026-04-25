@@ -28,6 +28,7 @@ export const AdminLoginView = ({ onLogin }: { onLogin: (result: api.auth.AuthLog
         localStorage.removeItem('zenpos_remember_me');
         localStorage.removeItem('zenpos_remembered_email');
       }
+      setIsLoading(false);
       onLogin(result);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password. Please try again.');

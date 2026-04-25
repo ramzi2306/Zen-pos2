@@ -105,7 +105,7 @@ async def refresh_access_token(refresh_token: str) -> str:
     expires = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
     await RefreshTokenDocument(user=user, token=new_refresh, expires_at=expires).insert()
 
-    return create_access_token(user_id)
+    return create_access_token(user_id), new_refresh
 
 
 async def logout(refresh_token: str) -> None:

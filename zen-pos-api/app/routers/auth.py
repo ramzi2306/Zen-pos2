@@ -25,8 +25,8 @@ async def login(body: LoginRequest):
 @router.post("/refresh", response_model=AccessTokenResponse)
 async def refresh(body: RefreshRequest):
     """Exchange a valid refresh token for a new access token (rotates refresh token)."""
-    access_token = await auth_service.refresh_access_token(body.refresh_token)
-    return AccessTokenResponse(access_token=access_token)
+    access_token, new_refresh = await auth_service.refresh_access_token(body.refresh_token)
+    return AccessTokenResponse(access_token=access_token, refresh_token=new_refresh)
 
 
 @router.post("/heartbeat")
