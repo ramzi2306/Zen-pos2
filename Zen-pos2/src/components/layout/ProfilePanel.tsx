@@ -67,22 +67,7 @@ const CloseRegisterModal = ({
   // Cash expected should subtract withdrawn cash (already removed from register)
   const expectedCashNet = expectedCash - withdrawnCash;
 
-  // Pre-fill the actual counted amounts with the expected values by default when the modal opens and withdrawnCash is loaded
-  useEffect(() => {
-    if (isOpen) {
-      setActualAmounts(prev => {
-        // Only pre-fill if they haven't started typing
-        if (!prev['Cash'] && !prev['Credit Card'] && !prev['Other']) {
-          return {
-            'Cash': expectedCashNet ? expectedCashNet.toString() : '',
-            'Credit Card': expectedCard ? expectedCard.toString() : '',
-            'Other': expectedOther ? expectedOther.toString() : '',
-          };
-        }
-        return prev;
-      });
-    }
-  }, [isOpen, expectedCashNet, expectedCard, expectedOther]);
+
 
   const paymentMethods = [
     { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
