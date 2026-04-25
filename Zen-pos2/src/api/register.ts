@@ -18,10 +18,17 @@ interface ApiRegisterReport {
   discrepancy?: number;
 }
 
+export interface WithdrawalItem {
+  id: string;
+  amount: number;
+  notes?: string;
+}
+
 export interface FloatSummary {
   opening_float: number;
   net_cash_collected: number;
   total_cash_withdrawn: number;
+  withdrawals: WithdrawalItem[];
   expected_closing_float: number;
 }
 
@@ -78,6 +85,12 @@ export async function recordWithdrawal(amount: number, notes?: string): Promise<
   await apiRequest<void>(`/register/session/withdrawal`, {
     method: 'POST',
     body: JSON.stringify({ amount, notes }),
+  });
+}
+
+export async function deleteWithdrawal(withdrawalId: string): Promise<void> {
+  await apiRequest<void>(`/register/session/withdrawal/${withdrawalId}`, {
+    method: 'DELETE',
   });
 }
 

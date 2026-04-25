@@ -32,6 +32,7 @@ class RegisterReportDocument(Document):
         ]
 
 class WithdrawalRecord(BaseModel):
+    id: str = Field(default_factory=lambda: str(__import__('uuid').uuid4()))
     amount: float
     notes: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

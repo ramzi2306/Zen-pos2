@@ -46,6 +46,7 @@ class RegisterReportOut(BaseModel):
 
 
 class WithdrawalItem(BaseModel):
+    id: str
     amount: float
     notes: Optional[str] = None
 
@@ -132,6 +133,20 @@ async def record_withdrawal(
     from app.services.register_service import record_cash_withdrawal
     await record_cash_withdrawal(str(current_user.id), body.amount, body.notes)
     return {"status": "success", "amount": body.amount}
+
+
+@router.delete("/session/withdrawal/{withdrawal_id}")
+async def delete_withdrawal(
+    withdrawal_id: str,
+    current_user=Depends(require_permission("view_orders"))
+):
+    """Delete a specific withdrawal record."""
+    from app.services.register_service import delete_cash_withdrawal
+    success = await delete_cash_withdrawal(str(current_user.id), withdrawal_id)
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Withdrawal not found")
+    return {"status": "success"}
 
 
 @router.get("/reports", response_model=list[RegisterReportOut],

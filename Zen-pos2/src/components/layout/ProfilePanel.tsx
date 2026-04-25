@@ -822,7 +822,30 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [history, setHistory] = useState<{id: string, amount: number, notes?: string}[]>([]);
   const { formatCurrency } = useLocalization();
+
+  const fetchHistory = async () => {
+    try {
+      const m = await import('../../api/index');
+      const summary = await m.default.register.getSessionFloatSummary();
+      if (summary && summary.withdrawals) {
+        setHistory(summary.withdrawals);
+      }
+    } catch (err) {
+      console.error('Failed to fetch withdrawal history', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchHistory();
+    } else {
+      setAmount('');
+      setNotes('');
+      setHistory([]);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -834,13 +857,26 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
       await onConfirm(num, notes);
       setAmount('');
       setNotes('');
+      await fetchHistory();
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleDeleteWithdrawal = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this withdrawal? It will be returned to the register expected balance.')) return;
+    try {
+      const m = await import('../../api/index');
+      await m.default.register.deleteWithdrawal(id);
+      await fetchHistory();
+    } catch (err) {
+      console.error('Failed to delete withdrawal', err);
+      alert('Failed to delete withdrawal.');
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[600] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
@@ -886,10 +922,35 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="e.g. Petty cash for supplies, Drawer drop..."
-                rows={3}
+                rows={2}
                 className="w-full p-4 bg-surface-container rounded-2xl text-sm focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
               />
             </div>
+
+            {history.length > 0 && (
+              <div className="pt-4 border-t border-outline-variant/10">
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Previous Withdrawals (This Session)</label>
+                <div className="max-h-[140px] overflow-y-auto space-y-2 pr-2 scrollbar-thin">
+                  {history.map((h, i) => (
+                    <div key={h.id} className="group flex justify-between items-center p-3 bg-surface-container/50 rounded-xl border border-outline-variant/5 hover:bg-surface-container transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Withdrawal #{history.length - i}</span>
+                        <span className="text-[11px] text-on-surface-variant line-clamp-1">{h.notes || 'No reason provided'}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-secondary text-sm">-{formatCurrency(h.amount)}</span>
+                        <button 
+                          onClick={() => handleDeleteWithdrawal(h.id)}
+                          className="w-8 h-8 rounded-full bg-error/10 text-error flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-error/20"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  )).reverse()}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 mt-10">

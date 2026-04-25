@@ -24,6 +24,23 @@ async def record_cash_withdrawal(cashier_id: str, amount: float, notes: Optional
         session.withdrawals.append(WithdrawalRecord(amount=amount, notes=notes))
         await session.save()
 
+async def delete_cash_withdrawal(cashier_id: str, withdrawal_id: str):
+    """Remove a withdrawal record and decrement the total withdrawn amount."""
+    session = await RegisterSessionDocument.find_one(
+        RegisterSessionDocument.cashier_id == cashier_id,
+        RegisterSessionDocument.status == "OPEN"
+    )
+    if session and session.withdrawals:
+        # Find the withdrawal
+        record = next((w for w in session.withdrawals if w.id == withdrawal_id), None)
+        if record:
+            session.total_cash_withdrawn -= record.amount
+            session.withdrawals = [w for w in session.withdrawals if w.id != withdrawal_id]
+            await session.save()
+            return True
+    return False
+
+
 async def get_session_summary(cashier_id: str):
     """Get the current session summary including withdrawals list."""
     session = await RegisterSessionDocument.find_one(
