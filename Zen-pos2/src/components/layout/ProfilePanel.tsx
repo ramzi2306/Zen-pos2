@@ -37,18 +37,21 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [openingFloat, setOpeningFloat] = useState(0);
   const [withdrawalsHistory, setWithdrawalsHistory] = useState<{amount: number, notes: string}[]>([]);
 
+  const fetchSessionSummary = async () => {
+    try {
+      const summary = await api.register.getSessionFloatSummary();
+      if (summary) {
+        setWithdrawnCash(summary.total_cash_withdrawn);
+        setOpeningFloat(summary.opening_float || 0);
+        setWithdrawalsHistory(summary.withdrawals || []);
+      }
+    } catch (err) {}
+  };
+
   // Fetch withdrawn cash from backend when modal opens
   useEffect(() => {
     if (isOpen) {
-      api.register.getSessionFloatSummary()
-        .then(summary => {
-          if (summary) {
-            setWithdrawnCash(summary.total_cash_withdrawn);
-            setOpeningFloat(summary.opening_float || 0);
-            setWithdrawalsHistory(summary.withdrawals || []);
-          }
-        })
-        .catch(() => {});
+      fetchSessionSummary();
     } else {
       // Reset state when closed
       setActualAmounts({ 'Cash': '', 'Credit Card': '', 'Other': '' });
@@ -797,9 +800,11 @@ export const ProfilePanel = ({
       <WithdrawalModal
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
+        onRefresh={fetchSessionSummary}
         onConfirm={async (amount, notes) => {
           try {
             await api.register.recordWithdrawal(amount, notes);
+            await fetchSessionSummary();
             setIsWithdrawModalOpen(false);
           } catch (err) {
             console.error('Failed to record withdrawal', err);
@@ -814,9 +819,10 @@ export const ProfilePanel = ({
 /**
  * WithdrawalModal — for mid-session drawer drops or petty cash
  */
-const WithdrawalModal = ({ isOpen, onClose, onConfirm }: { 
+const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: { 
   isOpen: boolean, 
   onClose: () => void, 
+  onRefresh: () => Promise<void>,
   onConfirm: (amount: number, notes: string) => Promise<void> 
 }) => {
   const [amount, setAmount] = useState('');
@@ -867,6 +873,7 @@ const WithdrawalModal = ({ isOpen, onClose, onConfirm }: {
     try {
       await api.register.deleteWithdrawal(id);
       await fetchHistory();
+      await onRefresh();
     } catch (err) {
       console.error('Failed to delete withdrawal', err);
       alert('Failed to delete withdrawal.');
