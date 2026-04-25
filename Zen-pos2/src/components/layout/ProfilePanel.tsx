@@ -20,9 +20,18 @@ interface CloseRegisterModalProps {
   locationName?: string;
   openedAt?: number;
   branding?: BrandingData;
+  // Summary props from parent
+  withdrawnCash: number;
+  openingFloat: number;
+  withdrawalsHistory: any[];
+  fetchSessionSummary: () => Promise<void>;
 }
 
-const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', locationName = 'POS', openedAt, branding }: CloseRegisterModalProps) => {
+const CloseRegisterModal = ({ 
+  isOpen, onClose, sessionOrders, onConfirm, cashierName = 'Cashier', 
+  locationName = 'POS', openedAt, branding,
+  withdrawnCash, openingFloat, withdrawalsHistory, fetchSessionSummary
+}: CloseRegisterModalProps) => {
   const { formatCurrency } = useLocalization();
   const [actualAmounts, setActualAmounts] = useState<Record<string, string>>({
     'Cash': '',
@@ -33,35 +42,16 @@ const CloseRegisterModal = ({ isOpen, onClose, sessionOrders, onConfirm, cashier
   const [notes, setNotes] = useState('');
   const [activeNumpadMethod, setActiveNumpadMethod] = useState<string | null>(null);
   const [numpadPosition, setNumpadPosition] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [withdrawnCash, setWithdrawnCash] = useState(0);
-  const [openingFloat, setOpeningFloat] = useState(0);
-  const [withdrawalsHistory, setWithdrawalsHistory] = useState<{amount: number, notes: string}[]>([]);
-
-  const fetchSessionSummary = async () => {
-    try {
-      const summary = await api.register.getSessionFloatSummary();
-      if (summary) {
-        setWithdrawnCash(summary.total_cash_withdrawn);
-        setOpeningFloat(summary.opening_float || 0);
-        setWithdrawalsHistory(summary.withdrawals || []);
-      }
-    } catch (err) {}
-  };
-
-  // Fetch withdrawn cash from backend when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchSessionSummary();
     } else {
-      // Reset state when closed
+      // Reset local UI state when closed
       setActualAmounts({ 'Cash': '', 'Credit Card': '', 'Other': '' });
-      setWithdrawnCash(0);
-      setOpeningFloat(0);
-      setWithdrawalsHistory([]);
       setFondDeCaisse('');
       setNotes('');
     }
-  }, [isOpen]);
+  }, [isOpen, fetchSessionSummary]);
 
   // Relaxed: Sales should include ALL paid orders, even if not yet "Done" or "Served"
   const paidOrders = sessionOrders.filter(o => o.paymentStatus?.toLowerCase() === 'paid' && o.status !== 'Cancelled');
@@ -511,6 +501,24 @@ export const ProfilePanel = ({
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
+
+  // Register Session Summary State (Shared across modals)
+  const [withdrawnCash, setWithdrawnCash] = useState(0);
+  const [openingFloat, setOpeningFloat] = useState(0);
+  const [withdrawalsHistory, setWithdrawalsHistory] = useState<any[]>([]);
+
+  const fetchSessionSummary = async () => {
+    try {
+      const summary = await api.register.getSessionFloatSummary();
+      if (summary) {
+        setWithdrawnCash(summary.total_cash_withdrawn);
+        setOpeningFloat(summary.opening_float || 0);
+        setWithdrawalsHistory(summary.withdrawals || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch session summary', err);
+    }
+  };
   
   const openedAt = (() => {
     const v = sessionStorage.getItem('sessionOpenedAt');
@@ -780,6 +788,10 @@ export const ProfilePanel = ({
         sessionOrders={sessionOrders}
         cashierName={currentUser?.name}
         openedAt={openedAt}
+        withdrawnCash={withdrawnCash}
+        openingFloat={openingFloat}
+        withdrawalsHistory={withdrawalsHistory}
+        fetchSessionSummary={fetchSessionSummary}
         locationName={(() => {
           if (currentUser?.locationName) return currentUser.locationName;
           const activeLoc = activeLocationId ? locations.find(l => l.id === activeLocationId) : null;
