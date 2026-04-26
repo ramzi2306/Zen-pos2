@@ -81,6 +81,8 @@ class AdvanceCandidate(BaseModel):
     avatar: str
     base_salary: float
     net_payable: float
+    already_withdrawn: float   # sum of advances taken this month
+    available_to_withdraw: float  # net_payable - already_withdrawn
 
 
 class IngredientOption(BaseModel):
@@ -151,12 +153,15 @@ async def get_current_float_summary(current_user=Depends(require_permission("vie
 
 @router.get("/session/advance-candidates", response_model=list[AdvanceCandidate])
 async def list_advance_candidates(current_user=Depends(require_permission("view_orders"))):
-    """Return staff with live-computed net payable (not cached payroll_due)."""
+    """Return staff with live net_payable and this-month already-withdrawn amounts."""
     import asyncio
+    from datetime import date
     from app.models.user import UserDocument
+    from app.models.payroll import PayrollWithdrawalDocument
     from app.services import payroll_service
 
     users = await UserDocument.find(UserDocument.is_active == True).to_list()  # noqa: E712
+    this_month = date.today().strftime("%Y-%m")
 
     async def _candidate(u) -> AdvanceCandidate:
         try:
@@ -164,12 +169,23 @@ async def list_advance_candidates(current_user=Depends(require_permission("view_
             net = summary.net_payable
         except Exception:
             net = float(u.base_salary or 0)
+
+        # Sum advances already issued this month for this user
+        withdrawn_this_month = await PayrollWithdrawalDocument.find(
+            PayrollWithdrawalDocument.user.id == u.id,  # type: ignore[attr-defined]
+            PayrollWithdrawalDocument.date >= this_month + "-01",
+        ).to_list()
+        already = round(sum(w.amount for w in withdrawn_this_month), 2)
+        available = round(max(0.0, net - already), 2)
+
         return AdvanceCandidate(
             id=str(u.id),
             name=u.name,
             avatar=getattr(u, 'avatar', ''),
             base_salary=u.base_salary or 0,
             net_payable=net,
+            already_withdrawn=already,
+            available_to_withdraw=available,
         )
 
     return await asyncio.gather(*[_candidate(u) for u in users])

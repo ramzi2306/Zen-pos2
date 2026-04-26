@@ -41,6 +41,8 @@ export interface AdvanceCandidate {
   avatar: string;
   base_salary: number;
   net_payable: number;
+  already_withdrawn: number;
+  available_to_withdraw: number;
 }
 
 export interface IngredientOption {

@@ -1029,17 +1029,32 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
                         <span className="text-sm font-medium text-on-surface">{c.name}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-bold" style={{ color: 'var(--color-tertiary)' }}>{formatCurrency(c.net_payable)}</p>
-                        <p className="text-[9px] text-on-surface-variant">earned</p>
+                        <p className="text-xs font-bold" style={{ color: c.available_to_withdraw > 0 ? 'var(--color-tertiary)' : 'var(--color-error, #ef4444)' }}>
+                          {formatCurrency(c.available_to_withdraw)}
+                        </p>
+                        <p className="text-[9px] text-on-surface-variant">available</p>
                       </div>
                     </button>
                   ))}
                 </div>
                 {selectedEmployee && (
-                  <div className="mt-2 px-3 py-2 rounded-xl text-xs" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)' }}>
-                    <span className="text-on-surface-variant">Balance: </span>
-                    <span className="font-bold" style={{ color: 'var(--color-tertiary)' }}>{formatCurrency(selectedEmployee.net_payable)}</span>
-                    <span className="text-on-surface-variant"> earned this period</span>
+                  <div className="mt-2 px-3 py-2.5 rounded-xl text-xs space-y-1" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)' }}>
+                    <div className="flex justify-between">
+                      <span className="text-on-surface-variant">Salary this period</span>
+                      <span className="font-bold text-on-surface">{formatCurrency(selectedEmployee.net_payable)}</span>
+                    </div>
+                    {selectedEmployee.already_withdrawn > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-on-surface-variant">Already advanced</span>
+                        <span className="font-bold" style={{ color: 'var(--color-secondary)' }}>−{formatCurrency(selectedEmployee.already_withdrawn)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-outline-variant/20 pt-1 mt-1">
+                      <span className="font-bold text-on-surface">Available to Withdraw</span>
+                      <span className="font-bold" style={{ color: selectedEmployee.available_to_withdraw > 0 ? 'var(--color-tertiary)' : 'var(--color-error, #ef4444)' }}>
+                        {formatCurrency(selectedEmployee.available_to_withdraw)}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1099,9 +1114,9 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
                   className="w-full pl-10 pr-4 py-4 bg-surface-container rounded-2xl text-2xl font-bold focus:ring-2 outline-none transition-all placeholder:opacity-30"
                   style={{ color: 'var(--color-secondary)' }} />
               </div>
-              {category === 'salary_advance' && selectedEmployee && parseFloat(amount) > selectedEmployee.net_payable && (
+              {category === 'salary_advance' && selectedEmployee && parseFloat(amount) > selectedEmployee.available_to_withdraw && (
                 <p className="text-[10px] mt-1" style={{ color: 'var(--color-error, #ef4444)' }}>
-                  Exceeds earned balance of {formatCurrency(selectedEmployee.net_payable)}
+                  Exceeds available balance of {formatCurrency(selectedEmployee.available_to_withdraw)}
                 </p>
               )}
             </div>
