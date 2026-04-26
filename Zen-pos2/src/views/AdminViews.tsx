@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { showError, showSuccess } from '../utils/toast';
-import { ComposedChart, Bar, XAxis, YAxis, Cell, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, Cell, PieChart, Pie, BarChart, CartesianGrid, Line } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
@@ -4066,6 +4066,18 @@ const financeChartConfig = {
   profit:   { label: 'Profit',   color: 'var(--chart-3)' },
 } satisfies ChartConfig;
 
+const CashFlowCursor = ({ x, y, width, height }: { x?: number; y?: number; width?: number; height?: number }) => {
+  const cx = (x ?? 0) + (width ?? 0) / 2;
+  const top = y ?? 0;
+  const bottom = top + (height ?? 0);
+  return (
+    <g>
+      <rect x={x ?? 0} y={0} width={width ?? 0} height={bottom} fill="white" fillOpacity={0.03} rx={2} />
+      <line x1={cx} y1={top} x2={cx} y2={bottom} stroke="white" strokeOpacity={0.25} strokeWidth={1} strokeDasharray="4 3" />
+    </g>
+  );
+};
+
 const FinanceDashboard = () => {
   const { formatCurrency } = useLocalization();
   const [report, setReport] = useState<FinanceReport | null>(null);
@@ -4286,22 +4298,78 @@ const FinanceDashboard = () => {
                 <div className="flex items-center gap-4 text-[10px] font-bold text-on-surface-variant">
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#22c55e] inline-block" />Income</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#ef4444] inline-block" />Expenses</span>
-                  <span className="flex items-center gap-1.5"><span className="w-6 border-t-2 border-[#3b82f6] border-dashed inline-block" />Profit</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 border-t-2 border-[#3b82f6] inline-block" /><span className="w-1 h-1 rounded-full bg-[#3b82f6] inline-block -ml-0.5" />Profit</span>
                 </div>
               </div>
               <div className="px-2 pb-4">
-                <ChartContainer config={financeChartConfig} className="h-[260px] w-full">
-                  <ComposedChart data={report.income_by_day} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <ChartContainer config={financeChartConfig} className="h-[280px] w-full">
+                  <ComposedChart
+                    data={report.income_by_day}
+                    margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
+                    barGap={-24}
+                  >
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" vertical={false} />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} width={52} tickFormatter={v => formatCurrency(v)} axisLine={false} tickLine={false} />
-                    <ChartTooltip
-                      cursor={{ fill: 'rgba(128,128,128,0.06)' }}
-                      content={<ChartTooltipContent formatter={(v) => formatCurrency(v as number)} labelFormatter={(_l, p) => fmtDate(p[0]?.payload?.date ?? '')} />}
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={fmtDate}
+                      tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={Math.max(0, Math.floor(report.income_by_day.length / 8) - 1)}
                     />
-                    <Bar dataKey="income"   fill="var(--color-income)"   radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
-                    <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
-                    <Bar dataKey="profit"   fill="var(--color-profit)"   radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
+                    <YAxis
+                      tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }}
+                      width={52}
+                      tickFormatter={v => formatCurrency(v)}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <ChartTooltip
+                      cursor={<CashFlowCursor />}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload;
+                        return (
+                          <div className="bg-surface-container-highest/95 backdrop-blur border border-outline-variant/20 rounded-xl p-3 shadow-xl text-[11px] min-w-[160px]">
+                            <p className="text-on-surface-variant font-bold uppercase tracking-widest text-[9px] mb-2">{fmtDate(d.date)}</p>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#22c55e] inline-block" />Income</span>
+                                <span className="font-bold text-on-surface">{formatCurrency(d.income)}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#ef4444] inline-block" />Expenses</span>
+                                <span className="font-bold text-on-surface">{formatCurrency(d.expenses)}</span>
+                              </div>
+                              <div className="border-t border-outline-variant/20 pt-1.5 flex items-center justify-between gap-4">
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block" />Profit</span>
+                                <span className={`font-bold ${d.profit >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{formatCurrency(d.profit)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    {/* Income bar — wider, behind */}
+                    <Bar dataKey="income" barSize={24} radius={[4,4,0,0]} fill="var(--color-income)" opacity={0.85} />
+                    {/* Expenses bar — narrower, overlapping income at same x via barGap=-24 */}
+                    <Bar
+                      dataKey="expenses"
+                      barSize={24}
+                      fill="var(--color-expenses)"
+                      shape={({ x, y, width, height }: any) => (
+                        <rect x={(x ?? 0) + (width ?? 24) / 2 - 7} y={y} width={14} height={height} rx={3} ry={3} fill="var(--color-expenses)" fillOpacity={0.92} />
+                      )}
+                    />
+                    {/* Profit line */}
+                    <Line
+                      dataKey="profit"
+                      type="monotone"
+                      stroke="var(--color-profit)"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, fill: 'var(--color-profit)', strokeWidth: 0 }}
+                    />
                   </ComposedChart>
                 </ChartContainer>
               </div>
