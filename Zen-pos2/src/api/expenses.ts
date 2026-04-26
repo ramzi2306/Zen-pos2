@@ -18,6 +18,10 @@ export interface ManualExpense {
   amount: number;
   date: string;
   notes: string;
+  is_recurring: boolean;
+  frequency: string | null;
+  next_occurrence: string | null;
+  is_paused: boolean;
 }
 
 export async function getExpenses(start?: string, end?: string): Promise<ManualExpense[]> {
@@ -27,12 +31,18 @@ export async function getExpenses(start?: string, end?: string): Promise<ManualE
   return apiRequest<ManualExpense[]>(`/expenses${qs.toString() ? `?${qs}` : ''}`);
 }
 
+export async function togglePauseExpense(id: string): Promise<ManualExpense> {
+  return apiRequest<ManualExpense>(`/expenses/${encodeURIComponent(id)}/pause`, { method: 'PATCH' });
+}
+
 export async function createExpense(data: {
   category: string;
   title: string;
   amount: number;
   date: string;
   notes?: string;
+  is_recurring?: boolean;
+  frequency?: string;
 }): Promise<ManualExpense> {
   return apiRequest<ManualExpense>('/expenses', {
     method: 'POST',

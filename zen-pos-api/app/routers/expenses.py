@@ -42,6 +42,7 @@ class ExpenseOut(BaseModel):
     is_recurring: bool
     frequency: Optional[str]
     next_occurrence: Optional[str]
+    is_paused: bool
 
 
 def _to_out(e: ManualExpenseDocument) -> ExpenseOut:
@@ -55,6 +56,7 @@ def _to_out(e: ManualExpenseDocument) -> ExpenseOut:
         is_recurring=e.is_recurring,
         frequency=e.frequency,
         next_occurrence=e.next_occurrence,
+        is_paused=e.is_paused,
     )
 
 
@@ -98,6 +100,17 @@ async def create_expense(body: ExpenseCreate):
         next_occurrence=next_occ,
     )
     await expense.insert()
+    return _to_out(expense)
+
+
+@router.patch("/{expense_id}/pause", response_model=ExpenseOut,
+              dependencies=[Depends(require_permission("view_hr"))])
+async def toggle_pause_expense(expense_id: str):
+    expense = await ManualExpenseDocument.get(expense_id)
+    if not expense:
+        raise NotFoundError("Expense not found")
+    expense.is_paused = not expense.is_paused
+    await expense.save()
     return _to_out(expense)
 
 

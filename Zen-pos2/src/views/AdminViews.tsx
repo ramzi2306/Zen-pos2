@@ -4131,6 +4131,8 @@ const FinanceDashboard = () => {
     return result;
   }, [report, dateFilter.start, dateFilter.end]);
 
+  const [pausingId, setPausingId] = useState<string | null>(null);
+
   const handleDeleteExpense = async (id: string) => {
     setDeletingId(id);
     try {
@@ -4138,6 +4140,15 @@ const FinanceDashboard = () => {
       fetchReport(dateFilter.start, dateFilter.end);
     } catch { showError('Failed to delete expense'); }
     finally { setDeletingId(null); }
+  };
+
+  const handleTogglePause = async (id: string) => {
+    setPausingId(id);
+    try {
+      await api.expenses.togglePauseExpense(id);
+      fetchReport(dateFilter.start, dateFilter.end);
+    } catch { showError('Failed to update expense'); }
+    finally { setPausingId(null); }
   };
 
   const handleDeleteSalary = async (id: string) => {
@@ -4615,22 +4626,39 @@ const FinanceDashboard = () => {
                               <td className="px-4 py-3">
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', color: 'var(--color-primary)' }}>{e.category}</span>
                               </td>
-                              <td className="px-4 py-3 font-medium text-on-surface">
+                              <td className="px-4 py-3 font-medium" style={{ color: e.is_paused ? 'var(--color-on-surface-variant)' : undefined, opacity: e.is_paused ? 0.6 : 1 }}>
                                 <span>{e.title}</span>
                                 {e.is_recurring && (
-                                  <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}>
-                                    <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>autorenew</span>
-                                    {e.frequency}
+                                  <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase"
+                                    style={e.is_paused
+                                      ? { background: 'color-mix(in srgb, var(--color-outline-variant) 20%, transparent)', color: 'var(--color-on-surface-variant)' }
+                                      : { background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>{e.is_paused ? 'pause_circle' : 'autorenew'}</span>
+                                    {e.is_paused ? 'paused' : e.frequency}
                                   </span>
                                 )}
                               </td>
-                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(e.amount)}</td>
+                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)', opacity: e.is_paused ? 0.5 : 1 }}>{formatCurrency(e.amount)}</td>
                               <td className="px-4 py-3 text-on-surface-variant max-w-[180px] truncate">{e.notes || '—'}</td>
                               <td className="px-4 py-3">
-                                <button onClick={() => handleDeleteExpense(e.id)} disabled={deletingId === e.id}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40">
-                                  {deletingId === e.id ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">delete</span>}
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  {e.is_recurring && (
+                                    <button onClick={() => handleTogglePause(e.id)} disabled={pausingId === e.id}
+                                      title={e.is_paused ? 'Resume recurring' : 'Pause recurring'}
+                                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-colors disabled:opacity-40"
+                                      style={e.is_paused
+                                        ? { color: 'var(--color-tertiary)', background: 'color-mix(in srgb, var(--color-tertiary) 10%, transparent)' }
+                                        : { color: 'var(--color-on-surface-variant)' }}>
+                                      {pausingId === e.id
+                                        ? <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                        : <span className="material-symbols-outlined text-sm">{e.is_paused ? 'play_arrow' : 'pause'}</span>}
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDeleteExpense(e.id)} disabled={deletingId === e.id}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40">
+                                    {deletingId === e.id ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">delete</span>}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}

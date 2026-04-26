@@ -24,6 +24,7 @@ class ManualExpenseDocument(Document):
     is_recurring: bool = False
     frequency: Optional[str] = None      # monthly | quarterly | yearly
     next_occurrence: Optional[str] = None  # YYYY-MM-DD — when scheduler fires next
+    is_paused: bool = False              # pause without deleting
 
     class Settings:
         name = "manual_expenses"

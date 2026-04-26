@@ -317,6 +317,7 @@ class ManualExpenseItem(BaseModel):
     notes: str
     is_recurring: bool = False
     frequency: Optional[str] = None
+    is_paused: bool = False
 
 
 class ExpensesBreakdown(BaseModel):
@@ -483,6 +484,7 @@ async def finance_report(
             notes=m.notes,
             is_recurring=m.is_recurring,
             frequency=m.frequency,
+            is_paused=m.is_paused,
         ))
         manual_expenses_by_day[m.date] = manual_expenses_by_day.get(m.date, 0.0) + m.amount
         manual_expenses_total += m.amount

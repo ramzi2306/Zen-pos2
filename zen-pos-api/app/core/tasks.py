@@ -25,6 +25,7 @@ async def process_recurring_expenses():
         today = date.today().isoformat()
         due = await ManualExpenseDocument.find(
             ManualExpenseDocument.is_recurring == True,
+            ManualExpenseDocument.is_paused == False,
             ManualExpenseDocument.next_occurrence <= today
         ).to_list()
 
