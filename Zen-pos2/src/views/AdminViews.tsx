@@ -4109,6 +4109,21 @@ const FinanceDashboard = () => {
     if (d) setDateFilter({ type, ...d });
   };
 
+  // Fill every calendar day in the range with 0s so the chart never skips days
+  const filledDailyData = useMemo(() => {
+    if (!report) return [];
+    const byDate = new Map(report.income_by_day.map(d => [d.date, d]));
+    const result: typeof report.income_by_day = [];
+    const cur = new Date(dateFilter.start + 'T00:00:00');
+    const last = new Date(dateFilter.end + 'T00:00:00');
+    while (cur <= last) {
+      const key = cur.toISOString().split('T')[0];
+      result.push(byDate.get(key) ?? { date: key, income: 0, expenses: 0, profit: 0 });
+      cur.setDate(cur.getDate() + 1);
+    }
+    return result;
+  }, [report, dateFilter.start, dateFilter.end]);
+
   const handleDeleteSalary = async (id: string) => {
     if (!id) return;
     setDeletingId(id);
@@ -4288,7 +4303,7 @@ const FinanceDashboard = () => {
           </div>
 
           {/* ── Main chart ───────────────────────────────── */}
-          {report.income_by_day.length > 0 && (
+          {filledDailyData.length > 0 && (
             <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
               <div className="px-6 pt-5 pb-2 flex items-center justify-between">
                 <div>
@@ -4304,7 +4319,7 @@ const FinanceDashboard = () => {
               <div className="px-2 pb-4">
                 <ChartContainer config={financeChartConfig} className="h-[280px] w-full">
                   <ComposedChart
-                    data={report.income_by_day}
+                    data={filledDailyData}
                     margin={{ top: 12, right: 8, left: 0, bottom: 0 }}
                     barGap={-24}
                   >
@@ -4315,7 +4330,7 @@ const FinanceDashboard = () => {
                       tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }}
                       axisLine={false}
                       tickLine={false}
-                      interval={Math.max(0, Math.floor(report.income_by_day.length / 8) - 1)}
+                      interval={Math.max(0, Math.floor(filledDailyData.length / 8) - 1)}
                     />
                     <YAxis
                       tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }}
