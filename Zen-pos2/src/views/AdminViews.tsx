@@ -8239,7 +8239,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             </div>
 
             {/* Skeleton: shows until snapshots (salary data) are loaded */}
-            {hrLoading && (
+            {(hrLoading || nonSystemUsers.length === 0) && (
               <div className="grid grid-cols-1 gap-8">
                 {(nonSystemUsers.length > 0 ? nonSystemUsers : Array.from({ length: 3 })).map((user, idx) => (
                   <div key={(user as any)?.id ?? idx} className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -8270,7 +8270,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               </div>
             )}
 
-            <div className={`grid grid-cols-1 gap-8 ${hrLoading ? 'hidden' : ''}`}>
+            <div className={`grid grid-cols-1 gap-8 ${(hrLoading || nonSystemUsers.length === 0) ? 'hidden' : ''}`}>
               {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, earlyArrivalBonus, attendanceAdjustments, totalSalary, userRewards, userSanctions }) => {
                 const todayRec = !user.excludeFromAttendance
                   ? todayAttendance.find(r => r.userId === user.id)
