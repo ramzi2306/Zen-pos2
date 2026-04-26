@@ -12,6 +12,7 @@ export interface AttendanceRecord {
   isLate: boolean;
   isEarlyDeparture: boolean;
   isOvertime: boolean;
+  isEarlyArrival: boolean;
 }
 
 interface ApiRecord {
@@ -26,6 +27,7 @@ interface ApiRecord {
   is_late: boolean;
   is_early_departure: boolean;
   is_overtime: boolean;
+  is_early_arrival?: boolean;
 }
 
 function mapRecord(raw: ApiRecord): AttendanceRecord {
@@ -41,6 +43,7 @@ function mapRecord(raw: ApiRecord): AttendanceRecord {
     isLate: raw.is_late,
     isEarlyDeparture: raw.is_early_departure,
     isOvertime: raw.is_overtime,
+    isEarlyArrival: raw.is_early_arrival ?? false,
   };
 }
 

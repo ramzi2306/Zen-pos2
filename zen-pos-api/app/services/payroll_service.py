@@ -6,8 +6,7 @@ from app.models.user import UserDocument
 from app.schemas.payroll import PayrollSummary, WithdrawalRequest
 
 WORKING_DAYS_PER_MONTH = 22
-WORKING_HOURS_PER_DAY = 8
-EARLY_ARRIVAL_BONUS_PER_DAY = 15.0   # fixed bonus per early-arrival day
+SHIFT_HOURS = 8  # standard shift length
 
 
 async def get_payroll_summary(user_id: str) -> PayrollSummary:
@@ -16,15 +15,17 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
         raise NotFoundError("User not found")
 
     base = float(user.base_salary or 0)
-    hourly_rate = base / (WORKING_DAYS_PER_MONTH * WORKING_HOURS_PER_DAY)
+    # Hourly rate derived purely from salary and shift structure
+    hourly_rate = base / (WORKING_DAYS_PER_MONTH * SHIFT_HOURS)
 
-    # Only days where the employee actually checked in count as "worked"
+    # Only days where the employee checked in count as worked
     worked = [d for d in (user.monthly_attendance or []) if d.check_in]
     worked_days = len(worked)
 
-    # Pro-rated base — same formula as the HR payroll modal in the frontend
+    # Pro-rated base
     earned_base = round(base * (worked_days / WORKING_DAYS_PER_MONTH), 2)
 
+    # Per-day breakdown — each day contributes either a shortfall or extra hours, never both
     late_deduction = 0.0
     early_deduction = 0.0
     overtime_bonus = 0.0
@@ -36,27 +37,34 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
 
     for d in worked:
         hours = d.hours or 0.0
-        shortfall = max(0.0, WORKING_HOURS_PER_DAY - hours)
-        if d.is_late:
-            late_count += 1
-            late_deduction += shortfall * hourly_rate
-        if d.is_early_departure:
-            early_count += 1
-            early_deduction += shortfall * hourly_rate
-        if d.is_overtime and hours > WORKING_HOURS_PER_DAY:
-            extra = hours - WORKING_HOURS_PER_DAY
-            total_overtime_hours += extra
-            overtime_bonus += extra * hourly_rate
-        if d.is_early_arrival:
-            early_arrival_count += 1
-            early_arrival_bonus += EARLY_ARRIVAL_BONUS_PER_DAY
+        shortfall = max(0.0, SHIFT_HOURS - hours)   # time NOT worked vs full shift
+        extra = max(0.0, hours - SHIFT_HOURS)        # time worked BEYOND full shift
+
+        # Shortfall → deduction (one shortfall per day, assigned to one cause)
+        if shortfall > 0:
+            if d.is_late:
+                late_count += 1
+                late_deduction += shortfall * hourly_rate
+            elif d.is_early_departure:
+                early_count += 1
+                early_deduction += shortfall * hourly_rate
+            # If both flags somehow set, is_late takes priority above
+
+        # Extra hours → bonus (one extra block per day, assigned to one cause)
+        if extra > 0:
+            if d.is_overtime:
+                total_overtime_hours += extra
+                overtime_bonus += extra * hourly_rate
+            elif d.is_early_arrival:
+                early_arrival_count += 1
+                early_arrival_bonus += extra * hourly_rate
 
     late_deduction = round(late_deduction, 2)
     early_deduction = round(early_deduction, 2)
     overtime_bonus = round(overtime_bonus, 2)
     early_arrival_bonus = round(early_arrival_bonus, 2)
 
-    # Performance adjustments from logs
+    # Performance log adjustments (fixed amounts set by HR)
     logs = await PerformanceLogDocument.find(
         PerformanceLogDocument.user.id == user.id  # type: ignore[attr-defined]
     ).to_list()

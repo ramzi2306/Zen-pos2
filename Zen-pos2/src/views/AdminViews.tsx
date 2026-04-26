@@ -105,27 +105,36 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
 
   const hourlyRate = user.baseSalary / (22 * 8);
 
-  // Compute deductions/bonuses from actual hours (same formula as HR cards)
+  // Each day contributes one shortfall OR one extra block — never both
   let computedLateDeduction = 0;
   let computedEarlyDeduction = 0;
   let computedOvertimeBonus = 0;
+  let computedEarlyArrivalBonus = 0;
   workedRecords.forEach(r => {
     const hours = r.hours || 0;
-    const shortfall = 8 - hours;
-    if (r.isLate && shortfall > 0) computedLateDeduction += shortfall * hourlyRate;
-    if (r.isEarlyDeparture && shortfall > 0) computedEarlyDeduction += shortfall * hourlyRate;
-    if (r.isOvertime && hours > 8) computedOvertimeBonus += (hours - 8) * hourlyRate;
+    const shortfall = Math.max(0, 8 - hours);
+    const extra    = Math.max(0, hours - 8);
+    // Shortfall: assign to one cause only (late takes priority)
+    if (shortfall > 0) {
+      if (r.isLate) computedLateDeduction += shortfall * hourlyRate;
+      else if (r.isEarlyDeparture) computedEarlyDeduction += shortfall * hourlyRate;
+    }
+    // Extra hours: assign to one cause only (overtime takes priority)
+    if (extra > 0) {
+      if (r.isOvertime) computedOvertimeBonus += extra * hourlyRate;
+      else if (r.isEarlyArrival) computedEarlyArrivalBonus += extra * hourlyRate;
+    }
   });
-  computedLateDeduction = Math.round(computedLateDeduction * 100) / 100;
-  computedEarlyDeduction = Math.round(computedEarlyDeduction * 100) / 100;
-  computedOvertimeBonus = Math.round(computedOvertimeBonus * 100) / 100;
+  computedLateDeduction      = Math.round(computedLateDeduction * 100) / 100;
+  computedEarlyDeduction     = Math.round(computedEarlyDeduction * 100) / 100;
+  computedOvertimeBonus      = Math.round(computedOvertimeBonus * 100) / 100;
+  computedEarlyArrivalBonus  = Math.round(computedEarlyArrivalBonus * 100) / 100;
 
   const rewardBonus      = Math.round(performanceLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
   const sanctionDeduction = Math.round(performanceLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
 
-  // Pro-rated earned-to-date: baseSalary × (daysWorked / 22) + bonuses - deductions
   const earnedBase = Math.round(user.baseSalary * (workedDays / 22) * 100) / 100;
-  const netEarnedToDate = Math.round((earnedBase + rewardBonus + computedOvertimeBonus - sanctionDeduction - computedLateDeduction - computedEarlyDeduction) * 100) / 100;
+  const netEarnedToDate = Math.round((earnedBase + rewardBonus + computedOvertimeBonus + computedEarlyArrivalBonus - sanctionDeduction - computedLateDeduction - computedEarlyDeduction) * 100) / 100;
 
   // Already withdrawn this month
   const monthPrefix = dateRange?.start.slice(0, 7) ?? '';
@@ -237,6 +246,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                   <div className="flex justify-between"><span>Base (pro-rated {workedDays}/22d):</span><span>{formatCurrency(earnedBase)}</span></div>
                   {rewardBonus > 0 && <div className="flex justify-between font-bold"><span>Rewards:</span><span>+{formatCurrency(rewardBonus)}</span></div>}
                   {computedOvertimeBonus > 0 && <div className="flex justify-between"><span>Overtime:</span><span>+{formatCurrency(computedOvertimeBonus)}</span></div>}
+                  {computedEarlyArrivalBonus > 0 && <div className="flex justify-between"><span>Early Arrival:</span><span>+{formatCurrency(computedEarlyArrivalBonus)}</span></div>}
                   {sanctionDeduction > 0 && <div className="flex justify-between"><span>Sanctions:</span><span>-{formatCurrency(sanctionDeduction)}</span></div>}
                   {(computedLateDeduction + computedEarlyDeduction) > 0 && <div className="flex justify-between"><span>Attendance Penalties:</span><span>-{formatCurrency(computedLateDeduction + computedEarlyDeduction)}</span></div>}
                   {alreadyWithdrawn > 0 && <div className="flex justify-between"><span>Previous Withdrawals:</span><span>-{formatCurrency(alreadyWithdrawn)}</span></div>}
@@ -355,8 +365,14 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                     )}
                     {computedOvertimeBonus > 0 && (
                       <div className="flex justify-between items-center">
-                        <p className="text-xs text-on-surface-variant">Overtime Bonus</p>
+                        <p className="text-xs text-on-surface-variant">Overtime</p>
                         <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(computedOvertimeBonus)}</p>
+                      </div>
+                    )}
+                    {computedEarlyArrivalBonus > 0 && (
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-on-surface-variant">Early Arrival</p>
+                        <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(computedEarlyArrivalBonus)}</p>
                       </div>
                     )}
                     {sanctionDeduction > 0 && (
