@@ -170,3 +170,77 @@ export async function editSalaryWithdrawal(
 export async function deleteSalaryWithdrawal(withdrawalId: string): Promise<void> {
   await apiRequest<void>(`/payroll/withdrawals/${encodeURIComponent(withdrawalId)}`, { method: 'DELETE' });
 }
+
+export interface PayrollSnapshot {
+  userId: string;
+  userName: string;
+  month: string;
+  baseSalary: number;
+  earnedBase: number;
+  rewardBonus: number;
+  sanctionDeduction: number;
+  overtimeBonus: number;
+  earlyArrivalBonus: number;
+  lateDeduction: number;
+  earlyDepartureDeduction: number;
+  netPayable: number;
+  workedDays: number;
+  lateCount: number;
+  earlyDepartureCount: number;
+  earlyArrivalCount: number;
+  overtimeHours: number;
+}
+
+interface ApiSnapshot {
+  user_id: string;
+  user_name: string;
+  month: string;
+  base_salary: number;
+  earned_base: number;
+  reward_bonus: number;
+  sanction_deduction: number;
+  overtime_bonus: number;
+  early_arrival_bonus: number;
+  late_deduction: number;
+  early_departure_deduction: number;
+  net_payable: number;
+  worked_days: number;
+  late_count: number;
+  early_departure_count: number;
+  early_arrival_count: number;
+  overtime_hours: number;
+}
+
+function mapSnapshot(s: ApiSnapshot): PayrollSnapshot {
+  return {
+    userId: s.user_id,
+    userName: s.user_name,
+    month: s.month,
+    baseSalary: s.base_salary,
+    earnedBase: s.earned_base,
+    rewardBonus: s.reward_bonus,
+    sanctionDeduction: s.sanction_deduction,
+    overtimeBonus: s.overtime_bonus,
+    earlyArrivalBonus: s.early_arrival_bonus,
+    lateDeduction: s.late_deduction,
+    earlyDepartureDeduction: s.early_departure_deduction,
+    netPayable: s.net_payable,
+    workedDays: s.worked_days,
+    lateCount: s.late_count,
+    earlyDepartureCount: s.early_departure_count,
+    earlyArrivalCount: s.early_arrival_count,
+    overtimeHours: s.overtime_hours,
+  };
+}
+
+export async function getAllSnapshots(month?: string): Promise<PayrollSnapshot[]> {
+  const qs = month ? `?month=${encodeURIComponent(month)}` : '';
+  const raw = await apiRequest<ApiSnapshot[]>(`/payroll/snapshots${qs}`);
+  return raw.map(mapSnapshot);
+}
+
+export async function getUserSnapshot(userId: string, month?: string): Promise<PayrollSnapshot> {
+  const qs = month ? `?month=${encodeURIComponent(month)}` : '';
+  const raw = await apiRequest<ApiSnapshot>(`/payroll/snapshots/${encodeURIComponent(userId)}${qs}`);
+  return mapSnapshot(raw);
+}

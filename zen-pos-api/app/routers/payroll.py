@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.dependencies import require_permission
-from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
+from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument, PayrollSnapshotDocument
 from app.models.user import UserDocument
 from app.schemas.payroll import (
     PayrollSummary, WithdrawalRequest, WithdrawalOut,
@@ -14,6 +14,88 @@ from app.core.exceptions import NotFoundError
 from datetime import datetime, timezone
 
 router = APIRouter()
+
+
+class SnapshotOut(BaseModel):
+    user_id: str
+    user_name: str
+    month: str
+    base_salary: float
+    earned_base: float
+    reward_bonus: float
+    sanction_deduction: float
+    overtime_bonus: float
+    early_arrival_bonus: float
+    late_deduction: float
+    early_departure_deduction: float
+    net_payable: float
+    worked_days: int
+    late_count: int
+    early_departure_count: int
+    early_arrival_count: int
+    overtime_hours: float
+
+
+def _snap_to_out(s: PayrollSnapshotDocument, user: UserDocument) -> SnapshotOut:
+    return SnapshotOut(
+        user_id=str(user.id),
+        user_name=user.name,
+        month=s.month,
+        base_salary=s.base_salary,
+        earned_base=s.earned_base,
+        reward_bonus=s.reward_bonus,
+        sanction_deduction=s.sanction_deduction,
+        overtime_bonus=s.overtime_bonus,
+        early_arrival_bonus=s.early_arrival_bonus,
+        late_deduction=s.late_deduction,
+        early_departure_deduction=s.early_departure_deduction,
+        net_payable=s.net_payable,
+        worked_days=s.worked_days,
+        late_count=s.late_count,
+        early_departure_count=s.early_departure_count,
+        early_arrival_count=s.early_arrival_count,
+        overtime_hours=s.overtime_hours,
+    )
+
+
+@router.get("/snapshots", response_model=list[SnapshotOut],
+            dependencies=[Depends(require_permission("view_hr"))])
+async def list_snapshots(month: Optional[str] = None):
+    """Return the latest payroll snapshot for every user (current month by default)."""
+    target_month = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    snaps = await PayrollSnapshotDocument.find(
+        PayrollSnapshotDocument.month == target_month,
+    ).to_list()
+    result = []
+    for s in snaps:
+        await s.fetch_link(PayrollSnapshotDocument.user)
+        user = s.user  # type: ignore[assignment]
+        if hasattr(user, "name"):
+            result.append(_snap_to_out(s, user))  # type: ignore[arg-type]
+    return result
+
+
+@router.get("/snapshots/{user_id}", response_model=SnapshotOut,
+            dependencies=[Depends(require_permission("view_hr"))])
+async def get_snapshot(user_id: str, month: Optional[str] = None):
+    target_month = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    user = await UserDocument.get(user_id)
+    if not user:
+        raise NotFoundError("User not found")
+    snap = await PayrollSnapshotDocument.find_one(
+        PayrollSnapshotDocument.user.id == user.id,  # type: ignore[attr-defined]
+        PayrollSnapshotDocument.month == target_month,
+    )
+    if not snap:
+        # Compute on-demand and cache it
+        await payroll_service.get_payroll_summary(user_id)
+        snap = await PayrollSnapshotDocument.find_one(
+            PayrollSnapshotDocument.user.id == user.id,  # type: ignore[attr-defined]
+            PayrollSnapshotDocument.month == target_month,
+        )
+        if not snap:
+            raise NotFoundError("Snapshot not available")
+    return _snap_to_out(snap, user)
 
 
 @router.get("/summary/{user_id}", response_model=PayrollSummary,

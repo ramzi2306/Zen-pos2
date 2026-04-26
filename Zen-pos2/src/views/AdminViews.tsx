@@ -87,10 +87,13 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   const [editWithdrawalAmount, setEditWithdrawalAmount] = useState('');
   const [deletingWithdrawalId, setDeletingWithdrawalId] = useState<string | null>(null);
   const [savingWithdrawalId, setSavingWithdrawalId] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<import('../api/payroll').PayrollSnapshot | null>(null);
 
   useEffect(() => {
     api.payroll.getPerformanceLogs(user.id).then(setPerformanceLogs).catch(console.error);
     api.payroll.getWithdrawals(user.id).then(setWithdrawals).catch(console.error);
+    // Single source of truth: backend snapshot (same function used everywhere)
+    api.payroll.getUserSnapshot(user.id).then(setSnapshot).catch(console.error);
     if (dateRange) {
       api.attendance.getReport(dateRange.start, dateRange.end, user.id)
         .then(r => setAttendanceSummary(r.summaries[0] ?? null))
@@ -98,49 +101,29 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
     }
   }, [user.id, dateRange]);
 
-  // Real attendance records for this period
+  // Real attendance records for the period (used for day-by-day detail display only)
   const records = attendanceSummary?.records ?? [];
   const workedRecords = records.filter(r => r.checkIn);
-  const workedDays = workedRecords.length;
 
-  const hourlyRate = user.baseSalary / (22 * 8);
-
-  // Each day contributes one shortfall OR one extra block — never both
-  let computedLateDeduction = 0;
-  let computedEarlyDeduction = 0;
-  let computedOvertimeBonus = 0;
-  let computedEarlyArrivalBonus = 0;
-  workedRecords.forEach(r => {
-    const hours = r.hours || 0;
-    const shortfall = Math.max(0, 8 - hours);
-    const extra    = Math.max(0, hours - 8);
-    // Shortfall: assign to one cause only (late takes priority)
-    if (shortfall > 0) {
-      if (r.isLate) computedLateDeduction += shortfall * hourlyRate;
-      else if (r.isEarlyDeparture) computedEarlyDeduction += shortfall * hourlyRate;
-    }
-    // Extra hours: assign to one cause only (overtime takes priority)
-    if (extra > 0) {
-      if (r.isOvertime) computedOvertimeBonus += extra * hourlyRate;
-      else if (r.isEarlyArrival) computedEarlyArrivalBonus += extra * hourlyRate;
-    }
-  });
-  computedLateDeduction      = Math.round(computedLateDeduction * 100) / 100;
-  computedEarlyDeduction     = Math.round(computedEarlyDeduction * 100) / 100;
-  computedOvertimeBonus      = Math.round(computedOvertimeBonus * 100) / 100;
-  computedEarlyArrivalBonus  = Math.round(computedEarlyArrivalBonus * 100) / 100;
-
-  const rewardBonus      = Math.round(performanceLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
-  const sanctionDeduction = Math.round(performanceLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
-
-  const earnedBase = Math.round(user.baseSalary * (workedDays / 22) * 100) / 100;
-  const netEarnedToDate = Math.round((earnedBase + rewardBonus + computedOvertimeBonus + computedEarlyArrivalBonus - sanctionDeduction - computedLateDeduction - computedEarlyDeduction) * 100) / 100;
+  // All computed values come from the backend snapshot — same formula, stored in DB
+  const workedDays        = snapshot?.workedDays ?? workedRecords.length;
+  const earnedBase        = snapshot?.earnedBase ?? 0;
+  const rewardBonus       = snapshot?.rewardBonus ?? 0;
+  const sanctionDeduction = snapshot?.sanctionDeduction ?? 0;
+  const computedOvertimeBonus     = snapshot?.overtimeBonus ?? 0;
+  const computedEarlyArrivalBonus = snapshot?.earlyArrivalBonus ?? 0;
+  const computedLateDeduction     = snapshot?.lateDeduction ?? 0;
+  const computedEarlyDeduction    = snapshot?.earlyDepartureDeduction ?? 0;
+  const netEarnedToDate           = snapshot?.netPayable ?? 0;
 
   // Already withdrawn this month
-  const monthPrefix = dateRange?.start.slice(0, 7) ?? '';
+  const monthPrefix = dateRange?.start.slice(0, 7) ?? new Date().toISOString().slice(0, 7);
   const alreadyWithdrawn = Math.round(withdrawals.filter(w => w.date.startsWith(monthPrefix)).reduce((s, w) => s + w.amount, 0) * 100) / 100;
 
   const availableToWithdraw = Math.max(0, netEarnedToDate - alreadyWithdrawn);
+
+  // Hourly rate kept for incident detail display only — actual deductions come from snapshot
+  const hourlyRate = user.baseSalary / (22 * 8);
 
   const lateIncidents  = workedRecords.filter(r => r.isLate);
   const earlyIncidents = workedRecords.filter(r => r.isEarlyDeparture);
@@ -247,6 +230,11 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                   {rewardBonus > 0 && <div className="flex justify-between font-bold"><span>Rewards:</span><span>+{formatCurrency(rewardBonus)}</span></div>}
                   {computedOvertimeBonus > 0 && <div className="flex justify-between"><span>Overtime:</span><span>+{formatCurrency(computedOvertimeBonus)}</span></div>}
                   {computedEarlyArrivalBonus > 0 && <div className="flex justify-between"><span>Early Arrival:</span><span>+{formatCurrency(computedEarlyArrivalBonus)}</span></div>}
+                  {/* Gross subtotal before deductions */}
+                  <div className="flex justify-between font-bold border-t border-black/10 pt-1 mt-1">
+                    <span>GROSS EARNED:</span>
+                    <span>{formatCurrency(Math.round((earnedBase + rewardBonus + computedOvertimeBonus + computedEarlyArrivalBonus) * 100) / 100)}</span>
+                  </div>
                   {sanctionDeduction > 0 && <div className="flex justify-between"><span>Sanctions:</span><span>-{formatCurrency(sanctionDeduction)}</span></div>}
                   {(computedLateDeduction + computedEarlyDeduction) > 0 && <div className="flex justify-between"><span>Attendance Penalties:</span><span>-{formatCurrency(computedLateDeduction + computedEarlyDeduction)}</span></div>}
                   {alreadyWithdrawn > 0 && <div className="flex justify-between"><span>Previous Withdrawals:</span><span>-{formatCurrency(alreadyWithdrawn)}</span></div>}
@@ -375,6 +363,11 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                         <p className="text-sm font-headline font-bold text-tertiary">+{formatCurrency(computedEarlyArrivalBonus)}</p>
                       </div>
                     )}
+                    {/* Gross subtotal before deductions */}
+                    <div className="flex justify-between items-center border-t border-outline-variant/20 pt-2 mt-1">
+                      <p className="text-xs font-bold text-on-surface uppercase tracking-wide">Gross Earned</p>
+                      <p className="text-sm font-headline font-bold text-on-surface">{formatCurrency(Math.round((earnedBase + rewardBonus + computedOvertimeBonus + computedEarlyArrivalBonus) * 100) / 100)}</p>
+                    </div>
                     {sanctionDeduction > 0 && (
                       <div className="flex justify-between items-center">
                         <p className="text-xs text-on-surface-variant">Sanctions</p>
@@ -3950,6 +3943,7 @@ const ProductManagementView = () => {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [confirmProductDelete, setConfirmProductDelete] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
@@ -3984,6 +3978,7 @@ const ProductManagementView = () => {
   const skipWsReloadUntil = useRef(0);
 
   const loadProducts = useCallback(() => {
+    setProductsLoading(true);
     Promise.all([
       api.products.listProducts(),
       api.products.listProductImages(),
@@ -3991,7 +3986,8 @@ const ProductManagementView = () => {
       const map: Record<string, string> = {};
       images.forEach(i => { if (i.image) map[i.id] = i.image; });
       setProducts(prods.map(p => ({ ...p, image: map[p.id] ?? p.image })));
-    }).catch(console.error);
+    }).catch(console.error)
+      .finally(() => setProductsLoading(false));
   }, []);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
@@ -4050,7 +4046,21 @@ const ProductManagementView = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5">
-            {products.map((product) => (
+            {productsLoading && Array.from({ length: 6 }).map((_, i) => (
+              <tr key={`skel-${i}`} className="animate-pulse">
+                <td className="px-6 py-6"><div className="w-4 h-4 bg-surface-container-highest rounded mx-auto" /></td>
+                <td className="px-4 py-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-surface-container-highest shrink-0" />
+                    <div className="h-4 bg-surface-container-highest rounded w-32" />
+                  </div>
+                </td>
+                <td className="px-4 py-6"><div className="h-4 bg-surface-container-highest rounded w-20" /></td>
+                <td className="px-4 py-6"><div className="h-4 bg-surface-container-highest rounded w-16 ml-auto" /></td>
+                <td className="px-8 py-6"><div className="h-4 bg-surface-container-highest rounded w-16 ml-auto" /></td>
+              </tr>
+            ))}
+            {!productsLoading && products.map((product) => (
               <tr key={product.id} className="hover:bg-surface-container-high/50 transition-colors">
                 <td className="px-6 py-6 text-center">
                   <input type="checkbox" checked={selectedProductIds.has(product.id)} onChange={() => toggleProductSelect(product.id)} className="rounded text-secondary w-4 h-4 cursor-pointer" />
@@ -7195,14 +7205,23 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   const [attendanceReport, setAttendanceReport] = useState<import('../api/attendance').AttendanceReport | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<import('../api/attendance').AttendanceRecord[]>([]);
   const [allPerformanceLogs, setAllPerformanceLogs] = useState<import('../api/payroll').PerformanceLogEntry[]>([]);
+  const [hrSnapshots, setHrSnapshots] = useState<import('../api/payroll').PayrollSnapshot[]>([]);
+  const [hrLoading, setHrLoading] = useState(false);
   // Tick every 60 s so "Online since Xm" labels stay current without a full re-fetch
   const [, setAttendanceTick] = useState(0);
 
   useEffect(() => {
     if (currentSetting !== 'hr') return;
-    api.attendance.getReport(hrDateRange.start, hrDateRange.end)
-      .then(setAttendanceReport)
-      .catch(console.error);
+    setHrLoading(true);
+    const month = hrDateRange.start.slice(0, 7);
+    Promise.all([
+      api.attendance.getReport(hrDateRange.start, hrDateRange.end),
+      api.payroll.getAllSnapshots(month),
+    ]).then(([report, snaps]) => {
+      setAttendanceReport(report);
+      setHrSnapshots(snaps);
+    }).catch(console.error)
+      .finally(() => setHrLoading(false));
   }, [currentSetting, hrDateRange]);
 
   useEffect(() => {
@@ -7295,17 +7314,14 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
   const nonSystemUsers = users.filter(u => !u.isSystem);
 
-  // Pre-compute per-user HR data — recomputes only when data/range changes, not on the 60s tick
+  // Pre-compute per-user HR data — salary figures come from DB snapshots, not local recompute
   const hrUserData = useMemo(() => {
     const startDt = new Date(hrDateRange.start + 'T00:00:00');
     const endDt = new Date(hrDateRange.end + 'T00:00:00');
 
-    // Group all performance logs by userId for O(1) lookup
-    const logsByUser = new Map<string, import('../api/payroll').PerformanceLogEntry[]>();
-    allPerformanceLogs.forEach(l => {
-      if (!logsByUser.has(l.userId)) logsByUser.set(l.userId, []);
-      logsByUser.get(l.userId)!.push(l);
-    });
+    // Index snapshots by userId for O(1) lookup
+    const snapByUser = new Map<string, import('../api/payroll').PayrollSnapshot>();
+    hrSnapshots.forEach(s => snapByUser.set(s.userId, s));
 
     return nonSystemUsers.map(user => {
       const reportSummary = attendanceReport?.summaries.find(s => s.userId === user.id);
@@ -7336,30 +7352,20 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         }
       }
 
-      const workedDays = contributionRecords.filter(r => r.checkIn).length;
-
-      // Hourly rate: (baseSalary / 22 working days) / 8 hours
+      const snap = snapByUser.get(user.id);
       const hourlyRate = user.baseSalary / (22 * 8);
-      let deduction = 0;
-      let overtimeBonus = 0;
-      contributionRecords.forEach(r => {
-        if (!r.checkIn) return;
-        const shortfall = 8 - r.hours;
-        if ((r.isLate || r.isEarlyDeparture) && shortfall > 0) {
-          deduction += shortfall * hourlyRate;
-        }
-        if (r.isOvertime && r.hours > 8) {
-          overtimeBonus += (r.hours - 8) * hourlyRate;
-        }
-      });
-      deduction = Math.round(deduction * 100) / 100;
-      overtimeBonus = Math.round(overtimeBonus * 100) / 100;
-      const attendanceAdjustments = Math.round((overtimeBonus - deduction) * 100) / 100;
+      const workedDays = snap?.workedDays ?? contributionRecords.filter(r => r.checkIn).length;
 
-      const userLogs = logsByUser.get(user.id) || [];
-      const userRewards = Math.round(userLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
-      const userSanctions = Math.round(userLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
-      const totalSalary = Math.round((user.baseSalary + userRewards - userSanctions + attendanceAdjustments) * 100) / 100;
+      // Use snapshot values (same formula as backend, stored in DB) — no local recompute
+      const deduction = snap
+        ? Math.round((snap.lateDeduction + snap.earlyDepartureDeduction) * 100) / 100
+        : 0;
+      const overtimeBonus = snap?.overtimeBonus ?? 0;
+      const earlyArrivalBonus = snap?.earlyArrivalBonus ?? 0;
+      const userRewards = snap?.rewardBonus ?? 0;
+      const userSanctions = snap?.sanctionDeduction ?? 0;
+      const totalSalary = snap?.netPayable ?? 0;
+      const attendanceAdjustments = Math.round((overtimeBonus + earlyArrivalBonus - deduction) * 100) / 100;
 
       const liveScore = workedDays > 0
         ? Math.round((contributionRecords.filter(r => r.checkIn && !r.isLate && !r.isEarlyDeparture).length / workedDays) * 100)
@@ -7369,12 +7375,12 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       return {
         user, reportSummary, contributionRecords,
         workedDays, liveScore, totalHours, hourlyRate,
-        deduction, overtimeBonus,
+        deduction, overtimeBonus, earlyArrivalBonus,
         attendanceAdjustments, totalSalary,
         userRewards, userSanctions,
       };
     });
-  }, [nonSystemUsers, attendanceReport, hrDateRange, allPerformanceLogs]);
+  }, [nonSystemUsers, attendanceReport, hrDateRange, hrSnapshots]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -8120,7 +8126,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             <div className="flex justify-between items-end mb-10">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-1">OPERATIONS › HUMAN RESOURCES</p>
-                <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface">ATTENDANCE REPORT</h1>
+                <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface">HUMAN RESOURCES</h1>
                 <p className="text-on-surface-variant text-sm mt-2">Comprehensive analysis of personnel attendance, performance, and financial distribution.</p>
               </div>
               <div className="flex gap-3 items-center">
@@ -8194,7 +8200,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             </div>
 
             {/* Loading skeleton while report fetches */}
-            {!attendanceReport && nonSystemUsers.length > 0 && (
+            {hrLoading && nonSystemUsers.length > 0 && (
               <div className="grid grid-cols-1 gap-8">
                 {nonSystemUsers.map(user => (
                   <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden animate-pulse">
@@ -8205,14 +8211,25 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
                         <div className="h-3 bg-surface-container-highest rounded w-20" />
                       </div>
                     </div>
-                    <div className="p-6 h-64 bg-surface-container-high/20" />
+                    <div className="p-6 h-64 bg-surface-container-high/20">
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="h-16 bg-surface-container-highest/50 rounded-xl" />
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: 28 }).map((_, i) => (
+                          <div key={i} className="h-8 bg-surface-container-highest/30 rounded" />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className={`grid grid-cols-1 gap-8 ${!attendanceReport && nonSystemUsers.length > 0 ? 'hidden' : ''}`}>
-              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, attendanceAdjustments, totalSalary, userRewards, userSanctions }) => {
+            <div className={`grid grid-cols-1 gap-8 ${hrLoading ? 'hidden' : ''}`}>
+              {hrUserData.map(({ user, reportSummary, contributionRecords, workedDays, liveScore, totalHours, hourlyRate, deduction, overtimeBonus, earlyArrivalBonus, attendanceAdjustments, totalSalary, userRewards, userSanctions }) => {
                 const todayRec = !user.excludeFromAttendance
                   ? todayAttendance.find(r => r.userId === user.id)
                   : undefined;

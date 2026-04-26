@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from app.core.exceptions import NotFoundError
-from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
+from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument, PayrollSnapshotDocument
 from app.models.user import UserDocument
 from app.schemas.payroll import PayrollSummary, WithdrawalRequest
 
@@ -101,6 +101,49 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
 
     user.payroll_due = str(net)
     await user.save()
+
+    # Upsert snapshot so HR panel can read pre-computed values
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    existing = await PayrollSnapshotDocument.find_one(
+        PayrollSnapshotDocument.user.id == user.id,  # type: ignore[attr-defined]
+        PayrollSnapshotDocument.month == month,
+    )
+    if existing:
+        existing.base_salary = base
+        existing.earned_base = earned_base
+        existing.reward_bonus = reward_bonus
+        existing.sanction_deduction = sanction_deduction
+        existing.overtime_bonus = overtime_bonus
+        existing.early_arrival_bonus = early_arrival_bonus
+        existing.late_deduction = late_deduction
+        existing.early_departure_deduction = early_deduction
+        existing.net_payable = net
+        existing.worked_days = worked_days
+        existing.late_count = late_count
+        existing.early_departure_count = early_count
+        existing.early_arrival_count = early_arrival_count
+        existing.overtime_hours = round(total_overtime_hours, 2)
+        await existing.save()
+    else:
+        snap = PayrollSnapshotDocument(
+            user=user,
+            month=month,
+            base_salary=base,
+            earned_base=earned_base,
+            reward_bonus=reward_bonus,
+            sanction_deduction=sanction_deduction,
+            overtime_bonus=overtime_bonus,
+            early_arrival_bonus=early_arrival_bonus,
+            late_deduction=late_deduction,
+            early_departure_deduction=early_deduction,
+            net_payable=net,
+            worked_days=worked_days,
+            late_count=late_count,
+            early_departure_count=early_count,
+            early_arrival_count=early_arrival_count,
+            overtime_hours=round(total_overtime_hours, 2),
+        )
+        await snap.insert()
 
     return summary
 
