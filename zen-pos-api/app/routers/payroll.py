@@ -1,5 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from app.dependencies import require_permission
 from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
