@@ -22,6 +22,9 @@ export interface WithdrawalItem {
   id: string;
   amount: number;
   notes?: string;
+  category: 'other' | 'salary_advance' | 'purchase';
+  reference_id?: string;
+  reference_label?: string;
 }
 
 export interface FloatSummary {
@@ -30,6 +33,37 @@ export interface FloatSummary {
   total_cash_withdrawn: number;
   withdrawals: WithdrawalItem[];
   expected_closing_float: number;
+}
+
+export interface AdvanceCandidate {
+  id: string;
+  name: string;
+  avatar: string;
+  base_salary: number;
+  net_payable: number;
+}
+
+export interface IngredientOption {
+  id: string;
+  name: string;
+  unit: string;
+  price_per_unit: number;
+  in_stock: number;
+}
+
+export interface WithdrawalPayload {
+  amount: number;
+  notes?: string;
+  category?: 'other' | 'salary_advance' | 'purchase';
+  // salary_advance
+  employee_id?: string;
+  employee_name?: string;
+  // purchase
+  ingredient_id?: string;
+  ingredient_name?: string;
+  vendor?: string;
+  quantity?: number;
+  unit?: string;
 }
 
 function mapRegisterReport(raw: ApiRegisterReport): RegisterReport {
@@ -81,10 +115,18 @@ export async function getSessionFloatSummary(): Promise<FloatSummary> {
   return await apiRequest<FloatSummary>('/register/session/float-summary');
 }
 
-export async function recordWithdrawal(amount: number, notes?: string): Promise<void> {
+export async function getAdvanceCandidates(): Promise<AdvanceCandidate[]> {
+  return await apiRequest<AdvanceCandidate[]>('/register/session/advance-candidates');
+}
+
+export async function getIngredientOptions(): Promise<IngredientOption[]> {
+  return await apiRequest<IngredientOption[]>('/register/session/ingredient-options');
+}
+
+export async function recordWithdrawal(payload: WithdrawalPayload): Promise<void> {
   await apiRequest<void>(`/register/session/withdrawal`, {
     method: 'POST',
-    body: JSON.stringify({ amount, notes }),
+    body: JSON.stringify({ ...payload, category: payload.category ?? 'other' }),
   });
 }
 

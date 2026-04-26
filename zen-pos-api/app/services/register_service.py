@@ -11,7 +11,14 @@ async def record_cash_collection(cashier_id: str, amount: float):
         session.net_cash_collected += amount
         await session.save()
 
-async def record_cash_withdrawal(cashier_id: str, amount: float, notes: Optional[str] = None):
+async def record_cash_withdrawal(
+    cashier_id: str,
+    amount: float,
+    notes: Optional[str] = None,
+    category: str = "other",
+    reference_id: Optional[str] = None,
+    reference_label: Optional[str] = None,
+):
     """Increment total_cash_withdrawn and record the withdrawal entry for the active session."""
     from app.models.register import WithdrawalRecord
     session = await RegisterSessionDocument.find_one(
@@ -20,8 +27,15 @@ async def record_cash_withdrawal(cashier_id: str, amount: float, notes: Optional
     )
     if session:
         session.total_cash_withdrawn += amount
-        if session.withdrawals is None: session.withdrawals = []
-        session.withdrawals.append(WithdrawalRecord(amount=amount, notes=notes))
+        if session.withdrawals is None:
+            session.withdrawals = []
+        session.withdrawals.append(WithdrawalRecord(
+            amount=amount,
+            notes=notes,
+            category=category,
+            reference_id=reference_id,
+            reference_label=reference_label,
+        ))
         await session.save()
 
 async def delete_cash_withdrawal(cashier_id: str, withdrawal_id: str):
@@ -31,17 +45,15 @@ async def delete_cash_withdrawal(cashier_id: str, withdrawal_id: str):
         RegisterSessionDocument.status == "OPEN"
     )
     if session and session.withdrawals:
-        # Find the withdrawal safely (handling both objects and dicts)
         record = None
         for w in session.withdrawals:
             w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
             if str(w_id) == str(withdrawal_id):
                 record = w
                 break
-                
+
         if record:
             session.total_cash_withdrawn -= (getattr(record, 'amount', 0) if hasattr(record, 'amount') else record.get('amount', 0))
-            # Filter out the record
             new_withdrawals = []
             for w in session.withdrawals:
                 w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
@@ -61,24 +73,28 @@ async def get_session_summary(cashier_id: str):
     )
     if not session:
         return None
-        
-    # Ensure all withdrawals have an id (backwards compatibility)
+
     withdrawals = []
     if session.withdrawals:
         import uuid
         for w in session.withdrawals:
-            # Robustly extract fields whether w is a model or a dict
             w_id = getattr(w, 'id', None) if hasattr(w, 'id') else w.get('id')
             w_amount = getattr(w, 'amount', 0) if hasattr(w, 'amount') else w.get('amount', 0)
             w_notes = getattr(w, 'notes', None) if hasattr(w, 'notes') else w.get('notes')
-            
+            w_category = getattr(w, 'category', 'other') if hasattr(w, 'category') else w.get('category', 'other')
+            w_ref_id = getattr(w, 'reference_id', None) if hasattr(w, 'reference_id') else w.get('reference_id')
+            w_ref_label = getattr(w, 'reference_label', None) if hasattr(w, 'reference_label') else w.get('reference_label')
+
             if not w_id:
                 w_id = str(uuid.uuid4())
-                
+
             withdrawals.append({
                 "id": str(w_id),
                 "amount": float(w_amount),
-                "notes": w_notes
+                "notes": w_notes,
+                "category": w_category,
+                "reference_id": w_ref_id,
+                "reference_label": w_ref_label,
             })
 
     return {

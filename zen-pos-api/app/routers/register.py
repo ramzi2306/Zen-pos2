@@ -19,7 +19,6 @@ class RegisterReportCreate(BaseModel):
     difference: float
     notes: Optional[str] = None
     location_id: Optional[str] = None
-    # New float fields
     opening_float: float = 0
     net_cash_collected: float = 0
     total_cash_withdrawn: float = 0
@@ -37,7 +36,6 @@ class RegisterReportOut(BaseModel):
     difference: float
     notes: Optional[str] = None
     location_id: Optional[str] = None
-    # New float fields
     opening_float: float = 0
     net_cash_collected: float = 0
     total_cash_withdrawn: float = 0
@@ -49,6 +47,9 @@ class WithdrawalItem(BaseModel):
     id: str
     amount: float
     notes: Optional[str] = None
+    category: str = "other"
+    reference_id: Optional[str] = None
+    reference_label: Optional[str] = None
 
 class FloatSummary(BaseModel):
     opening_float: float
@@ -61,6 +62,33 @@ class FloatSummary(BaseModel):
 class WithdrawalRequest(BaseModel):
     amount: float
     notes: Optional[str] = None
+    # category: other | salary_advance | purchase
+    category: str = "other"
+    # salary_advance fields
+    employee_id: Optional[str] = None
+    employee_name: Optional[str] = None
+    # purchase fields
+    ingredient_id: Optional[str] = None
+    ingredient_name: Optional[str] = None
+    vendor: Optional[str] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+
+
+class AdvanceCandidate(BaseModel):
+    id: str
+    name: str
+    avatar: str
+    base_salary: float
+    net_payable: float
+
+
+class IngredientOption(BaseModel):
+    id: str
+    name: str
+    unit: str
+    price_per_unit: float
+    in_stock: float
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -72,15 +100,13 @@ async def submit_register_report(body: RegisterReportCreate, current_user=Depend
     from app.models.register import RegisterSessionDocument
     from datetime import datetime, timezone
 
-    # Close active RegisterSession for this cashier if it exists
     open_session = await RegisterSessionDocument.find_one(
         RegisterSessionDocument.cashier_id == str(current_user.id),
         RegisterSessionDocument.status == "OPEN"
     )
-    
+
     float_status = "OK"
-    # Simple float status logic (can be refined)
-    if abs(body.discrepancy) > 50: # Default threshold
+    if abs(body.discrepancy) > 50:
         float_status = "ALERT"
     elif abs(body.discrepancy) > 0:
         float_status = "WARNING"
@@ -116,7 +142,6 @@ async def submit_register_report(body: RegisterReportCreate, current_user=Depend
 
 @router.get("/session/float-summary", response_model=FloatSummary)
 async def get_current_float_summary(current_user=Depends(require_permission("view_orders"))):
-    """Get the float summary for the current active session."""
     from app.services.register_service import get_session_summary
     summary = await get_session_summary(str(current_user.id))
     if not summary:
@@ -124,15 +149,107 @@ async def get_current_float_summary(current_user=Depends(require_permission("vie
     return FloatSummary(**summary)
 
 
+@router.get("/session/advance-candidates", response_model=list[AdvanceCandidate])
+async def list_advance_candidates(current_user=Depends(require_permission("view_orders"))):
+    """Return staff members with their current net payable for salary advance selection."""
+    from app.models.user import UserDocument
+    users = await UserDocument.find(UserDocument.is_active == True).to_list()  # noqa: E712
+    result = []
+    for u in users:
+        try:
+            net = float(u.payroll_due or 0)
+        except (ValueError, TypeError):
+            net = 0.0
+        result.append(AdvanceCandidate(
+            id=str(u.id),
+            name=u.name,
+            avatar=getattr(u, 'avatar', ''),
+            base_salary=u.base_salary or 0,
+            net_payable=net,
+        ))
+    return result
+
+
+@router.get("/session/ingredient-options", response_model=list[IngredientOption])
+async def list_ingredient_options(current_user=Depends(require_permission("view_orders"))):
+    """Return active ingredients for purchase withdrawal selection."""
+    from app.models.ingredient import IngredientInventoryDocument
+    items = await IngredientInventoryDocument.find(
+        IngredientInventoryDocument.is_active == True  # noqa: E712
+    ).to_list()
+    return [
+        IngredientOption(
+            id=str(i.id),
+            name=i.name,
+            unit=i.unit,
+            price_per_unit=i.price_per_unit,
+            in_stock=i.in_stock,
+        )
+        for i in items
+    ]
+
+
 @router.post("/session/withdrawal")
 async def record_withdrawal(
     body: WithdrawalRequest,
     current_user=Depends(require_permission("view_orders"))
 ):
-    """Record a mid-session cash withdrawal (drop) from the register."""
     from app.services.register_service import record_cash_withdrawal
-    await record_cash_withdrawal(str(current_user.id), body.amount, body.notes)
-    return {"status": "success", "amount": body.amount}
+
+    reference_id: Optional[str] = None
+    reference_label: Optional[str] = None
+
+    if body.category == "salary_advance":
+        # Record payroll withdrawal
+        from app.schemas.payroll import WithdrawalRequest as PayrollWithdrawalRequest
+        from app.services import payroll_service
+        if not body.employee_id:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail="employee_id required for salary advance")
+        pw = await payroll_service.process_withdrawal(
+            PayrollWithdrawalRequest(
+                user_id=body.employee_id,
+                amount=body.amount,
+                admin_notes=f"Cash advance via register by {current_user.name}",
+            )
+        )
+        reference_id = str(pw.id)
+        reference_label = f"{body.employee_name or 'Employee'} — salary advance"
+
+    elif body.category == "purchase":
+        # Log purchase and update inventory stock
+        from app.models.ingredient import IngredientInventoryDocument, PurchaseLogDocument
+        from datetime import datetime, timezone
+        if not body.ingredient_id or not body.quantity:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail="ingredient_id and quantity required for purchase")
+        ingredient = await IngredientInventoryDocument.get(body.ingredient_id)
+        if not ingredient:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Ingredient not found")
+        log = PurchaseLogDocument(
+            ingredient=ingredient,
+            vendor=body.vendor or "",
+            quantity=body.quantity,
+            unit=body.unit or ingredient.unit,
+            total_cost=body.amount,
+            date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        )
+        await log.insert()
+        ingredient.in_stock = round(ingredient.in_stock + body.quantity, 4)
+        await ingredient.save()
+        reference_id = str(log.id)
+        reference_label = f"{ingredient.name} — {body.quantity}{ingredient.unit}"
+
+    await record_cash_withdrawal(
+        cashier_id=str(current_user.id),
+        amount=body.amount,
+        notes=body.notes,
+        category=body.category,
+        reference_id=reference_id,
+        reference_label=reference_label,
+    )
+    return {"status": "success", "amount": body.amount, "category": body.category}
 
 
 @router.delete("/session/withdrawal/{withdrawal_id}")
@@ -140,7 +257,6 @@ async def delete_withdrawal(
     withdrawal_id: str,
     current_user=Depends(require_permission("view_orders"))
 ):
-    """Delete a specific withdrawal record."""
     from app.services.register_service import delete_cash_withdrawal
     success = await delete_cash_withdrawal(str(current_user.id), withdrawal_id)
     if not success:

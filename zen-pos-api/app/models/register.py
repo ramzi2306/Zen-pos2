@@ -38,6 +38,10 @@ class WithdrawalRecord(BaseModel):
     amount: float
     notes: Optional[str] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # category: other | salary_advance | purchase
+    category: str = "other"
+    reference_id: Optional[str] = None    # payroll withdrawal ID or purchase log ID
+    reference_label: Optional[str] = None  # "Alice - salary advance" or "Tomatoes 5kg"
 
 class RegisterSessionDocument(Document):
     """Active or historically tracked register sessions."""

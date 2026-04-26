@@ -804,9 +804,9 @@ export const ProfilePanel = ({
         isOpen={isWithdrawModalOpen}
         onClose={() => setIsWithdrawModalOpen(false)}
         onRefresh={fetchSessionSummary}
-        onConfirm={async (amount, notes) => {
+        onConfirm={async (payload) => {
           try {
-            await api.register.recordWithdrawal(amount, notes);
+            await api.register.recordWithdrawal(payload);
             await fetchSessionSummary();
             setIsWithdrawModalOpen(false);
           } catch (err) {
@@ -871,50 +871,91 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title, message }: {
 /**
  * WithdrawalModal — for mid-session drawer drops or petty cash
  */
-const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: { 
-  isOpen: boolean, 
-  onClose: () => void, 
-  onRefresh: () => Promise<void>,
-  onConfirm: (amount: number, notes: string) => Promise<void> 
+type WithdrawCategory = 'other' | 'salary_advance' | 'purchase';
+
+const WITHDRAW_CATEGORIES: { id: WithdrawCategory; label: string; icon: string; desc: string }[] = [
+  { id: 'salary_advance', label: 'Salary Advance', icon: 'badge', desc: 'Advance on earned salary' },
+  { id: 'purchase',       label: 'Purchase',       icon: 'shopping_cart', desc: 'Buy ingredient / supply' },
+  { id: 'other',          label: 'Other',           icon: 'payments', desc: 'Petty cash / drawer drop' },
+];
+
+const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
+  isOpen: boolean;
+  onClose: () => void;
+  onRefresh: () => Promise<void>;
+  onConfirm: (payload: import('../../api/register').WithdrawalPayload) => Promise<void>;
 }) => {
+  const [category, setCategory] = useState<WithdrawCategory>('other');
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [history, setHistory] = useState<{id: string, amount: number, notes?: string}[]>([]);
+  const [history, setHistory] = useState<import('../../api/register').WithdrawalItem[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // salary advance
+  const [candidates, setCandidates] = useState<import('../../api/register').AdvanceCandidate[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<import('../../api/register').AdvanceCandidate | null>(null);
+
+  // purchase
+  const [ingredients, setIngredients] = useState<import('../../api/register').IngredientOption[]>([]);
+  const [selectedIngredient, setSelectedIngredient] = useState<import('../../api/register').IngredientOption | null>(null);
+  const [quantity, setQuantity] = useState('');
+  const [vendor, setVendor] = useState('');
+
   const { formatCurrency } = useLocalization();
 
   const fetchHistory = async () => {
     try {
       const summary = await api.register.getSessionFloatSummary();
-      if (summary && summary.withdrawals) {
-        setHistory(summary.withdrawals);
-      }
-    } catch (err) {
-      console.error('Failed to fetch withdrawal history', err);
-    }
+      if (summary?.withdrawals) setHistory(summary.withdrawals);
+    } catch { /* silent */ }
   };
 
   useEffect(() => {
-    if (isOpen) {
-      fetchHistory();
-    } else {
-      setAmount('');
-      setNotes('');
-      setHistory([]);
+    if (!isOpen) {
+      setCategory('other'); setAmount(''); setNotes('');
+      setSelectedEmployee(null); setSelectedIngredient(null);
+      setQuantity(''); setVendor(''); setHistory([]);
+      return;
     }
+    fetchHistory();
+    api.register.getAdvanceCandidates().then(setCandidates).catch(() => {});
+    api.register.getIngredientOptions().then(setIngredients).catch(() => {});
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleConfirm = async () => {
+  const canSubmit = (() => {
     const num = parseFloat(amount);
-    if (isNaN(num) || num <= 0) return;
+    if (isNaN(num) || num <= 0) return false;
+    if (category === 'salary_advance') return !!selectedEmployee;
+    if (category === 'purchase') return !!selectedIngredient && parseFloat(quantity) > 0;
+    return true;
+  })();
+
+  const handleConfirm = async () => {
+    if (!canSubmit) return;
     setIsSubmitting(true);
     try {
-      await onConfirm(num, notes);
-      setAmount('');
-      setNotes('');
+      const payload: import('../../api/register').WithdrawalPayload = {
+        amount: parseFloat(amount),
+        notes: notes || undefined,
+        category,
+        ...(category === 'salary_advance' && selectedEmployee ? {
+          employee_id: selectedEmployee.id,
+          employee_name: selectedEmployee.name,
+        } : {}),
+        ...(category === 'purchase' && selectedIngredient ? {
+          ingredient_id: selectedIngredient.id,
+          ingredient_name: selectedIngredient.name,
+          quantity: parseFloat(quantity),
+          unit: selectedIngredient.unit,
+          vendor: vendor || undefined,
+        } : {}),
+      };
+      await onConfirm(payload);
+      setAmount(''); setNotes(''); setQuantity(''); setVendor('');
+      setSelectedEmployee(null); setSelectedIngredient(null);
       await fetchHistory();
     } finally {
       setIsSubmitting(false);
@@ -931,114 +972,187 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
     }
   };
 
+  const catMeta = WITHDRAW_CATEGORIES.find(c => c.id === category)!;
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        exit={{ opacity: 0 }}
-        onClick={onClose} 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md" 
-      />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative bg-surface-container-lowest rounded-3xl shadow-3xl w-full max-w-sm overflow-hidden border border-outline-variant/10"
-      >
-        <div className="p-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">payments</span>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
+      <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative bg-surface-container-lowest rounded-3xl shadow-3xl w-full max-w-md overflow-hidden border border-outline-variant/10">
+        <div className="p-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-secondary)' }}>{catMeta.icon}</span>
             </div>
             <div>
-              <h3 className="text-xl font-headline font-bold text-on-surface">Withdraw Cash</h3>
-              <p className="text-xs text-on-surface-variant">Record a mid-session drawer drop</p>
+              <h3 className="text-lg font-headline font-bold text-on-surface">Withdraw Cash</h3>
+              <p className="text-[11px] text-on-surface-variant">{catMeta.desc}</p>
             </div>
+            <button onClick={onClose} className="ml-auto w-8 h-8 rounded-full bg-surface-container flex items-center justify-center hover:bg-surface-container-high transition-colors">
+              <span className="material-symbols-outlined text-sm text-on-surface-variant">close</span>
+            </button>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Amount to Withdraw</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold text-lg">$</span>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  autoFocus
-                  className="w-full pl-10 pr-4 py-4 bg-surface-container rounded-2xl text-2xl font-bold text-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all placeholder:opacity-30"
-                />
-              </div>
-            </div>
+          {/* Category pills */}
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {WITHDRAW_CATEGORIES.map(c => (
+              <button key={c.id} onClick={() => setCategory(c.id)}
+                className="flex flex-col items-center gap-1 py-2.5 px-2 rounded-2xl border text-center transition-all"
+                style={category === c.id
+                  ? { background: 'color-mix(in srgb, var(--color-secondary) 15%, transparent)', borderColor: 'var(--color-secondary)', color: 'var(--color-secondary)' }
+                  : { borderColor: 'color-mix(in srgb, var(--color-outline-variant) 40%, transparent)', color: 'var(--color-on-surface-variant)' }}>
+                <span className="material-symbols-outlined text-base">{c.icon}</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider leading-none">{c.label}</span>
+              </button>
+            ))}
+          </div>
 
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Notes / Reason</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Petty cash for supplies, Drawer drop..."
-                rows={2}
-                className="w-full p-4 bg-surface-container rounded-2xl text-sm focus:ring-2 focus:ring-secondary/20 outline-none transition-all resize-none"
-              />
-            </div>
-
-            {(history || []).length > 0 && (
-              <div className="pt-6 border-t border-outline-variant/10">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recent Withdrawals</label>
-                  <span className="text-[10px] bg-surface-container-highest px-2 py-0.5 rounded-full text-on-surface-variant font-bold">Session</span>
-                </div>
-                <div className="max-h-[180px] overflow-y-auto space-y-2 pr-1 scrollbar-thin">
-                  {[...history].reverse().map((h, i) => (
-                    <div key={h.id || i} className="group flex justify-between items-center p-3 bg-surface-container/40 rounded-2xl border border-outline-variant/5 hover:bg-surface-container transition-all">
-                      <div className="flex flex-col min-w-0 flex-1 mr-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-secondary uppercase tracking-tighter">#{history.length - i}</span>
-                          <span className="text-[11px] font-bold text-on-surface truncate">{h.notes || 'No Reason'}</span>
+          <div className="space-y-3">
+            {/* ── Salary Advance fields ── */}
+            {category === 'salary_advance' && (
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Employee</label>
+                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                  {candidates.length === 0 && <p className="text-xs text-on-surface-variant text-center py-3">No staff found</p>}
+                  {candidates.map(c => (
+                    <button key={c.id} onClick={() => setSelectedEmployee(c)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all"
+                      style={selectedEmployee?.id === c.id
+                        ? { background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)', borderColor: 'var(--color-secondary)' }
+                        : { borderColor: 'color-mix(in srgb, var(--color-outline-variant) 30%, transparent)' }}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-bold text-on-surface-variant">
+                          {c.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-[9px] text-on-surface-variant opacity-60">Withdrawal recorded</span>
+                        <span className="text-sm font-medium text-on-surface">{c.name}</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="font-bold text-secondary text-sm">-{formatCurrency(h.amount)}</span>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeletingId(h.id);
-                          }}
-                          className="w-7 h-7 rounded-full bg-error/10 text-error flex items-center justify-center transition-all hover:bg-error hover:text-on-error"
-                          title="Delete withdrawal"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">delete</span>
-                        </button>
+                      <div className="text-right">
+                        <p className="text-xs font-bold" style={{ color: 'var(--color-tertiary)' }}>{formatCurrency(c.net_payable)}</p>
+                        <p className="text-[9px] text-on-surface-variant">earned</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
+                {selectedEmployee && (
+                  <div className="mt-2 px-3 py-2 rounded-xl text-xs" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 8%, transparent)' }}>
+                    <span className="text-on-surface-variant">Balance: </span>
+                    <span className="font-bold" style={{ color: 'var(--color-tertiary)' }}>{formatCurrency(selectedEmployee.net_payable)}</span>
+                    <span className="text-on-surface-variant"> earned this period</span>
+                  </div>
+                )}
               </div>
             )}
+
+            {/* ── Purchase fields ── */}
+            {category === 'purchase' && (
+              <>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Ingredient</label>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+                    {ingredients.length === 0 && <p className="text-xs text-on-surface-variant text-center py-3">No ingredients found</p>}
+                    {ingredients.map(ing => (
+                      <button key={ing.id} onClick={() => setSelectedIngredient(ing)}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all"
+                        style={selectedIngredient?.id === ing.id
+                          ? { background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)', borderColor: 'var(--color-secondary)' }
+                          : { borderColor: 'color-mix(in srgb, var(--color-outline-variant) 30%, transparent)' }}>
+                        <span className="text-sm font-medium text-on-surface">{ing.name}</span>
+                        <div className="text-right">
+                          <p className="text-xs text-on-surface-variant">{ing.in_stock} {ing.unit} in stock</p>
+                          {ing.price_per_unit > 0 && <p className="text-[9px] text-on-surface-variant">{formatCurrency(ing.price_per_unit)}/{ing.unit}</p>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Quantity {selectedIngredient && `(${selectedIngredient.unit})`}</label>
+                    <input type="number" min="0" step="0.01" value={quantity} onChange={e => {
+                      setQuantity(e.target.value);
+                      if (selectedIngredient?.price_per_unit && parseFloat(e.target.value) > 0) {
+                        setAmount(String(Math.round(parseFloat(e.target.value) * selectedIngredient.price_per_unit * 100) / 100));
+                      }
+                    }}
+                      placeholder="0" className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-secondary/50" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Vendor</label>
+                    <input type="text" value={vendor} onChange={e => setVendor(e.target.value)}
+                      placeholder="Optional" className="w-full px-3 py-2.5 bg-surface-container rounded-xl text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-secondary/50 placeholder:text-on-surface-variant/40" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Amount */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">
+                {category === 'salary_advance' ? 'Advance Amount' : category === 'purchase' ? 'Total Cost' : 'Amount'}
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold text-lg">$</span>
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                  placeholder="0.00" autoFocus={category === 'other'}
+                  className="w-full pl-10 pr-4 py-4 bg-surface-container rounded-2xl text-2xl font-bold focus:ring-2 outline-none transition-all placeholder:opacity-30"
+                  style={{ color: 'var(--color-secondary)' }} />
+              </div>
+              {category === 'salary_advance' && selectedEmployee && parseFloat(amount) > selectedEmployee.net_payable && (
+                <p className="text-[10px] mt-1" style={{ color: 'var(--color-error, #ef4444)' }}>
+                  Exceeds earned balance of {formatCurrency(selectedEmployee.net_payable)}
+                </p>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5">Notes {category !== 'other' && <span className="normal-case font-normal">(optional)</span>}</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)}
+                placeholder={category === 'salary_advance' ? 'Any additional notes…' : category === 'purchase' ? 'Details, invoice #…' : 'Petty cash, drawer drop…'}
+                rows={2} className="w-full p-3 bg-surface-container rounded-2xl text-sm focus:ring-2 outline-none transition-all resize-none placeholder:text-on-surface-variant/40" />
+            </div>
           </div>
 
-          <div className="flex gap-3 mt-10">
-            <button
-              onClick={onClose}
-              className="flex-1 py-4 bg-surface-container-highest text-on-surface-variant rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-surface-container-highest/80 transition-all"
-            >
+          {/* History */}
+          {history.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-outline-variant/10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Session Withdrawals</p>
+              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-0.5">
+                {[...history].reverse().map((h, i) => {
+                  const catInfo = WITHDRAW_CATEGORIES.find(c => c.id === h.category);
+                  return (
+                    <div key={h.id || i} className="flex items-center gap-2 p-2.5 bg-surface-container/40 rounded-xl border border-outline-variant/5 hover:bg-surface-container transition-all">
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant">{catInfo?.icon ?? 'payments'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold text-on-surface truncate">{h.reference_label || h.notes || 'Withdrawal'}</p>
+                        <p className="text-[9px] text-on-surface-variant capitalize">{catInfo?.label ?? 'Other'}</p>
+                      </div>
+                      <span className="font-bold text-sm flex-shrink-0" style={{ color: 'var(--color-secondary)' }}>-{formatCurrency(h.amount)}</span>
+                      <button onClick={() => setDeletingId(h.id)}
+                        className="w-6 h-6 rounded-full bg-error/10 text-error flex items-center justify-center hover:bg-error hover:text-on-error transition-all flex-shrink-0">
+                        <span className="material-symbols-outlined text-[13px]">delete</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 mt-5">
+            <button onClick={onClose}
+              className="flex-1 py-3.5 bg-surface-container-highest text-on-surface-variant rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-surface-container-highest/80 transition-all">
               Cancel
             </button>
-            <button
-              onClick={handleConfirm}
-              disabled={!amount || parseFloat(amount) <= 0 || isSubmitting}
-              className="flex-[2] py-4 bg-secondary text-on-secondary rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-secondary/20 hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? (
-                <span className="material-symbols-outlined animate-spin">sync</span>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-sm">check_circle</span>
-                  Confirm Withdrawal
-                </>
-              )}
+            <button onClick={handleConfirm} disabled={!canSubmit || isSubmitting}
+              className="flex-[2] py-3.5 rounded-2xl font-bold uppercase tracking-widest text-[10px] shadow-lg hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center gap-2 text-on-secondary"
+              style={{ background: 'var(--color-secondary)' }}>
+              {isSubmitting
+                ? <span className="material-symbols-outlined animate-spin">sync</span>
+                : <><span className="material-symbols-outlined text-sm">check_circle</span>Confirm</>}
             </button>
           </div>
         </div>
