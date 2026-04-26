@@ -4039,8 +4039,12 @@ const ProductManagementView = () => {
 };
 
 // ── Finance Dashboard ─────────────────────────────────────────────────────────
-const FIN_EXPENSE_COLORS = ['#ef4444', '#f97316', '#a855f7'];
-const FIN_METHOD_COLORS  = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#06b6d4'];
+// Use CSS vars so colors respond to live branding changes
+const FIN_EXPENSE_COLORS = [
+  'var(--color-secondary)',
+  'color-mix(in srgb, var(--color-secondary) 70%, var(--color-primary))',
+  'color-mix(in srgb, var(--color-secondary) 40%, var(--color-primary))',
+];
 
 const getPeriodDates = (type: string): { start: string; end: string } | null => {
   const now = new Date();
@@ -4061,9 +4065,9 @@ const getPeriodDates = (type: string): { start: string; end: string } | null => 
 };
 
 const financeChartConfig = {
-  income:   { label: 'Income',   color: 'var(--chart-1)' },
-  expenses: { label: 'Expenses', color: 'var(--chart-2)' },
-  profit:   { label: 'Profit',   color: 'var(--chart-3)' },
+  income:   { label: 'Income',   color: 'var(--color-tertiary)'  },
+  expenses: { label: 'Expenses', color: 'var(--color-secondary)' },
+  profit:   { label: 'Profit',   color: 'var(--color-primary)'   },
 } satisfies ChartConfig;
 
 const CashFlowCursor = ({ x, y, width, height }: { x?: number; y?: number; width?: number; height?: number }) => {
@@ -4147,7 +4151,7 @@ const FinanceDashboard = () => {
   ].filter(d => d.value > 0) : [];
 
   const isProfit  = (report?.profit ?? 0) >= 0;
-  const profitClr = isProfit ? '#22c55e' : '#ef4444';
+  const profitClr = isProfit ? 'var(--color-tertiary)' : 'var(--color-secondary)';
 
   const PERIODS = [
     { id: 'this_week',  label: 'Week'     },
@@ -4235,33 +4239,33 @@ const FinanceDashboard = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Income */}
             <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#22c55e]/8 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-tertiary) 8%, transparent), transparent)' }} />
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-[#22c55e]/15 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[#22c55e] text-sm">trending_up</span>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-tertiary)' }}>trending_up</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Income</span>
               </div>
-              <p className="text-2xl font-extrabold font-headline text-[#22c55e]">{formatCurrency(report.income_total)}</p>
+              <p className="text-2xl font-extrabold font-headline" style={{ color: 'var(--color-tertiary)' }}>{formatCurrency(report.income_total)}</p>
               <p className="text-[10px] text-on-surface-variant mt-1">{report.income_order_count} paid orders</p>
             </div>
             {/* Expenses */}
             <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#ef4444]/8 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-secondary) 8%, transparent), transparent)' }} />
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-[#ef4444]/15 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[#ef4444] text-sm">trending_down</span>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'color-mix(in srgb, var(--color-secondary) 15%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>trending_down</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Expenses</span>
               </div>
-              <p className="text-2xl font-extrabold font-headline text-[#ef4444]">{formatCurrency(report.expenses.total)}</p>
+              <p className="text-2xl font-extrabold font-headline" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(report.expenses.total)}</p>
               <p className="text-[10px] text-on-surface-variant mt-1">All costs combined</p>
             </div>
             {/* Profit */}
             <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br pointer-events-none" style={{ background: `linear-gradient(135deg, ${profitClr}12, transparent)` }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${profitClr} 8%, transparent), transparent)` }} />
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${profitClr}20` }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${profitClr} 15%, transparent)` }}>
                   <span className="material-symbols-outlined text-sm" style={{ color: profitClr }}>{isProfit ? 'savings' : 'money_off'}</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Net Profit</span>
@@ -4271,9 +4275,9 @@ const FinanceDashboard = () => {
             </div>
             {/* Margin */}
             <div className="relative bg-surface-container rounded-2xl p-5 border border-outline-variant/10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br pointer-events-none" style={{ background: `linear-gradient(135deg, ${profitClr}12, transparent)` }} />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${profitClr} 8%, transparent), transparent)` }} />
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `${profitClr}20` }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: `color-mix(in srgb, ${profitClr} 15%, transparent)` }}>
                   <span className="material-symbols-outlined text-sm" style={{ color: profitClr }}>percent</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Margin</span>
@@ -4285,18 +4289,18 @@ const FinanceDashboard = () => {
 
           {/* ── Expense sub-cards ─────────────────────────── */}
           <div className="grid grid-cols-3 gap-3">
-            {([
-              { label: 'Purchases',     val: report.expenses.purchases_total,     icon: 'shopping_cart', clr: '#ef4444' },
-              { label: 'Salaries',      val: report.expenses.salaries_total,      icon: 'badge',         clr: '#f97316' },
-              { label: 'Cash Advances', val: report.expenses.cash_advances_total, icon: 'payments',      clr: '#a855f7' },
-            ] as const).map(e => (
+            {[
+              { label: 'Purchases',     val: report.expenses.purchases_total,     icon: 'shopping_cart' },
+              { label: 'Salaries',      val: report.expenses.salaries_total,      icon: 'badge'         },
+              { label: 'Cash Advances', val: report.expenses.cash_advances_total, icon: 'payments'      },
+            ].map(e => (
               <div key={e.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${e.clr}18` }}>
-                  <span className="material-symbols-outlined text-sm" style={{ color: e.clr }}>{e.icon}</span>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 15%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>{e.icon}</span>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant truncate">{e.label}</p>
-                  <p className="text-base font-extrabold font-headline truncate" style={{ color: e.clr }}>{formatCurrency(e.val)}</p>
+                  <p className="text-base font-extrabold font-headline truncate" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(e.val)}</p>
                 </div>
               </div>
             ))}
@@ -4311,9 +4315,9 @@ const FinanceDashboard = () => {
                   <p className="text-[10px] text-on-surface-variant mt-0.5">Income vs Expenses · daily</p>
                 </div>
                 <div className="flex items-center gap-4 text-[10px] font-bold text-on-surface-variant">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#22c55e] inline-block" />Income</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-[#ef4444] inline-block" />Expenses</span>
-                  <span className="flex items-center gap-1.5"><span className="w-5 border-t-2 border-[#3b82f6] inline-block" /><span className="w-1 h-1 rounded-full bg-[#3b82f6] inline-block -ml-0.5" />Profit</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'var(--color-tertiary)' }} />Income</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'var(--color-secondary)' }} />Expenses</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 inline-block" style={{ borderTop: '2px solid var(--color-primary)' }} /><span className="w-1 h-1 rounded-full inline-block -ml-0.5" style={{ background: 'var(--color-primary)' }} />Profit</span>
                 </div>
               </div>
               <div className="px-2 pb-4">
@@ -4349,16 +4353,16 @@ const FinanceDashboard = () => {
                             <p className="text-on-surface-variant font-bold uppercase tracking-widest text-[9px] mb-2">{fmtDate(d.date)}</p>
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between gap-4">
-                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#22c55e] inline-block" />Income</span>
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'var(--color-tertiary)' }} />Income</span>
                                 <span className="font-bold text-on-surface">{formatCurrency(d.income)}</span>
                               </div>
                               <div className="flex items-center justify-between gap-4">
-                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#ef4444] inline-block" />Expenses</span>
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'var(--color-secondary)' }} />Expenses</span>
                                 <span className="font-bold text-on-surface">{formatCurrency(d.expenses)}</span>
                               </div>
                               <div className="border-t border-outline-variant/20 pt-1.5 flex items-center justify-between gap-4">
-                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#3b82f6] inline-block" />Profit</span>
-                                <span className={`font-bold ${d.profit >= 0 ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>{formatCurrency(d.profit)}</span>
+                                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--color-primary)' }} />Profit</span>
+                                <span className="font-bold" style={{ color: d.profit >= 0 ? 'var(--color-tertiary)' : 'var(--color-secondary)' }}>{formatCurrency(d.profit)}</span>
                               </div>
                             </div>
                           </div>
