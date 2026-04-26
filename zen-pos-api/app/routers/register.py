@@ -227,6 +227,26 @@ async def record_withdrawal(
         if not body.employee_id:
             from fastapi import HTTPException
             raise HTTPException(status_code=422, detail="employee_id required for salary advance")
+        # Guard: refuse if amount exceeds available balance
+        from fastapi import HTTPException
+        from datetime import datetime, timezone as _tz
+        from app.models.payroll import PayrollWithdrawalDocument
+        from app.models.user import UserDocument
+        _emp = await UserDocument.get(body.employee_id)
+        if not _emp:
+            raise HTTPException(status_code=404, detail="Employee not found")
+        _summary = await payroll_service.get_payroll_summary(body.employee_id)
+        _month = datetime.now(_tz.utc).strftime("%Y-%m")
+        _withdrawals = await PayrollWithdrawalDocument.find(
+            PayrollWithdrawalDocument.user.id == _emp.id  # type: ignore[attr-defined]
+        ).to_list()
+        _already = round(sum(w.amount for w in _withdrawals if w.date.startswith(_month)), 2)
+        _available = round(max(0.0, _summary.net_payable - _already), 2)
+        if body.amount > _available:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Amount {body.amount} exceeds available balance of {_available}"
+            )
         pw = await payroll_service.process_withdrawal(
             PayrollWithdrawalRequest(
                 user_id=body.employee_id,
