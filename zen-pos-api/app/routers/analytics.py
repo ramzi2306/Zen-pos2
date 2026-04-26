@@ -308,14 +308,25 @@ class CashAdvanceItem(BaseModel):
     status: str
 
 
+class ManualExpenseItem(BaseModel):
+    id: str
+    category: str
+    title: str
+    amount: float
+    date: str
+    notes: str
+
+
 class ExpensesBreakdown(BaseModel):
     total: float
     purchases_total: float
     salaries_total: float
     cash_advances_total: float
+    manual_expenses_total: float
     purchases: List[PurchaseItem]
     salaries: List[SalaryItem]
     cash_advances: List[CashAdvanceItem]
+    manual_expenses: List[ManualExpenseItem]
 
 
 class FinanceReport(BaseModel):
@@ -449,6 +460,29 @@ async def finance_report(
         salaries_by_day[date] = salaries_by_day.get(date, 0.0) + net
         salaries_total += net
 
+    # ── Manual expenses (rental, equipment, etc.) ───────
+    from app.models.expense import ManualExpenseDocument
+    manual_expense_records = await ManualExpenseDocument.find(
+        ManualExpenseDocument.date >= start_date,
+        ManualExpenseDocument.date <= end_date,
+    ).sort("-date").to_list()
+
+    manual_expenses_list: List[ManualExpenseItem] = []
+    manual_expenses_by_day: dict[str, float] = {}
+    manual_expenses_total = 0.0
+
+    for m in manual_expense_records:
+        manual_expenses_list.append(ManualExpenseItem(
+            id=str(m.id),
+            category=m.category,
+            title=m.title,
+            amount=m.amount,
+            date=m.date,
+            notes=m.notes,
+        ))
+        manual_expenses_by_day[m.date] = manual_expenses_by_day.get(m.date, 0.0) + m.amount
+        manual_expenses_total += m.amount
+
     # ── Cash advances from user withdrawal_logs ─────────
     users_with_withdrawals = await UserDocument.find().to_list()
 
@@ -474,6 +508,7 @@ async def finance_report(
         + list(purchases_by_day.keys())
         + list(salaries_by_day.keys())
         + list(cash_advances_by_day.keys())
+        + list(manual_expenses_by_day.keys())
     ))
 
     income_by_day_list: List[FinanceDayItem] = []
@@ -483,6 +518,7 @@ async def finance_report(
             purchases_by_day.get(date, 0.0)
             + salaries_by_day.get(date, 0.0)
             + cash_advances_by_day.get(date, 0.0)
+            + manual_expenses_by_day.get(date, 0.0)
         )
         income_by_day_list.append(FinanceDayItem(
             date=date,
@@ -491,7 +527,7 @@ async def finance_report(
             profit=round(inc - exp, 2),
         ))
 
-    expenses_total = purchases_total + salaries_total + cash_advances_total
+    expenses_total = purchases_total + salaries_total + cash_advances_total + manual_expenses_total
     profit = income_total - expenses_total
     margin = round((profit / income_total) * 100, 1) if income_total > 0 else 0.0
 
@@ -510,9 +546,11 @@ async def finance_report(
             purchases_total=round(purchases_total, 2),
             salaries_total=round(salaries_total, 2),
             cash_advances_total=round(cash_advances_total, 2),
+            manual_expenses_total=round(manual_expenses_total, 2),
             purchases=sorted(purchases_list, key=lambda x: x.date, reverse=True),
             salaries=sorted(salaries_list, key=lambda x: x.date, reverse=True),
             cash_advances=sorted(cash_advances_list, key=lambda x: x.date, reverse=True),
+            manual_expenses=manual_expenses_list,
         ),
         profit=round(profit, 2),
         profit_margin=margin,

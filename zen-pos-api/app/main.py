@@ -21,6 +21,7 @@ from app.routers import ws as ws_router
 from app.routers import public as public_router
 from app.routers import register as register_router
 from app.routers import delivery as delivery_router
+from app.routers import expenses as expenses_router
 from app.core.tasks import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
@@ -84,6 +85,7 @@ app.include_router(public_router.router,   prefix="/public",      tags=["Storefr
 app.include_router(ws_router.router,                              tags=["WebSocket"])
 app.include_router(register_router.router, prefix="/register",     tags=["Register"])
 app.include_router(delivery_router.router, prefix="/delivery",     tags=["Delivery"])
+app.include_router(expenses_router.router, prefix="/expenses",     tags=["Expenses"])
 
 
 @app.get("/health", tags=["Health"])

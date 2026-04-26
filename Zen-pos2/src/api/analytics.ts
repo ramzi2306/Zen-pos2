@@ -75,6 +75,7 @@ export interface PurchaseItem {
 }
 
 export interface SalaryItem {
+  id: string;
   date: string;
   user_name: string;
   base_salary: number;
@@ -86,6 +87,15 @@ export interface CashAdvanceItem {
   user_name: string;
   amount: number;
   status: string;
+}
+
+export interface ManualExpenseItem {
+  id: string;
+  category: string;
+  title: string;
+  amount: number;
+  date: string;
+  notes: string;
 }
 
 export interface FinanceReport {
@@ -100,9 +110,11 @@ export interface FinanceReport {
     purchases_total: number;
     salaries_total: number;
     cash_advances_total: number;
+    manual_expenses_total: number;
     purchases: PurchaseItem[];
     salaries: SalaryItem[];
     cash_advances: CashAdvanceItem[];
+    manual_expenses: ManualExpenseItem[];
   };
   profit: number;
   profit_margin: number;

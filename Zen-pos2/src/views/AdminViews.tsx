@@ -4086,8 +4086,11 @@ const FinanceDashboard = () => {
   const { formatCurrency } = useLocalization();
   const [report, setReport] = useState<FinanceReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [openTable, setOpenTable] = useState<'purchases' | 'salaries' | 'advances' | null>(null);
+  const [openTable, setOpenTable] = useState<'purchases' | 'salaries' | 'advances' | 'other' | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [expenseSaving, setExpenseSaving] = useState(false);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
     const d = getPeriodDates('this_month')!;
@@ -4128,6 +4131,15 @@ const FinanceDashboard = () => {
     return result;
   }, [report, dateFilter.start, dateFilter.end]);
 
+  const handleDeleteExpense = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await api.expenses.deleteExpense(id);
+      fetchReport(dateFilter.start, dateFilter.end);
+    } catch { showError('Failed to delete expense'); }
+    finally { setDeletingId(null); }
+  };
+
   const handleDeleteSalary = async (id: string) => {
     if (!id) return;
     setDeletingId(id);
@@ -4148,6 +4160,7 @@ const FinanceDashboard = () => {
     { name: 'Purchases',     value: report.expenses.purchases_total },
     { name: 'Salaries',      value: report.expenses.salaries_total },
     { name: 'Cash Advances', value: report.expenses.cash_advances_total },
+    { name: 'Other',         value: report.expenses.manual_expenses_total },
   ].filter(d => d.value > 0) : [];
 
   const isProfit  = (report?.profit ?? 0) >= 0;
@@ -4288,11 +4301,12 @@ const FinanceDashboard = () => {
           </div>
 
           {/* ── Expense sub-cards ─────────────────────────── */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Purchases',     val: report.expenses.purchases_total,     icon: 'shopping_cart' },
-              { label: 'Salaries',      val: report.expenses.salaries_total,      icon: 'badge'         },
-              { label: 'Cash Advances', val: report.expenses.cash_advances_total, icon: 'payments'      },
+              { label: 'Purchases',     val: report.expenses.purchases_total,       icon: 'shopping_cart' },
+              { label: 'Salaries',      val: report.expenses.salaries_total,        icon: 'badge'         },
+              { label: 'Cash Advances', val: report.expenses.cash_advances_total,   icon: 'payments'      },
+              { label: 'Other',         val: report.expenses.manual_expenses_total, icon: 'receipt_long'  },
             ].map(e => (
               <div key={e.label} className="bg-surface-container rounded-2xl p-4 border border-outline-variant/10 flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 15%, transparent)' }}>
@@ -4433,14 +4447,14 @@ const FinanceDashboard = () => {
             <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
               <button onClick={() => setOpenTable(openTable === 'purchases' ? null : 'purchases')}
                 className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
-                <div className="w-8 h-8 rounded-xl bg-[#ef4444]/12 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[#ef4444] text-sm">shopping_cart</span>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>shopping_cart</span>
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold text-on-surface">Purchases</p>
                   <p className="text-[10px] text-on-surface-variant">{report.expenses.purchases.length} records</p>
                 </div>
-                <p className="text-base font-extrabold font-headline text-[#ef4444]">{formatCurrency(report.expenses.purchases_total)}</p>
+                <p className="text-base font-extrabold font-headline" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(report.expenses.purchases_total)}</p>
                 <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'purchases' ? 'expand_less' : 'expand_more'}</span>
               </button>
               {openTable === 'purchases' && (
@@ -4458,7 +4472,7 @@ const FinanceDashboard = () => {
                               <td className="px-4 py-3 font-medium text-on-surface">{p.ingredient}</td>
                               <td className="px-4 py-3 text-on-surface-variant">{p.vendor || '—'}</td>
                               <td className="px-4 py-3 text-on-surface-variant">{p.quantity} {p.unit}</td>
-                              <td className="px-4 py-3 font-bold text-[#ef4444]">{formatCurrency(p.cost)}</td>
+                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(p.cost)}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -4472,14 +4486,14 @@ const FinanceDashboard = () => {
             <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
               <button onClick={() => setOpenTable(openTable === 'salaries' ? null : 'salaries')}
                 className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
-                <div className="w-8 h-8 rounded-xl bg-[#f97316]/12 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[#f97316] text-sm">badge</span>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>badge</span>
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold text-on-surface">Salary Payments</p>
                   <p className="text-[10px] text-on-surface-variant">{report.expenses.salaries.length} records</p>
                 </div>
-                <p className="text-base font-extrabold font-headline text-[#f97316]">{formatCurrency(report.expenses.salaries_total)}</p>
+                <p className="text-base font-extrabold font-headline" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(report.expenses.salaries_total)}</p>
                 <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'salaries' ? 'expand_less' : 'expand_more'}</span>
               </button>
               {openTable === 'salaries' && (
@@ -4496,17 +4510,12 @@ const FinanceDashboard = () => {
                               <td className="px-4 py-3 text-on-surface-variant">{fmtFull(s.date)}</td>
                               <td className="px-4 py-3 font-medium text-on-surface">{s.user_name}</td>
                               <td className="px-4 py-3 text-on-surface-variant">{formatCurrency(s.base_salary)}</td>
-                              <td className="px-4 py-3 font-bold text-[#f97316]">{formatCurrency(s.net_amount)}</td>
+                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(s.net_amount)}</td>
                               <td className="px-4 py-3">
                                 {s.id && (
-                                  <button
-                                    onClick={() => handleDeleteSalary(s.id)}
-                                    disabled={deletingId === s.id}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40"
-                                  >
-                                    {deletingId === s.id
-                                      ? <span className="material-symbols-outlined text-sm animate-spin">sync</span>
-                                      : <span className="material-symbols-outlined text-sm">delete</span>}
+                                  <button onClick={() => handleDeleteSalary(s.id)} disabled={deletingId === s.id}
+                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40">
+                                    {deletingId === s.id ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">delete</span>}
                                     Delete
                                   </button>
                                 )}
@@ -4524,14 +4533,14 @@ const FinanceDashboard = () => {
             <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
               <button onClick={() => setOpenTable(openTable === 'advances' ? null : 'advances')}
                 className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
-                <div className="w-8 h-8 rounded-xl bg-[#a855f7]/12 flex items-center justify-center flex-shrink-0">
-                  <span className="material-symbols-outlined text-[#a855f7] text-sm">payments</span>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>payments</span>
                 </div>
                 <div className="flex-1 text-left">
                   <p className="text-sm font-bold text-on-surface">Cash Advances</p>
                   <p className="text-[10px] text-on-surface-variant">{report.expenses.cash_advances.length} records</p>
                 </div>
-                <p className="text-base font-extrabold font-headline text-[#a855f7]">{formatCurrency(report.expenses.cash_advances_total)}</p>
+                <p className="text-base font-extrabold font-headline" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(report.expenses.cash_advances_total)}</p>
                 <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'advances' ? 'expand_less' : 'expand_more'}</span>
               </button>
               {openTable === 'advances' && (
@@ -4547,7 +4556,7 @@ const FinanceDashboard = () => {
                             <tr key={i} className="border-t border-outline-variant/8 hover:bg-surface-container-high/40 transition-colors">
                               <td className="px-4 py-3 text-on-surface-variant">{fmtFull(a.date)}</td>
                               <td className="px-4 py-3 font-medium text-on-surface">{a.user_name}</td>
-                              <td className="px-4 py-3 font-bold text-[#a855f7]">{formatCurrency(a.amount)}</td>
+                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(a.amount)}</td>
                               <td className="px-4 py-3">
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-tertiary/10 text-tertiary">{a.status}</span>
                               </td>
@@ -4559,7 +4568,152 @@ const FinanceDashboard = () => {
                 </div>
               )}
             </div>
+
+            {/* Other Expenses (manual) */}
+            <div className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden">
+              <button onClick={() => setOpenTable(openTable === 'other' ? null : 'other')}
+                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-surface-container-high transition-colors">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 12%, transparent)' }}>
+                  <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>receipt_long</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-bold text-on-surface">Other Expenses</p>
+                  <p className="text-[10px] text-on-surface-variant">{report.expenses.manual_expenses.length} records · Rental, Equipment, Maintenance…</p>
+                </div>
+                <p className="text-base font-extrabold font-headline" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(report.expenses.manual_expenses_total)}</p>
+                <button
+                  onClick={e => { e.stopPropagation(); setShowAddExpense(true); }}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase ml-2 transition-colors"
+                  style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>Add
+                </button>
+                <span className="material-symbols-outlined text-on-surface-variant ml-1 text-sm">{openTable === 'other' ? 'expand_less' : 'expand_more'}</span>
+              </button>
+              {openTable === 'other' && (
+                <div className="border-t border-outline-variant/10 overflow-x-auto">
+                  {report.expenses.manual_expenses.length === 0
+                    ? (
+                      <div className="px-5 py-6 flex flex-col items-center gap-2 text-center">
+                        <span className="material-symbols-outlined text-3xl text-on-surface-variant/30">receipt_long</span>
+                        <p className="text-xs text-on-surface-variant">No other expenses in this period.</p>
+                        <button onClick={() => setShowAddExpense(true)}
+                          className="mt-1 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
+                          style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}>
+                          <span className="material-symbols-outlined text-sm">add</span>Add first expense
+                        </button>
+                      </div>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-surface-container-high/70">
+                          {['Date','Category','Title','Amount','Notes',''].map(h => <th key={h} className="px-4 py-3 text-left text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                          {report.expenses.manual_expenses.map(e => (
+                            <tr key={e.id} className="border-t border-outline-variant/8 hover:bg-surface-container-high/40 transition-colors">
+                              <td className="px-4 py-3 text-on-surface-variant">{fmtFull(e.date)}</td>
+                              <td className="px-4 py-3">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', color: 'var(--color-primary)' }}>{e.category}</span>
+                              </td>
+                              <td className="px-4 py-3 font-medium text-on-surface">{e.title}</td>
+                              <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(e.amount)}</td>
+                              <td className="px-4 py-3 text-on-surface-variant max-w-[180px] truncate">{e.notes || '—'}</td>
+                              <td className="px-4 py-3">
+                                <button onClick={() => handleDeleteExpense(e.id)} disabled={deletingId === e.id}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-error/70 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40">
+                                  {deletingId === e.id ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">delete</span>}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  }
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* ── Add Expense Modal ─────────────────────────── */}
+          {showAddExpense && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddExpense(false)} />
+              <div className="relative bg-surface-container-high rounded-3xl border border-outline-variant/20 shadow-2xl w-full max-w-md p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-base font-bold font-headline text-on-surface">Add Expense</h3>
+                    <p className="text-[10px] text-on-surface-variant mt-0.5">Rental, equipment, maintenance…</p>
+                  </div>
+                  <button onClick={() => setShowAddExpense(false)} className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center hover:bg-surface-container-highest transition-colors">
+                    <span className="material-symbols-outlined text-on-surface-variant text-sm">close</span>
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 block">Category</label>
+                      <select value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}
+                        className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50">
+                        {['Rental','Equipment','Maintenance','Construction','Paperwork','Other'].map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 block">Date</label>
+                      <input type="date" value={expenseForm.date} onChange={e => setExpenseForm(f => ({ ...f, date: e.target.value }))}
+                        className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 block">Title</label>
+                    <input type="text" placeholder="e.g. Monthly rent for main location" value={expenseForm.title} onChange={e => setExpenseForm(f => ({ ...f, title: e.target.value }))}
+                      className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50 placeholder:text-on-surface-variant/40" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 block">Amount</label>
+                    <input type="number" min="0" step="0.01" placeholder="0.00" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))}
+                      className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50 placeholder:text-on-surface-variant/40" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 block">Notes <span className="normal-case font-normal">(optional)</span></label>
+                    <textarea rows={2} placeholder="Additional details…" value={expenseForm.notes} onChange={e => setExpenseForm(f => ({ ...f, notes: e.target.value }))}
+                      className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50 placeholder:text-on-surface-variant/40 resize-none" />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                  <button onClick={() => setShowAddExpense(false)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!expenseForm.title.trim() || !expenseForm.amount || expenseSaving}
+                    onClick={async () => {
+                      if (!expenseForm.title.trim() || !expenseForm.amount) return;
+                      setExpenseSaving(true);
+                      try {
+                        await api.expenses.createExpense({
+                          category: expenseForm.category,
+                          title: expenseForm.title.trim(),
+                          amount: parseFloat(expenseForm.amount),
+                          date: expenseForm.date,
+                          notes: expenseForm.notes.trim(),
+                        });
+                        setShowAddExpense(false);
+                        setExpenseForm({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
+                        fetchReport(dateFilter.start, dateFilter.end);
+                      } catch { showError('Failed to save expense'); }
+                      finally { setExpenseSaving(false); }
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-40"
+                    style={{ background: 'var(--color-tertiary)', color: 'var(--color-on-tertiary)' }}>
+                    {expenseSaving ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : 'Save Expense'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

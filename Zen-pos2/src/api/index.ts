@@ -11,4 +11,5 @@ export * as locations from './locations';
 export * as payroll from './payroll';
 export * as register from './register';
 export * as delivery from './delivery';
+export * as expenses from './expenses';
 export { getAccessToken, clearTokens } from './client';
