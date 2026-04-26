@@ -98,6 +98,14 @@ async def get_snapshot(user_id: str, month: Optional[str] = None):
     return _snap_to_out(snap, user)
 
 
+@router.post("/snapshots/refresh-all", status_code=200,
+             dependencies=[Depends(require_permission("view_hr"))])
+async def refresh_all_snapshots():
+    """Batch-compute and cache payroll snapshots for all non-system users."""
+    count = await payroll_service.refresh_all_snapshots()
+    return {"refreshed": count}
+
+
 @router.get("/summary/{user_id}", response_model=PayrollSummary,
             dependencies=[Depends(require_permission("view_hr"))])
 async def payroll_summary(user_id: str):

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 from app.core.exceptions import NotFoundError
@@ -168,6 +169,16 @@ async def process_withdrawal(data: WithdrawalRequest) -> PayrollWithdrawalDocume
     )
     await withdrawal.insert()
     return withdrawal
+
+
+async def refresh_all_snapshots() -> int:
+    """Compute and cache payroll snapshots for every active user. Returns count refreshed."""
+    users = await UserDocument.find({"is_system": {"$ne": True}}).to_list()
+    results = await asyncio.gather(
+        *[get_payroll_summary(str(u.id)) for u in users if u.id],
+        return_exceptions=True,
+    )
+    return sum(1 for r in results if not isinstance(r, Exception))
 
 
 def _parse_impact(impact: str) -> float:

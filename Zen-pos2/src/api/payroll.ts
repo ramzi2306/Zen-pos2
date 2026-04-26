@@ -244,3 +244,8 @@ export async function getUserSnapshot(userId: string, month?: string): Promise<P
   const raw = await apiRequest<ApiSnapshot>(`/payroll/snapshots/${encodeURIComponent(userId)}${qs}`);
   return mapSnapshot(raw);
 }
+
+export async function refreshAllSnapshots(): Promise<number> {
+  const res = await apiRequest<{ refreshed: number }>('/payroll/snapshots/refresh-all', { method: 'POST' });
+  return res.refreshed;
+}

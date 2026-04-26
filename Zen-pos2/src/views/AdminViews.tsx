@@ -7203,25 +7203,44 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
   }, []);
 
   const [attendanceReport, setAttendanceReport] = useState<import('../api/attendance').AttendanceReport | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [todayAttendance, setTodayAttendance] = useState<import('../api/attendance').AttendanceRecord[]>([]);
   const [allPerformanceLogs, setAllPerformanceLogs] = useState<import('../api/payroll').PerformanceLogEntry[]>([]);
   const [hrSnapshots, setHrSnapshots] = useState<import('../api/payroll').PayrollSnapshot[]>([]);
-  const [hrLoading, setHrLoading] = useState(false);
+  const [hrLoading, setHrLoading] = useState(true);
   // Tick every 60 s so "Online since Xm" labels stay current without a full re-fetch
   const [, setAttendanceTick] = useState(0);
 
   useEffect(() => {
     if (currentSetting !== 'hr') return;
+    // Clear stale data so skeleton shows immediately
     setHrLoading(true);
+    setHrSnapshots([]);
+    setAttendanceReport(null);
     const month = hrDateRange.start.slice(0, 7);
-    Promise.all([
-      api.attendance.getReport(hrDateRange.start, hrDateRange.end),
-      api.payroll.getAllSnapshots(month),
-    ]).then(([report, snaps]) => {
-      setAttendanceReport(report);
-      setHrSnapshots(snaps);
-    }).catch(console.error)
-      .finally(() => setHrLoading(false));
+
+    // Fast path: load DB snapshots first — table renders immediately
+    api.payroll.getAllSnapshots(month)
+      .then(snaps => {
+        if (snaps.length === 0) {
+          // No snapshots yet — compute them all, then fetch
+          return api.payroll.refreshAllSnapshots()
+            .then(() => api.payroll.getAllSnapshots(month));
+        }
+        return snaps;
+      })
+      .then(snaps => {
+        setHrSnapshots(snaps);
+        setHrLoading(false);
+      })
+      .catch(e => { console.error(e); setHrLoading(false); });
+
+    // Slow path: attendance report loads in background for contribution grids
+    setAttendanceLoading(true);
+    api.attendance.getReport(hrDateRange.start, hrDateRange.end)
+      .then(setAttendanceReport)
+      .catch(console.error)
+      .finally(() => setAttendanceLoading(false));
   }, [currentSetting, hrDateRange]);
 
   useEffect(() => {
@@ -8199,27 +8218,28 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
               </div>
             </div>
 
-            {/* Loading skeleton while report fetches */}
-            {hrLoading && nonSystemUsers.length > 0 && (
+            {/* Skeleton: shows until snapshots (salary data) are loaded */}
+            {hrLoading && (
               <div className="grid grid-cols-1 gap-8">
-                {nonSystemUsers.map(user => (
-                  <div key={user.id} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden animate-pulse">
+                {(nonSystemUsers.length > 0 ? nonSystemUsers : Array.from({ length: 3 })).map((user, idx) => (
+                  <div key={(user as any)?.id ?? idx} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden animate-pulse">
                     <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
                       <div className="w-14 h-14 rounded-xl bg-surface-container-highest" />
                       <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-surface-container-highest rounded w-32" />
-                        <div className="h-3 bg-surface-container-highest rounded w-20" />
+                        <div className="h-4 bg-surface-container-highest rounded w-36" />
+                        <div className="h-3 bg-surface-container-highest rounded w-24" />
                       </div>
+                      <div className="h-6 bg-surface-container-highest rounded w-20" />
                     </div>
-                    <div className="p-6 h-64 bg-surface-container-high/20">
-                      <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="p-6 space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div key={i} className="h-16 bg-surface-container-highest/50 rounded-xl" />
                         ))}
                       </div>
-                      <div className="grid grid-cols-7 gap-1">
-                        {Array.from({ length: 28 }).map((_, i) => (
-                          <div key={i} className="h-8 bg-surface-container-highest/30 rounded" />
+                      <div className="grid grid-cols-7 gap-1 pt-2">
+                        {Array.from({ length: 35 }).map((_, i) => (
+                          <div key={i} className="h-7 bg-surface-container-highest/30 rounded" />
                         ))}
                       </div>
                     </div>
@@ -8294,12 +8314,20 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
 
                     {/* Full-width monthly calendar */}
                     <div className="p-6 border-b border-outline-variant/10">
-                      <AttendanceContributionGraph
-                        records={contributionRecords}
-                        month={currentMonth}
-                        totalHours={totalHours}
-                        workedDays={workedDays}
-                      />
+                      {attendanceLoading ? (
+                        <div className="grid grid-cols-7 gap-1 animate-pulse">
+                          {Array.from({ length: 35 }).map((_, i) => (
+                            <div key={i} className="h-7 bg-surface-container-highest/40 rounded" />
+                          ))}
+                        </div>
+                      ) : (
+                        <AttendanceContributionGraph
+                          records={contributionRecords}
+                          month={currentMonth}
+                          totalHours={totalHours}
+                          workedDays={workedDays}
+                        />
+                      )}
                     </div>
 
                     {/* Performance + Financial summary row */}
