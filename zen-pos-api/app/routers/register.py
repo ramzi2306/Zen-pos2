@@ -151,23 +151,28 @@ async def get_current_float_summary(current_user=Depends(require_permission("vie
 
 @router.get("/session/advance-candidates", response_model=list[AdvanceCandidate])
 async def list_advance_candidates(current_user=Depends(require_permission("view_orders"))):
-    """Return staff members with their current net payable for salary advance selection."""
+    """Return staff with live-computed net payable (not cached payroll_due)."""
+    import asyncio
     from app.models.user import UserDocument
+    from app.services import payroll_service
+
     users = await UserDocument.find(UserDocument.is_active == True).to_list()  # noqa: E712
-    result = []
-    for u in users:
+
+    async def _candidate(u) -> AdvanceCandidate:
         try:
-            net = float(u.payroll_due or 0)
-        except (ValueError, TypeError):
-            net = 0.0
-        result.append(AdvanceCandidate(
+            summary = await payroll_service.get_payroll_summary(str(u.id))
+            net = summary.net_payable
+        except Exception:
+            net = float(u.base_salary or 0)
+        return AdvanceCandidate(
             id=str(u.id),
             name=u.name,
             avatar=getattr(u, 'avatar', ''),
             base_salary=u.base_salary or 0,
             net_payable=net,
-        ))
-    return result
+        )
+
+    return await asyncio.gather(*[_candidate(u) for u in users])
 
 
 @router.get("/session/ingredient-options", response_model=list[IngredientOption])
