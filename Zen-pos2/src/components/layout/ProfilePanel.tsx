@@ -928,7 +928,10 @@ const WithdrawalModal = ({ isOpen, onClose, onRefresh, onConfirm }: {
   const canSubmit = (() => {
     const num = parseFloat(amount);
     if (isNaN(num) || num <= 0) return false;
-    if (category === 'salary_advance') return !!selectedEmployee;
+    if (category === 'salary_advance') {
+      if (!selectedEmployee) return false;
+      if (num > selectedEmployee.available_to_withdraw) return false;
+    }
     if (category === 'purchase') return !!selectedIngredient && parseFloat(quantity) > 0;
     return true;
   })();
