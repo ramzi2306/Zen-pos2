@@ -4089,7 +4089,7 @@ const FinanceDashboard = () => {
   const [openTable, setOpenTable] = useState<'purchases' | 'salaries' | 'advances' | 'other' | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [expenseForm, setExpenseForm] = useState({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '', is_recurring: false, frequency: 'monthly' });
   const [expenseSaving, setExpenseSaving] = useState(false);
 
   const [dateFilter, setDateFilter] = useState<{ type: string; start: string; end: string }>(() => {
@@ -4615,7 +4615,15 @@ const FinanceDashboard = () => {
                               <td className="px-4 py-3">
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', color: 'var(--color-primary)' }}>{e.category}</span>
                               </td>
-                              <td className="px-4 py-3 font-medium text-on-surface">{e.title}</td>
+                              <td className="px-4 py-3 font-medium text-on-surface">
+                                <span>{e.title}</span>
+                                {e.is_recurring && (
+                                  <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase" style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}>
+                                    <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>autorenew</span>
+                                    {e.frequency}
+                                  </span>
+                                )}
+                              </td>
                               <td className="px-4 py-3 font-bold" style={{ color: 'var(--color-secondary)' }}>{formatCurrency(e.amount)}</td>
                               <td className="px-4 py-3 text-on-surface-variant max-w-[180px] truncate">{e.notes || '—'}</td>
                               <td className="px-4 py-3">
@@ -4681,6 +4689,36 @@ const FinanceDashboard = () => {
                     <textarea rows={2} placeholder="Additional details…" value={expenseForm.notes} onChange={e => setExpenseForm(f => ({ ...f, notes: e.target.value }))}
                       className="w-full bg-surface-container rounded-xl px-3 py-2.5 text-sm text-on-surface border border-outline-variant/20 focus:outline-none focus:border-primary/50 placeholder:text-on-surface-variant/40 resize-none" />
                   </div>
+                  {/* Recurring toggle */}
+                  <div className="rounded-xl border border-outline-variant/20 overflow-hidden">
+                    <button type="button"
+                      onClick={() => setExpenseForm(f => ({ ...f, is_recurring: !f.is_recurring }))}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-surface-container hover:bg-surface-container-highest transition-colors">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base" style={{ color: expenseForm.is_recurring ? 'var(--color-tertiary)' : undefined }}>autorenew</span>
+                        <span className="text-sm font-bold text-on-surface">Recurring payment</span>
+                      </div>
+                      <div className={`w-10 h-5 rounded-full transition-colors flex items-center px-0.5 ${expenseForm.is_recurring ? 'bg-tertiary' : 'bg-outline-variant'}`}
+                        style={{ background: expenseForm.is_recurring ? 'var(--color-tertiary)' : undefined }}>
+                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${expenseForm.is_recurring ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </button>
+                    {expenseForm.is_recurring && (
+                      <div className="px-4 pb-3 pt-2 bg-surface-container border-t border-outline-variant/10">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1.5 block">Frequency</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {([['monthly','Monthly'],['quarterly','Every 3 months'],['yearly','Yearly']] as const).map(([val, label]) => (
+                            <button key={val} type="button"
+                              onClick={() => setExpenseForm(f => ({ ...f, frequency: val }))}
+                              className="py-2 px-2 rounded-lg text-xs font-bold border transition-colors text-center"
+                              style={expenseForm.frequency === val ? { background: 'var(--color-tertiary)', color: 'var(--color-on-tertiary)', borderColor: 'transparent' } : { borderColor: 'color-mix(in srgb, var(--color-outline-variant) 40%, transparent)' }}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-3 mt-5">
                   <button onClick={() => setShowAddExpense(false)}
@@ -4699,9 +4737,11 @@ const FinanceDashboard = () => {
                           amount: parseFloat(expenseForm.amount),
                           date: expenseForm.date,
                           notes: expenseForm.notes.trim(),
+                          is_recurring: expenseForm.is_recurring,
+                          frequency: expenseForm.is_recurring ? expenseForm.frequency : undefined,
                         });
                         setShowAddExpense(false);
-                        setExpenseForm({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
+                        setExpenseForm({ category: 'Rental', title: '', amount: '', date: new Date().toISOString().split('T')[0], notes: '', is_recurring: false, frequency: 'monthly' });
                         fetchReport(dateFilter.start, dateFilter.end);
                       } catch { showError('Failed to save expense'); }
                       finally { setExpenseSaving(false); }

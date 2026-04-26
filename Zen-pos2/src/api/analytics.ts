@@ -96,6 +96,8 @@ export interface ManualExpenseItem {
   amount: number;
   date: string;
   notes: string;
+  is_recurring: boolean;
+  frequency: string | null;
 }
 
 export interface FinanceReport {
