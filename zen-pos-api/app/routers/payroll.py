@@ -227,6 +227,12 @@ async def create_performance_log(body: PerformanceLogCreate):
         user.sanctions += int(impact_val)
     await user.save()
 
+    # Refresh snapshot so HR panel sees updated reward/sanction values immediately
+    try:
+        await payroll_service.get_payroll_summary(body.user_id)
+    except Exception:
+        pass
+
     return _log_to_out(log, body.user_id)
 
 
@@ -244,8 +250,9 @@ async def delete_performance_log(log_id: str):
     except ValueError:
         pass
 
+    user_id_str = str(log.user.ref.id if hasattr(log.user, "ref") else log.user.id)
     if impact_val > 0:
-        user = await UserDocument.get(log.user.ref.id if hasattr(log.user, "ref") else str(log.user.id))
+        user = await UserDocument.get(user_id_str)
         if user:
             if log.type == "Reward":
                 user.rewards = max(0, user.rewards - int(impact_val))
@@ -254,6 +261,12 @@ async def delete_performance_log(log_id: str):
             await user.save()
 
     await log.delete()
+
+    # Refresh snapshot so HR panel reflects the removal immediately
+    try:
+        await payroll_service.get_payroll_summary(user_id_str)
+    except Exception:
+        pass
 
 
 def _log_to_out(l: PerformanceLogDocument, user_id: str) -> PerformanceLogOut:

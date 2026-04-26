@@ -4047,17 +4047,17 @@ const ProductManagementView = () => {
           </thead>
           <tbody className="divide-y divide-outline-variant/5">
             {productsLoading && Array.from({ length: 6 }).map((_, i) => (
-              <tr key={`skel-${i}`} className="animate-pulse">
-                <td className="px-6 py-6"><div className="w-4 h-4 bg-surface-container-highest rounded mx-auto" /></td>
+              <tr key={`skel-${i}`} className="animate-pulse" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td className="px-6 py-6"><div className="w-4 h-4 rounded mx-auto" style={{ background: 'rgba(255,255,255,0.12)' }} /></td>
                 <td className="px-4 py-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-surface-container-highest shrink-0" />
-                    <div className="h-4 bg-surface-container-highest rounded w-32" />
+                    <div className="w-12 h-12 rounded-lg shrink-0" style={{ background: 'rgba(255,255,255,0.10)' }} />
+                    <div className="h-4 rounded w-32" style={{ background: 'rgba(255,255,255,0.12)' }} />
                   </div>
                 </td>
-                <td className="px-4 py-6"><div className="h-4 bg-surface-container-highest rounded w-20" /></td>
-                <td className="px-4 py-6"><div className="h-4 bg-surface-container-highest rounded w-16 ml-auto" /></td>
-                <td className="px-8 py-6"><div className="h-4 bg-surface-container-highest rounded w-16 ml-auto" /></td>
+                <td className="px-4 py-6"><div className="h-4 rounded w-20" style={{ background: 'rgba(255,255,255,0.08)' }} /></td>
+                <td className="px-4 py-6"><div className="h-4 rounded w-16 ml-auto" style={{ background: 'rgba(255,255,255,0.08)' }} /></td>
+                <td className="px-8 py-6"><div className="h-4 rounded w-16 ml-auto" style={{ background: 'rgba(255,255,255,0.08)' }} /></td>
               </tr>
             ))}
             {!productsLoading && products.map((product) => (
@@ -7219,28 +7219,42 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
     setAttendanceReport(null);
     const month = hrDateRange.start.slice(0, 7);
 
-    // Fast path: load DB snapshots first — table renders immediately
+    let cancelled = false;
+
+    // Fast path: load DB snapshots — if they exist, table renders immediately
     api.payroll.getAllSnapshots(month)
       .then(snaps => {
-        if (snaps.length === 0) {
-          // No snapshots yet — compute them all, then fetch
-          return api.payroll.refreshAllSnapshots()
-            .then(() => api.payroll.getAllSnapshots(month));
+        if (cancelled) return;
+        if (snaps.length > 0) {
+          setHrSnapshots(snaps);
+          setHrLoading(false);
+          // Background refresh to keep numbers fresh
+          api.payroll.refreshAllSnapshots().catch(() => {});
+        } else {
+          // No snapshots yet — fire compute, then poll every 2.5s (max 30s)
+          api.payroll.refreshAllSnapshots().catch(() => {});
+          let attempts = 0;
+          const poll = () => {
+            if (cancelled || attempts++ > 12) { if (!cancelled) setHrLoading(false); return; }
+            api.payroll.getAllSnapshots(month).then(s => {
+              if (cancelled) return;
+              if (s.length > 0) { setHrSnapshots(s); setHrLoading(false); }
+              else { setTimeout(poll, 2500); }
+            }).catch(() => { if (!cancelled) setHrLoading(false); });
+          };
+          setTimeout(poll, 2500);
         }
-        return snaps;
       })
-      .then(snaps => {
-        setHrSnapshots(snaps);
-        setHrLoading(false);
-      })
-      .catch(e => { console.error(e); setHrLoading(false); });
+      .catch(e => { console.error(e); if (!cancelled) setHrLoading(false); });
 
     // Slow path: attendance report loads in background for contribution grids
     setAttendanceLoading(true);
     api.attendance.getReport(hrDateRange.start, hrDateRange.end)
-      .then(setAttendanceReport)
+      .then(r => { if (!cancelled) setAttendanceReport(r); })
       .catch(console.error)
-      .finally(() => setAttendanceLoading(false));
+      .finally(() => { if (!cancelled) setAttendanceLoading(false); });
+
+    return () => { cancelled = true; };
   }, [currentSetting, hrDateRange]);
 
   useEffect(() => {
@@ -7375,15 +7389,21 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
       const hourlyRate = user.baseSalary / (22 * 8);
       const workedDays = snap?.workedDays ?? contributionRecords.filter(r => r.checkIn).length;
 
-      // Use snapshot values (same formula as backend, stored in DB) — no local recompute
+      // Attendance figures from snapshot (DB-computed, avoids double-count bug)
       const deduction = snap
         ? Math.round((snap.lateDeduction + snap.earlyDepartureDeduction) * 100) / 100
         : 0;
       const overtimeBonus = snap?.overtimeBonus ?? 0;
       const earlyArrivalBonus = snap?.earlyArrivalBonus ?? 0;
-      const userRewards = snap?.rewardBonus ?? 0;
-      const userSanctions = snap?.sanctionDeduction ?? 0;
-      const totalSalary = snap?.netPayable ?? 0;
+      const earnedBase = snap?.earnedBase ?? 0;
+
+      // Rewards/sanctions always read live from allPerformanceLogs — never stale
+      const userLogs = allPerformanceLogs.filter(l => l.userId === user.id);
+      const userRewards = Math.round(userLogs.filter(l => l.type === 'Reward').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
+      const userSanctions = Math.round(userLogs.filter(l => l.type === 'Sanction').reduce((s, l) => s + (parseFloat(l.impact) || 0), 0) * 100) / 100;
+
+      // Net payable: attendance base from snapshot + live performance adjustments
+      const totalSalary = Math.round((earnedBase + userRewards + overtimeBonus + earlyArrivalBonus - userSanctions - deduction) * 100) / 100;
       const attendanceAdjustments = Math.round((overtimeBonus + earlyArrivalBonus - deduction) * 100) / 100;
 
       const liveScore = workedDays > 0
@@ -7399,7 +7419,7 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
         userRewards, userSanctions,
       };
     });
-  }, [nonSystemUsers, attendanceReport, hrDateRange, hrSnapshots]);
+  }, [nonSystemUsers, attendanceReport, hrDateRange, hrSnapshots, allPerformanceLogs]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-grid-pattern">
@@ -8222,24 +8242,26 @@ export const SettingsView = ({ currentSetting, hasPermission, branding: appBrand
             {hrLoading && (
               <div className="grid grid-cols-1 gap-8">
                 {(nonSystemUsers.length > 0 ? nonSystemUsers : Array.from({ length: 3 })).map((user, idx) => (
-                  <div key={(user as any)?.id ?? idx} className="bg-surface-container rounded-2xl border border-outline-variant/10 overflow-hidden animate-pulse">
-                    <div className="p-6 border-b border-outline-variant/10 flex items-center gap-4 bg-surface-container-low">
-                      <div className="w-14 h-14 rounded-xl bg-surface-container-highest" />
+                  <div key={(user as any)?.id ?? idx} className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    {/* Header row */}
+                    <div className="p-6 flex items-center gap-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                      <div className="w-14 h-14 rounded-xl shrink-0" style={{ background: 'rgba(255,255,255,0.1)', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
                       <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-surface-container-highest rounded w-36" />
-                        <div className="h-3 bg-surface-container-highest rounded w-24" />
+                        <div className="h-4 rounded" style={{ background: 'rgba(255,255,255,0.12)', width: '9rem', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
+                        <div className="h-3 rounded" style={{ background: 'rgba(255,255,255,0.07)', width: '6rem', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
                       </div>
-                      <div className="h-6 bg-surface-container-highest rounded w-20" />
+                      <div className="h-6 rounded" style={{ background: 'rgba(255,255,255,0.10)', width: '5rem', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
                     </div>
+                    {/* Body */}
                     <div className="p-6 space-y-4">
                       <div className="grid grid-cols-3 gap-4">
                         {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="h-16 bg-surface-container-highest/50 rounded-xl" />
+                          <div key={i} className="h-16 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
                         ))}
                       </div>
                       <div className="grid grid-cols-7 gap-1 pt-2">
                         {Array.from({ length: 35 }).map((_, i) => (
-                          <div key={i} className="h-7 bg-surface-container-highest/30 rounded" />
+                          <div key={i} className="h-7 rounded" style={{ background: 'rgba(255,255,255,0.05)', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
                         ))}
                       </div>
                     </div>
