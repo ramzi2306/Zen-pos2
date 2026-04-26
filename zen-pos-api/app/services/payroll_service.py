@@ -5,11 +5,9 @@ from app.models.payroll import PayrollWithdrawalDocument, PerformanceLogDocument
 from app.models.user import UserDocument
 from app.schemas.payroll import PayrollSummary, WithdrawalRequest
 
-# Deduction / bonus rates (per incident)
-LATE_FEE_PER_INCIDENT = 20.0          # $20 per late arrival
-EARLY_DEPARTURE_FEE = 25.0            # $25 per early departure (increased)
-EARLY_ARRIVAL_BONUS = 15.0            # $15 per early arrival
-OVERTIME_BONUS_PER_HOUR = 30.0        # $30 per overtime hour
+WORKING_DAYS_PER_MONTH = 22
+WORKING_HOURS_PER_DAY = 8
+EARLY_ARRIVAL_BONUS_PER_DAY = 15.0   # fixed bonus per early-arrival day
 
 
 async def get_payroll_summary(user_id: str) -> PayrollSummary:
@@ -17,54 +15,83 @@ async def get_payroll_summary(user_id: str) -> PayrollSummary:
     if not user:
         raise NotFoundError("User not found")
 
-    late_count = sum(1 for d in user.monthly_attendance if d.is_late)
-    early_count = sum(1 for d in user.monthly_attendance if d.is_early_departure)
-    early_arrival_count = sum(1 for d in user.monthly_attendance if d.is_early_arrival)
-    overtime_hours = sum(
-        d.hours - 8 for d in user.monthly_attendance if d.is_overtime and d.hours > 8
-    )
+    base = float(user.base_salary or 0)
+    hourly_rate = base / (WORKING_DAYS_PER_MONTH * WORKING_HOURS_PER_DAY)
 
-    late_deduction = late_count * LATE_FEE_PER_INCIDENT
-    early_deduction = early_count * EARLY_DEPARTURE_FEE
-    early_arrival_bonus = early_arrival_count * EARLY_ARRIVAL_BONUS
-    overtime_bonus = round(overtime_hours * OVERTIME_BONUS_PER_HOUR, 2)
+    # Only days where the employee actually checked in count as "worked"
+    worked = [d for d in (user.monthly_attendance or []) if d.check_in]
+    worked_days = len(worked)
+
+    # Pro-rated base — same formula as the HR payroll modal in the frontend
+    earned_base = round(base * (worked_days / WORKING_DAYS_PER_MONTH), 2)
+
+    late_deduction = 0.0
+    early_deduction = 0.0
+    overtime_bonus = 0.0
+    early_arrival_bonus = 0.0
+    late_count = 0
+    early_count = 0
+    early_arrival_count = 0
+    total_overtime_hours = 0.0
+
+    for d in worked:
+        hours = d.hours or 0.0
+        shortfall = max(0.0, WORKING_HOURS_PER_DAY - hours)
+        if d.is_late:
+            late_count += 1
+            late_deduction += shortfall * hourly_rate
+        if d.is_early_departure:
+            early_count += 1
+            early_deduction += shortfall * hourly_rate
+        if d.is_overtime and hours > WORKING_HOURS_PER_DAY:
+            extra = hours - WORKING_HOURS_PER_DAY
+            total_overtime_hours += extra
+            overtime_bonus += extra * hourly_rate
+        if d.is_early_arrival:
+            early_arrival_count += 1
+            early_arrival_bonus += EARLY_ARRIVAL_BONUS_PER_DAY
+
+    late_deduction = round(late_deduction, 2)
+    early_deduction = round(early_deduction, 2)
+    overtime_bonus = round(overtime_bonus, 2)
+    early_arrival_bonus = round(early_arrival_bonus, 2)
 
     # Performance adjustments from logs
     logs = await PerformanceLogDocument.find(
         PerformanceLogDocument.user.id == user.id  # type: ignore[attr-defined]
     ).to_list()
-    reward_bonus = sum(_parse_impact(l.impact) for l in logs if l.type == "Reward")
-    sanction_deduction = sum(_parse_impact(l.impact) for l in logs if l.type == "Sanction")
+    reward_bonus = round(sum(_parse_impact(l.impact) for l in logs if l.type == "Reward"), 2)
+    sanction_deduction = round(sum(_parse_impact(l.impact) for l in logs if l.type == "Sanction"), 2)
 
-    net = (
-        user.base_salary
+    net = round(
+        earned_base
         + reward_bonus
         + overtime_bonus
         + early_arrival_bonus
         - sanction_deduction
         - late_deduction
-        - early_deduction
+        - early_deduction,
+        2,
     )
 
     summary = PayrollSummary(
         user_id=user_id,
         user_name=user.name,
-        base_salary=user.base_salary,
+        base_salary=base,
         reward_bonus=reward_bonus,
         sanction_deduction=sanction_deduction,
         overtime_bonus=overtime_bonus,
         early_arrival_bonus=early_arrival_bonus,
         late_deduction=late_deduction,
         early_departure_deduction=early_deduction,
-        net_payable=round(net, 2),
+        net_payable=net,
         late_count=late_count,
         early_departure_count=early_count,
         early_arrival_count=early_arrival_count,
-        overtime_hours=round(overtime_hours, 2),
+        overtime_hours=round(total_overtime_hours, 2),
     )
 
-    # Keep user.payroll_due in sync so list views show current value without re-fetching
-    user.payroll_due = str(round(net, 2))
+    user.payroll_due = str(net)
     await user.save()
 
     return summary
@@ -93,8 +120,7 @@ async def process_withdrawal(data: WithdrawalRequest) -> PayrollWithdrawalDocume
 
 
 def _parse_impact(impact: str) -> float:
-    """Extract numeric value from impact string like '+$50' or '-$30'."""
     try:
-        return float(impact.replace("$", "").replace("+", ""))
+        return float(str(impact).replace("$", "").replace("+", ""))
     except ValueError:
         return 0.0
