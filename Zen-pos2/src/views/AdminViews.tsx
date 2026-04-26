@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { zenWs } from '../api/websocket';
 import { User, PerformanceLog, Role, Permission, Product, VariationGroup, VariationOption, Ingredient, Order, Customer, CustomerDetail, BestsellerItem, LeaderboardEntry, SalesSummary, RegisterReport } from '../data';
 import { showError, showSuccess } from '../utils/toast';
-import { ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Scatter, LineChart, Line, Area, PieChart, Pie, BarChart, CartesianGrid, Legend } from 'recharts';
+import { ComposedChart, Bar, XAxis, YAxis, Cell, PieChart, Pie, BarChart, CartesianGrid } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
 import type { IngredientItem, PurchaseLog, UsageLog } from '../api/inventory';
@@ -2987,7 +2988,7 @@ export const InventoryView = () => {
           <div className="bg-surface-container rounded-3xl border border-outline-variant/10 p-8 flex flex-col items-center text-center">
             <h3 className="text-xl font-headline font-extrabold text-on-surface uppercase tracking-tight mb-8">Inventory Health Score</h3>
             <div className="relative w-48 h-48 mb-8">
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer config={{}} className="w-full h-full">
                 <PieChart>
                   <Pie
                     data={healthData}
@@ -3004,7 +3005,7 @@ export const InventoryView = () => {
                     ))}
                   </Pie>
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <p className="text-4xl font-headline font-extrabold text-on-surface">{healthScore}</p>
                 <p className={`text-[10px] font-bold uppercase tracking-widest ${healthScore >= 80 ? 'text-tertiary' : healthScore >= 50 ? 'text-secondary' : 'text-error'}`}>
@@ -4059,6 +4060,12 @@ const getPeriodDates = (type: string): { start: string; end: string } | null => 
   return null;
 };
 
+const financeChartConfig = {
+  income:   { label: 'Income',   color: 'var(--chart-1)' },
+  expenses: { label: 'Expenses', color: 'var(--chart-2)' },
+  profit:   { label: 'Profit',   color: 'var(--chart-3)' },
+} satisfies ChartConfig;
+
 const FinanceDashboard = () => {
   const { formatCurrency } = useLocalization();
   const [report, setReport] = useState<FinanceReport | null>(null);
@@ -4283,22 +4290,20 @@ const FinanceDashboard = () => {
                 </div>
               </div>
               <div className="px-2 pb-4">
-                <ResponsiveContainer width="100%" height={260}>
+                <ChartContainer config={financeChartConfig} className="h-[260px] w-full">
                   <ComposedChart data={report.income_by_day} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.08)" vertical={false} />
                     <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 9, fill: 'var(--color-on-surface-variant)' }} width={52} tickFormatter={v => formatCurrency(v)} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      formatter={(v: number, name: string) => [formatCurrency(v), name]}
-                      labelFormatter={fmtDate}
-                      contentStyle={{ background: 'var(--color-surface-container-high)', border: '1px solid rgba(128,128,128,0.1)', borderRadius: '12px', fontSize: '11px', padding: '8px 12px' }}
+                    <ChartTooltip
                       cursor={{ fill: 'rgba(128,128,128,0.06)' }}
+                      content={<ChartTooltipContent formatter={(v) => formatCurrency(v as number)} labelFormatter={(_l, p) => fmtDate(p[0]?.payload?.date ?? '')} />}
                     />
-                    <Bar dataKey="income"   name="Income"   fill="#22c55e" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
-                    <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
-                    <Line dataKey="profit" name="Profit" stroke="#3b82f6" strokeWidth={2} strokeDasharray="4 2" dot={false} />
+                    <Bar dataKey="income"   fill="var(--color-income)"   radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
+                    <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
+                    <Bar dataKey="profit"   fill="var(--color-profit)"   radius={[3,3,0,0]} maxBarSize={32} opacity={0.9} />
                   </ComposedChart>
-                </ResponsiveContainer>
+                </ChartContainer>
               </div>
             </div>
           )}
@@ -4310,12 +4315,14 @@ const FinanceDashboard = () => {
                 <p className="text-xs font-bold text-on-surface mb-1">Expense Breakdown</p>
                 <p className="text-[10px] text-on-surface-variant mb-4 uppercase tracking-widest">Where money goes</p>
                 <div className="flex items-center gap-4">
-                  <PieChart width={140} height={140}>
-                    <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} innerRadius={38} paddingAngle={2}>
-                      {expensePieData.map((_, i) => <Cell key={i} fill={FIN_EXPENSE_COLORS[i % FIN_EXPENSE_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                  </PieChart>
+                  <ChartContainer config={Object.fromEntries(expensePieData.map((e, i) => [e.name, { label: e.name, color: FIN_EXPENSE_COLORS[i % FIN_EXPENSE_COLORS.length] }])) satisfies ChartConfig} className="w-[140px] h-[140px] flex-shrink-0">
+                    <PieChart>
+                      <Pie data={expensePieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} innerRadius={38} paddingAngle={2}>
+                        {expensePieData.map((_, i) => <Cell key={i} fill={FIN_EXPENSE_COLORS[i % FIN_EXPENSE_COLORS.length]} />)}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent formatter={(v) => formatCurrency(v as number)} />} />
+                    </PieChart>
+                  </ChartContainer>
                   <div className="flex-1 space-y-2">
                     {expensePieData.map((e, i) => (
                       <div key={e.name} className="flex items-center gap-2">
@@ -4735,42 +4742,42 @@ const SalesView = () => {
                 ))}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer config={{ income: { label: 'Revenue', color: 'white' } } satisfies ChartConfig} className="w-full h-full">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
-                  <XAxis 
-                    dataKey="dateLabel" 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <XAxis
+                    dataKey="dateLabel"
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
                     dy={10}
                   />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: 'white', fontSize: 10, fontWeight: 600, opacity: 0.5 }}
                     tickFormatter={(val) => formatCurrency(val).split('.')[0]}
                   />
-                  <Tooltip 
+                  <ChartTooltip
                     cursor={{ fill: 'white', opacity: 0.05 }}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
-                        const data = payload[0].payload;
+                        const d = payload[0].payload;
                         return (
                           <div className="bg-black/80 backdrop-blur-2xl border border-white/10 rounded-[1.5rem] p-6 shadow-2xl overflow-hidden min-w-[200px]">
-                            <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4 border-b border-white/5 pb-2">{data.fullDate}</div>
+                            <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4 border-b border-white/5 pb-2">{d.fullDate}</div>
                             <div className="space-y-3">
                               <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
                                 <span className="text-[10px] font-bold text-white/60 uppercase">Revenue</span>
-                                <span className="text-sm font-headline font-extrabold text-white">{formatCurrency(data.income)}</span>
+                                <span className="text-sm font-headline font-extrabold text-white">{formatCurrency(d.income)}</span>
                               </div>
                               <div className="flex justify-between items-center px-2">
                                 <span className="text-[10px] font-bold text-white/60 uppercase">Volume</span>
-                                <span className="text-sm font-bold text-white">{data.order_count} Orders</span>
+                                <span className="text-sm font-bold text-white">{d.order_count} Orders</span>
                               </div>
                               <div className="flex justify-between items-center px-2">
                                 <span className="text-[10px] font-bold text-white/60 uppercase">Efficiency</span>
-                                <span className="text-sm font-bold text-white">{data.avg_prep_time_minutes}m avg prep</span>
+                                <span className="text-sm font-bold text-white">{d.avg_prep_time_minutes}m avg prep</span>
                               </div>
                             </div>
                           </div>
@@ -4779,9 +4786,9 @@ const SalesView = () => {
                       return null;
                     }}
                   />
-                  <Bar dataKey="income" radius={[4, 4, 0, 0]} fill="white" />
+                  <Bar dataKey="income" radius={[4, 4, 0, 0]} fill="var(--color-income)" />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             )}
           </div>
         </div>
