@@ -156,6 +156,17 @@ export async function createPerformanceLog(
   return mapPerformanceLog(raw);
 }
 
+export async function editSalaryWithdrawal(
+  withdrawalId: string,
+  data: { amount: number; admin_notes?: string; audit_notes?: string; status?: string },
+): Promise<WithdrawalLog> {
+  const raw = await apiRequest<ApiWithdrawal>(`/payroll/withdrawals/${encodeURIComponent(withdrawalId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+  return mapWithdrawal(raw);
+}
+
 export async function deleteSalaryWithdrawal(withdrawalId: string): Promise<void> {
   await apiRequest<void>(`/payroll/withdrawals/${encodeURIComponent(withdrawalId)}`, { method: 'DELETE' });
 }

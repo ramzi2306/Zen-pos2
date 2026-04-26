@@ -57,6 +57,37 @@ async def user_withdrawals(user_id: str):
     ]
 
 
+class WithdrawalEditRequest(BaseModel):
+    amount: float
+    admin_notes: Optional[str] = None
+    audit_notes: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.patch("/withdrawals/{withdrawal_id}", response_model=WithdrawalOut,
+              dependencies=[Depends(require_permission("view_hr"))])
+async def edit_salary_withdrawal(withdrawal_id: str, body: WithdrawalEditRequest):
+    record = await PayrollWithdrawalDocument.get(withdrawal_id)
+    if not record:
+        raise NotFoundError("Withdrawal record not found")
+    record.amount = body.amount
+    if body.admin_notes is not None:
+        record.admin_notes = body.admin_notes
+    if body.audit_notes is not None:
+        record.audit_notes = body.audit_notes
+    if body.status is not None:
+        record.status = body.status
+    await record.save()
+    return WithdrawalOut(
+        id=str(record.id),
+        user_id=str(record.user.ref.id) if hasattr(record.user, "ref") else "",
+        amount=record.amount,
+        net_amount=record.net_amount,
+        date=record.date,
+        status=record.status,
+    )
+
+
 @router.delete("/withdrawals/{withdrawal_id}", status_code=204,
                dependencies=[Depends(require_permission("view_hr"))])
 async def delete_salary_withdrawal(withdrawal_id: str):

@@ -83,6 +83,10 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
   const [performanceLogs, setPerformanceLogs] = useState<import('../api/payroll').PerformanceLogEntry[]>([]);
   const [attendanceSummary, setAttendanceSummary] = useState<import('../api/attendance').AttendanceReportSummary | null>(null);
   const [withdrawals, setWithdrawals] = useState<import('../api/payroll').WithdrawalLog[]>([]);
+  const [editingWithdrawalId, setEditingWithdrawalId] = useState<string | null>(null);
+  const [editWithdrawalAmount, setEditWithdrawalAmount] = useState('');
+  const [deletingWithdrawalId, setDeletingWithdrawalId] = useState<string | null>(null);
+  const [savingWithdrawalId, setSavingWithdrawalId] = useState<string | null>(null);
 
   useEffect(() => {
     api.payroll.getPerformanceLogs(user.id).then(setPerformanceLogs).catch(console.error);
@@ -146,6 +150,27 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
 
   const handleBackspace = () => setAmount(prev => prev.slice(0, -1));
 
+  const handleSaveWithdrawalEdit = async (id: string) => {
+    const num = parseFloat(editWithdrawalAmount);
+    if (isNaN(num) || num <= 0) return;
+    setSavingWithdrawalId(id);
+    try {
+      const updated = await api.payroll.editSalaryWithdrawal(id, { amount: num });
+      setWithdrawals(prev => prev.map(w => w.id === id ? updated : w));
+      setEditingWithdrawalId(null);
+    } catch { showError('Failed to update withdrawal'); }
+    finally { setSavingWithdrawalId(null); }
+  };
+
+  const handleDeleteWithdrawal = async (id: string) => {
+    setDeletingWithdrawalId(id);
+    try {
+      await api.payroll.deleteSalaryWithdrawal(id);
+      setWithdrawals(prev => prev.filter(w => w.id !== id));
+    } catch { showError('Failed to delete withdrawal'); }
+    finally { setDeletingWithdrawalId(null); }
+  };
+
   const handleProcess = async () => {
     setIsPrinting(true);
     try {
@@ -162,6 +187,7 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
         status: log.status as 'Completed' | 'Pending',
       };
       user.withdrawalLogs.unshift(newLog);
+      setWithdrawals(prev => [log, ...prev]);
     } catch (err: any) {
       showError('Withdrawal failed: ' + (err?.message || 'Unknown error'));
     } finally {
@@ -441,6 +467,73 @@ const WithdrawalModal = ({ user, dateRange, onClose }: { user: User, dateRange?:
                   />
                 </div>
               </div>
+
+              {/* ── Withdrawal History ───────────────────────── */}
+              {withdrawals.length > 0 && (
+                <div className="mt-8 p-6 bg-surface-container rounded-[2rem] border border-outline-variant/10">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Withdrawal History</h3>
+                    <span className="text-[10px] bg-surface-container-highest px-2 py-0.5 rounded-full text-on-surface-variant font-bold">{withdrawals.length} record{withdrawals.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {[...withdrawals].sort((a, b) => b.date.localeCompare(a.date)).map(w => (
+                      <div key={w.id} className="group flex items-center gap-3 p-3 bg-surface-container-low rounded-xl border border-outline-variant/8 hover:border-outline-variant/20 transition-all">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'color-mix(in srgb, var(--color-secondary) 10%, transparent)' }}>
+                          <span className="material-symbols-outlined text-sm" style={{ color: 'var(--color-secondary)' }}>payments</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {editingWithdrawalId === w.id ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-on-surface-variant text-sm">$</span>
+                              <input
+                                type="number" min="0" step="0.01"
+                                value={editWithdrawalAmount}
+                                onChange={e => setEditWithdrawalAmount(e.target.value)}
+                                autoFocus
+                                className="w-28 px-2 py-1 rounded-lg bg-surface-container text-sm font-bold text-on-surface border border-secondary/40 focus:outline-none focus:border-secondary"
+                              />
+                              <button onClick={() => handleSaveWithdrawalEdit(w.id)}
+                                disabled={savingWithdrawalId === w.id}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-colors"
+                                style={{ background: 'color-mix(in srgb, var(--color-tertiary) 15%, transparent)', color: 'var(--color-tertiary)' }}>
+                                {savingWithdrawalId === w.id ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">check</span>}
+                              </button>
+                              <button onClick={() => setEditingWithdrawalId(null)}
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant hover:bg-surface-container transition-colors">
+                                <span className="material-symbols-outlined text-sm">close</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm font-bold text-on-surface">{formatCurrency(w.amount)}</p>
+                              <p className="text-[10px] text-on-surface-variant">{w.date} · {w.status}</p>
+                            </>
+                          )}
+                        </div>
+                        {editingWithdrawalId !== w.id && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <button
+                              onClick={() => { setEditingWithdrawalId(w.id); setEditWithdrawalAmount(String(w.amount)); }}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-surface-container-highest"
+                              title="Edit">
+                              <span className="material-symbols-outlined text-sm text-on-surface-variant">edit</span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteWithdrawal(w.id)}
+                              disabled={deletingWithdrawalId === w.id}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-error/60 hover:text-error hover:bg-error/10 transition-colors disabled:opacity-40"
+                              title="Delete">
+                              {deletingWithdrawalId === w.id
+                                ? <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                : <span className="material-symbols-outlined text-sm">delete</span>}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-12 flex flex-col items-center relative">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4 text-center">Withdrawal Amount</p>
