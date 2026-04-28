@@ -65,26 +65,27 @@ const CloseRegisterModal = ({
   const expectedCard  = cardOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const expectedOther = otherOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
-  // Cash expected should subtract withdrawn cash (already removed from register)
-  const expectedCashNet = expectedCash - withdrawnCash;
-
-
+  // Expected cash in the physical drawer:
+  // opening float + all cash collected - cash removed via withdrawals
+  const expectedCashInDrawer = openingFloat + expectedCash - withdrawnCash;
 
   const paymentMethods = [
-    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCashNet,  refunds: 0 },
-    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,     refunds: 0 },
-    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther,    refunds: 0 },
+    { name: 'Cash',        ordersCount: cashOrders.length,  total: expectedCash,  expectedInDrawer: expectedCashInDrawer, refunds: 0 },
+    { name: 'Credit Card', ordersCount: cardOrders.length,  total: expectedCard,  expectedInDrawer: expectedCard,         refunds: 0 },
+    { name: 'Other',       ordersCount: otherOrders.length, total: expectedOther, expectedInDrawer: expectedOther,        refunds: 0 },
   ];
 
   const totalSales = expectedCash + expectedCard + expectedOther;
-  const salesNet = totalSales - withdrawnCash; // Net sales after withdrawals
-  
   const currentFondDeCaisse = parseFloat(fondDeCaisse) || 0;
-  const floatDifference = openingFloat - currentFondDeCaisse;
-  const expectedSales = salesNet + floatDifference; // Adjusted for float change
 
+  // Expected across all payment channels (cash drawer + card terminal + other)
+  const totalExpected = openingFloat + totalSales - withdrawnCash;
+
+  // Sum of what cashier entered for all methods
   const totalCounted = (parseFloat(actualAmounts['Cash']) || 0) + (parseFloat(actualAmounts['Credit Card']) || 0) + (parseFloat(actualAmounts['Other']) || 0);
-  const totalActual = totalCounted - withdrawnCash; // Net actual after withdrawals
+
+  // Overall discrepancy
+  const discrepancy = totalCounted - totalExpected;
 
   const handleActualChange = (method: string, value: string) => {
     if (/^\d*\.?\d*$/.test(value)) {
@@ -110,11 +111,11 @@ const CloseRegisterModal = ({
         paymentMethods: paymentMethods.map(pm => ({
           ...pm,
           actual: parseFloat(actualAmounts[pm.name]) || 0,
-          difference: (parseFloat(actualAmounts[pm.name]) || 0) - pm.total
+          difference: (parseFloat(actualAmounts[pm.name]) || 0) - pm.expectedInDrawer
         })),
-        expectedSales,
-        actualSales: totalActual,
-        difference: totalActual - expectedSales,
+        expectedSales: totalExpected,
+        actualSales: totalCounted,
+        difference: discrepancy,
         notes,
         openingFloat,
         fondDeCaisse: currentFondDeCaisse,
@@ -198,7 +199,7 @@ const CloseRegisterModal = ({
             {/* Table Content */}
             <div className="bg-[#1a1d21] flex-1 overflow-y-auto border-b border-white/10">
               {paymentMethods.map((pm) => {
-                const expected = pm.total - pm.refunds;
+                const expected = pm.expectedInDrawer - pm.refunds;
                 const actual = parseFloat(actualAmounts[pm.name]) || 0;
                 const diff = actual - expected;
                 const isActive = activeNumpadMethod === pm.name;
@@ -211,7 +212,7 @@ const CloseRegisterModal = ({
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{pm.ordersCount}</div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{formatCurrency(pm.total)}</div>
                     <div className="p-6 text-sm text-white/60 border-r border-white/5 flex items-center justify-center">{pm.refunds === 0 ? '—' : formatCurrency(pm.refunds)}</div>
-                    <div className="p-6 text-sm font-bold text-white/80 border-r border-white/5 flex items-center justify-center">{formatCurrency(expected)}</div>
+                    <div className="p-6 text-sm font-bold text-white/80 border-r border-white/5 flex items-center justify-center" title={pm.name === 'Cash' ? `Opening float ${formatCurrency(openingFloat)} + sales ${formatCurrency(pm.total)} − withdrawn ${formatCurrency(withdrawnCash)}` : undefined}>{formatCurrency(expected)}</div>
                     <div className="p-4 border-r border-white/5 flex items-center justify-center">
                       <div className={`relative w-full max-w-[180px] transition-all duration-300 ${isActive ? 'z-[110]' : 'z-auto'}`}>
                         <div className="relative group p-1 rounded-2xl transition-all shadow-sm">
@@ -273,10 +274,14 @@ const CloseRegisterModal = ({
               </div>
               
               <div className="text-right">
-                <p className="text-[9px] uppercase font-bold text-white/30 tracking-widest mb-0.5">FLOAT ADJUSTMENT</p>
-                <p className={`text-sm font-bold ${floatDifference === 0 ? 'text-white/40' : floatDifference > 0 ? 'text-tertiary' : 'text-secondary'}`}>
-                  {floatDifference === 0 ? 'No change' : (floatDifference > 0 ? '+' : '-') + formatCurrency(Math.abs(floatDifference))}
-                </p>
+                <p className="text-[9px] uppercase font-bold text-white/30 tracking-widest mb-0.5">FLOAT CHANGE</p>
+                {currentFondDeCaisse > 0 ? (
+                  <p className={`text-sm font-bold ${currentFondDeCaisse === openingFloat ? 'text-white/40' : currentFondDeCaisse > openingFloat ? 'text-tertiary' : 'text-secondary'}`}>
+                    {formatCurrency(openingFloat)} → {formatCurrency(currentFondDeCaisse)}
+                  </p>
+                ) : (
+                  <p className="text-sm font-bold text-white/30">—</p>
+                )}
               </div>
             </div>
 
@@ -295,6 +300,11 @@ const CloseRegisterModal = ({
                 <div className="text-right">
                   <div className="flex justify-end items-center gap-3 mb-2">
                     <div className="text-right">
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">OPENING FLOAT</p>
+                      <p className="text-sm font-bold text-white/50">{formatCurrency(openingFloat)}</p>
+                    </div>
+                    <div className="text-white/20 font-bold text-lg">+</div>
+                    <div className="text-right">
                       <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">GROSS SALES</p>
                       <p className="text-sm font-bold text-white/50">{formatCurrency(totalSales)}</p>
                     </div>
@@ -303,24 +313,20 @@ const CloseRegisterModal = ({
                       <p className="text-[9px] font-bold text-secondary/70 uppercase tracking-widest mb-0.5">WITHDRAWN</p>
                       <p className="text-sm font-bold text-secondary/70">{formatCurrency(withdrawnCash)}</p>
                     </div>
-                    <div className="text-white/20 font-bold text-lg">{floatDifference >= 0 ? '+' : '−'}</div>
-                    <div className="text-right">
-                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-0.5">FLOAT DIFF</p>
-                      <p className="text-sm font-bold text-white/50">{formatCurrency(Math.abs(floatDifference))}</p>
-                    </div>
                     <div className="text-white/20 font-bold text-lg">=</div>
                   </div>
                   <div className="border-t border-white/10 mt-1 pt-2">
-                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL REGISTER SALES (EXPECTED)</p>
-                    <p className="text-2xl font-headline font-extrabold text-white/60">{formatCurrency(expectedSales)}</p>
+                    <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-0.5">TOTAL EXPECTED ACROSS ALL CHANNELS</p>
+                    <p className="text-2xl font-headline font-extrabold text-white/60">{formatCurrency(totalExpected)}</p>
                   </div>
                   <div className="border-t border-white/10 mt-2 pt-2">
-                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL ACTUAL COUNTED (NET)</p>
-                    <div className="flex items-center justify-end gap-2 text-white/40 text-[10px] font-medium mb-1">
-                      <span>{formatCurrency(totalCounted)} Counted</span>
-                      <span className="text-secondary">- {formatCurrency(withdrawnCash)} Withdrawn</span>
-                    </div>
-                    <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(totalActual)}</p>
+                    <p className="text-[9px] font-bold text-[#d84315] uppercase tracking-widest mb-0.5">TOTAL COUNTED BY CASHIER</p>
+                    <p className="text-3xl font-headline font-extrabold text-white/80">{formatCurrency(totalCounted)}</p>
+                    {totalCounted > 0 && (
+                      <p className={`text-xs font-bold mt-1 ${discrepancy === 0 ? 'text-white/30' : discrepancy > 0 ? 'text-tertiary' : 'text-secondary'}`}>
+                        {discrepancy === 0 ? 'Balanced' : (discrepancy > 0 ? '+' : '') + formatCurrency(discrepancy) + ' discrepancy'}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -344,19 +350,19 @@ const CloseRegisterModal = ({
                 <button
                   onClick={() => {
                     if (onConfirm) {
-                      onConfirm({ 
-                        actualSales: totalActual, 
-                        expectedSales, 
-                        difference: totalActual - expectedSales, 
+                      onConfirm({
+                        actualSales: totalCounted,
+                        expectedSales: totalExpected,
+                        difference: discrepancy,
                         notes,
                         openedAt: openedAt || Date.now(),
                         closedAt: Date.now(),
                         cashierName,
-                        countedClosingFloat: parseFloat(fondDeCaisse) || 0,
+                        countedClosingFloat: currentFondDeCaisse,
                         openingFloat: openingFloat,
                         totalCashWithdrawn: withdrawnCash,
-                        netCashCollected: totalSales,
-                        discrepancy: totalActual - expectedSales,
+                        netCashCollected: expectedCash,
+                        discrepancy,
                       });
                     } else {
                       onClose();
