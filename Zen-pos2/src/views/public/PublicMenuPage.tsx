@@ -236,7 +236,7 @@ function SwipeablePublicItem({
 type PanelView = 'cart' | 'checkout' | 'placed' | 'tracking' | 'history_phone' | 'history_otp' | 'history_list';
 
 // ─── Cart panel ────────────────────────────────────────────────────────────────
-function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
+function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boolean; setOpen: (o: boolean) => void; orderForLater?: boolean }) {
   const { 
     items, updateQty, updateNote, removeItem, subtotal, itemCount, clearCart,
     ui, setUi, resetUi
@@ -294,6 +294,12 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
   const [checkoutOrderType, setCheckoutOrderType] = useState<'pickup' | 'delivery'>('delivery');
   const [pickupMode, setPickupMode] = useState<'now' | 'later'>('later');
   const [pickupTime, setPickupTime] = useState('');
+  const [deliveryTime, setDeliveryTime] = useState('');
+
+  // Lock to "later" when ordering for later
+  useEffect(() => {
+    if (orderForLater) setPickupMode('later');
+  }, [orderForLater]);
   const [deliveryPlaces, setDeliveryPlaces] = useState<{ id: string; name: string; wilaya: string; delivery_fee: number }[]>([]);
   const [deliveryPlaceSearch, setDeliveryPlaceSearch] = useState('');
   const [showDeliveryPlaceDropdown, setShowDeliveryPlaceDropdown] = useState(false);
@@ -554,8 +560,8 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
     try {
       const snap = [...items];
       const pickupPrefix = checkoutOrderType === 'pickup'
-        ? pickupMode === 'now' ? '[Pickup: Now] ' : pickupTime ? `[Pickup: ${pickupTime}] ` : '[Pickup] '
-        : '';
+        ? pickupMode === 'now' ? '[Pickup: Now] ' : pickupTime ? `[Pickup: ${pickupTime}] ` : '[Pickup: Later] '
+        : deliveryTime ? `[Delivery: ${deliveryTime}] ` : '';
       const result = await publicApi.createOnlineOrder({
         items: items,
         customer: {
@@ -914,25 +920,32 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                         {/* Now / Later quick-select */}
                         <div>
                           <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Pickup time</p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {([
-                              { mode: 'now'   as const, label: 'Now!',  icon: 'bolt'         },
-                              { mode: 'later' as const, label: 'Later', icon: 'schedule'      },
-                            ]).map(({ mode, label, icon }) => (
-                              <button
-                                key={mode}
-                                onClick={() => setPickupMode(mode)}
-                                className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-bold transition-all ${
-                                  pickupMode === mode
-                                    ? 'border-tertiary bg-tertiary/10 text-tertiary'
-                                    : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                                }`}
-                              >
-                                <span className="material-symbols-outlined text-[16px]">{icon}</span>
-                                {label}
-                              </button>
-                            ))}
-                          </div>
+                          {orderForLater ? (
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-tertiary/10 border border-tertiary/20">
+                              <span className="material-symbols-outlined text-[15px] text-tertiary">calendar_clock</span>
+                              <span className="text-xs font-bold text-tertiary">Scheduled pickup — working hours only</span>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              {([
+                                { mode: 'now'   as const, label: 'Now!',  icon: 'bolt'    },
+                                { mode: 'later' as const, label: 'Later', icon: 'schedule' },
+                              ]).map(({ mode, label, icon }) => (
+                                <button
+                                  key={mode}
+                                  onClick={() => setPickupMode(mode)}
+                                  className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-bold transition-all ${
+                                    pickupMode === mode
+                                      ? 'border-tertiary bg-tertiary/10 text-tertiary'
+                                      : 'border-outline-variant/20 bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-[16px]">{icon}</span>
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Specific time input — only when "Later" */}
@@ -1032,6 +1045,28 @@ function PublicCartPanel({ open, setOpen }: { open: boolean; setOpen: (o: boolea
                             />
                             {errors.address && <span className="text-[10px] text-error font-bold flex-shrink-0">{errors.address}</span>}
                           </label>
+                        )}
+
+                        {/* Scheduled delivery time — only in "Order for Later" mode */}
+                        {orderForLater && (
+                          <div>
+                            <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Scheduled delivery time</p>
+                            <label className="flex items-center gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-tertiary/60 focus-within:bg-surface-container-high transition-all">
+                              <span className="material-symbols-outlined text-[18px] text-tertiary flex-shrink-0">calendar_clock</span>
+                              <input
+                                type="time"
+                                value={deliveryTime}
+                                onChange={e => setDeliveryTime(e.target.value)}
+                                className="flex-1 bg-transparent text-sm text-on-surface focus:outline-none"
+                              />
+                              {deliveryTime && (
+                                <button onClick={() => setDeliveryTime('')} className="text-outline-variant hover:text-error transition-colors cursor-pointer">
+                                  <span className="material-symbols-outlined text-[16px]">close</span>
+                                </button>
+                              )}
+                            </label>
+                            <p className="text-[10px] text-on-surface-variant/60 mt-1.5">Pickup &amp; delivery fulfilled during working hours only</p>
+                          </div>
                         )}
 
                         {/* Note */}
@@ -1735,6 +1770,7 @@ function PublicMenuPageInner() {
   const [showFullSchedule, setShowFullSchedule] = useState(false);
   const isClosed = !venueStatus.isOpen && !orderForLater;
 
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
   const [activeCategory, setActiveCategory] = useState('All');
@@ -2081,7 +2117,7 @@ function PublicMenuPageInner() {
               transition={{ type: 'spring', stiffness: 300, damping: 32 }}
               className="hidden lg:block flex-shrink-0 overflow-hidden"
             >
-              <PublicCartPanel open={true} setOpen={setCartOpen} />
+              <PublicCartPanel open={true} setOpen={setCartOpen} orderForLater={orderForLater} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2089,7 +2125,7 @@ function PublicMenuPageInner() {
 
       {/* Mobile cart */}
       <div className="lg:hidden">
-        <PublicCartPanel open={cartOpen} setOpen={setCartOpen} />
+        <PublicCartPanel open={cartOpen} setOpen={setCartOpen} orderForLater={orderForLater} />
       </div>
 
       {/* Mobile floating button — hidden when closed */}
