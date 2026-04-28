@@ -2734,17 +2734,28 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
             {existingCategories.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {existingCategories.map(cat => (
-                  <button
+                  <div
                     key={cat}
-                    onClick={() => toggleCategory(cat)}
-                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer border ${
+                    className={`group relative flex items-center gap-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all border cursor-pointer ${
                       selectedCategories.includes(cat)
                         ? 'bg-primary text-on-primary border-primary'
                         : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant hover:border-primary/40'
                     }`}
                   >
-                    {cat}
-                  </button>
+                    <button
+                      onClick={() => toggleCategory(cat)}
+                      className="px-3 py-1 cursor-pointer"
+                    >
+                      {cat}
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setExistingCategories(prev => prev.filter(c => c !== cat)); setSelectedCategories(prev => prev.filter(c => c !== cat)); }}
+                      className="opacity-0 group-hover:opacity-100 pr-2 transition-opacity cursor-pointer text-current hover:text-error"
+                      title="Remove category"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">close</span>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
