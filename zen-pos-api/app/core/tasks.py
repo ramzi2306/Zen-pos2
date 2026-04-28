@@ -48,6 +48,42 @@ async def process_recurring_expenses():
         logger.error(f"Error processing recurring expenses: {e}")
 
 
+async def process_recurring_usages():
+    from datetime import date
+    from app.models.ingredient import RecurringUsageDocument, UsageLogDocument
+    from app.routers.ingredients import _next_run_date
+
+    logger.info("Processing recurring usages...")
+    try:
+        today = date.today().isoformat()
+        due = await RecurringUsageDocument.find(
+            RecurringUsageDocument.is_active == True,   # noqa: E712
+            RecurringUsageDocument.is_paused == False,  # noqa: E712
+            RecurringUsageDocument.next_run <= today
+        ).to_list()
+
+        for rec in due:
+            await rec.fetch_all_links()
+            ing = rec.ingredient
+            if not ing:
+                continue
+            ing.in_stock = max(0, round(ing.in_stock - rec.quantity, 4))
+            await ing.save()
+            log = UsageLogDocument(
+                ingredient=ing,
+                quantity=rec.quantity,
+                unit=rec.unit,
+                reason=f"[Auto] {rec.reason}",
+                date=today,
+            )
+            await log.insert()
+            rec.next_run = _next_run_date(today, rec.frequency)
+            await rec.save()
+            logger.info(f"Recurring usage '{ing.name}' x{rec.quantity} applied for {today}")
+    except Exception as e:
+        logger.error(f"Error processing recurring usages: {e}")
+
+
 async def detect_orphaned_sessions():
     from datetime import datetime, timedelta, timezone
     from app.models.register import RegisterSessionDocument
@@ -89,6 +125,12 @@ def start_scheduler():
             process_recurring_expenses,
             CronTrigger(hour=1, minute=0),
             id="process_recurring_expenses",
+            replace_existing=True
+        )
+        scheduler.add_job(
+            process_recurring_usages,
+            CronTrigger(hour=1, minute=30),
+            id="process_recurring_usages",
             replace_existing=True
         )
         scheduler.start()

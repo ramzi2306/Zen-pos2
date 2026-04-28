@@ -1731,7 +1731,9 @@ function PublicMenuPageInner() {
     const id = setInterval(tick, 10_000); // Check more frequently for the countdown
     return () => clearInterval(id);
   }, []);
-  const isClosed = !venueStatus.isOpen;
+  const [orderForLater, setOrderForLater] = useState(false);
+  const [showFullSchedule, setShowFullSchedule] = useState(false);
+  const isClosed = !venueStatus.isOpen && !orderForLater;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(['All']);
@@ -1880,6 +1882,22 @@ function PublicMenuPageInner() {
         </div>
       </header>
 
+      {/* Order for Later banner */}
+      {orderForLater && !venueStatus.isOpen && (
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 bg-tertiary/10 border-b border-tertiary/20">
+          <span className="material-symbols-outlined text-[18px] text-tertiary flex-shrink-0">calendar_clock</span>
+          <p className="text-xs font-semibold text-tertiary flex-1">
+            Ordering for later — pickup &amp; delivery scheduled during working hours only
+          </p>
+          <button
+            onClick={() => setOrderForLater(false)}
+            className="flex-shrink-0 text-tertiary/70 hover:text-tertiary transition-colors cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Category filter */}
       <div className="flex-shrink-0 px-4 md:px-8 py-3 border-b border-outline-variant/10 bg-surface-container-lowest">
         <CategoryFilter categories={categories} activeCategory={activeCategory} onChange={setActiveCategory} />
@@ -1890,105 +1908,134 @@ function PublicMenuPageInner() {
         {/* Product grid */}
         <div className={`flex-1 p-4 md:p-8 bg-grid-pattern relative ${isClosed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
 
-          {/* ── Closed overlay ────────────────────────────────────────── */}
-          {isClosed && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md px-6 overflow-y-auto">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-md bg-surface-container-lowest rounded-[2.5rem] p-8 md:p-10 border border-outline-variant/10 shadow-2xl flex flex-col items-center text-center gap-8 my-auto"
-              >
-                {/* Header Icon */}
-                <div className="relative">
-                  <motion.div 
-                    animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.8, 0.5] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute inset-0 bg-primary/20 blur-2xl rounded-full"
-                  />
-                  <div className="relative w-24 h-24 rounded-full bg-primary/5 flex items-center justify-center border border-primary/20 shadow-inner">
-                    <span className="material-symbols-outlined text-5xl text-primary font-light">bedtime</span>
-                  </div>
+          {/* ── Closed overlay — full-screen, single-view, mobile-first ── */}
+          {!venueStatus.isOpen && !orderForLater && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/98 backdrop-blur-xl px-5"
+            >
+              {/* Ambient glow */}
+              <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative w-full max-w-sm flex flex-col items-center text-center gap-4">
+
+                {/* Icon */}
+                <motion.div
+                  animate={{ scale: [1, 1.06, 1] }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+                  className="w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-lg shadow-primary/10"
+                >
+                  <span className="material-symbols-outlined text-[40px] text-primary" style={{ fontVariationSettings: "'FILL' 0" }}>bedtime</span>
+                </motion.div>
+
+                {/* Title */}
+                <div className="space-y-1">
+                  <h1 className="font-headline font-black text-4xl text-on-surface tracking-tight leading-none">We're Closed</h1>
+                  <p className="text-sm text-on-surface-variant">{restaurantName}</p>
                 </div>
 
-                <div className="space-y-3">
-                  <h2 className="font-headline font-black text-3xl md:text-4xl text-on-surface tracking-tight">Currently Resting</h2>
-                  <p className="text-base text-on-surface-variant leading-relaxed max-w-[280px] mx-auto">
-                    We're preparing our kitchen to serve you the best experience soon.
+                {/* Next opening pill */}
+                {venueStatus.nextOpen && (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-outline-variant/20 bg-surface-container">
+                    <span className="material-symbols-outlined text-[15px] text-primary">schedule</span>
+                    <span className="text-sm font-semibold text-on-surface">Opens {venueStatus.nextOpen}</span>
+                  </div>
+                )}
+
+                {/* Countdown — only when < 1 hr away */}
+                {(() => {
+                  if (!venueStatus.nextOpenDate) return null;
+                  const diff = venueStatus.nextOpenDate.getTime() - Date.now();
+                  if (diff <= 0 || diff >= 60 * 60 * 1000) return null;
+                  const mins = Math.floor(diff / 60000);
+                  const secs = Math.floor((diff % 60000) / 1000);
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-tertiary uppercase tracking-widest">Opening in</span>
+                      <span className="font-headline font-black text-xl text-tertiary">
+                        {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Today's hours + expandable full schedule */}
+                {(() => {
+                  const oh = branding.openingHours ?? DEFAULT_OPENING_HOURS;
+                  const dayKeys = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+                  const dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+                  const todayIdx = (new Date().getDay() + 6) % 7;
+                  const todayKey = dayKeys[todayIdx];
+                  const todayDay = oh[todayKey];
+                  return (
+                    <div className="w-full space-y-2">
+                      {/* Today row */}
+                      <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-surface-container border border-outline-variant/10">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[16px] text-primary">today</span>
+                          <span className="text-sm font-bold text-on-surface">Today</span>
+                        </div>
+                        <span className="text-sm font-semibold text-on-surface-variant">
+                          {todayDay.enabled ? `${todayDay.open} – ${todayDay.close}` : 'Closed today'}
+                        </span>
+                      </div>
+
+                      {/* Expandable full schedule */}
+                      {showFullSchedule && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="space-y-1 pt-1">
+                            {dayKeys.map((key, i) => {
+                              if (i === todayIdx) return null;
+                              const d = oh[key];
+                              return (
+                                <div key={key} className="flex items-center justify-between px-4 py-2 rounded-xl opacity-60">
+                                  <span className="text-xs font-bold text-on-surface">{dayLabels[i]}</span>
+                                  <span className="text-xs text-on-surface-variant">
+                                    {d.enabled ? `${d.open} – ${d.close}` : 'Closed'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <button
+                        onClick={() => setShowFullSchedule(v => !v)}
+                        className="w-full flex items-center justify-center gap-1 py-1.5 text-[11px] font-bold text-on-surface-variant/60 hover:text-on-surface-variant uppercase tracking-widest transition-colors cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">{showFullSchedule ? 'expand_less' : 'expand_more'}</span>
+                        {showFullSchedule ? 'Hide schedule' : 'View full schedule'}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Divider */}
+                <div className="w-full h-px bg-outline-variant/10" />
+
+                {/* Order for Later CTA */}
+                <div className="w-full space-y-3">
+                  <button
+                    onClick={() => setOrderForLater(true)}
+                    className="w-full py-4 rounded-2xl bg-primary text-on-primary font-bold uppercase tracking-widest text-sm shadow-lg shadow-primary/25 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">calendar_clock</span>
+                    Order for Later
+                  </button>
+                  <p className="text-[11px] text-on-surface-variant/50 leading-relaxed">
+                    Browse the menu &amp; order now — pickup and delivery scheduled during working hours only
                   </p>
                 </div>
 
-                {/* Status & Countdown Card */}
-                <div className="w-full bg-surface-container-low rounded-3xl p-6 border border-outline-variant/5">
-                  <div className="flex flex-col items-center gap-1 mb-4">
-                    <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">Next Opening</span>
-                    <span className="text-lg font-headline font-bold text-on-surface">{venueStatus.nextOpen}</span>
-                  </div>
-
-                  {(() => {
-                    if (!venueStatus.nextOpenDate) return null;
-                    const diff = venueStatus.nextOpenDate.getTime() - Date.now();
-                    const isSoon = diff > 0 && diff < 60 * 60 * 1000; // Less than 1 hour
-                    if (!isSoon) return null;
-
-                    const mins = Math.floor(diff / 60000);
-                    const secs = Math.floor((diff % 60000) / 1000);
-
-                    return (
-                      <div className="mt-4 pt-4 border-t border-outline-variant/10">
-                        <p className="text-[10px] font-bold text-tertiary uppercase tracking-widest mb-2">Opening in</p>
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="flex flex-col">
-                            <span className="text-3xl font-headline font-black text-tertiary">{mins.toString().padStart(2, '0')}</span>
-                            <span className="text-[8px] font-bold uppercase opacity-50">min</span>
-                          </div>
-                          <span className="text-2xl font-black text-tertiary/30 pb-4">:</span>
-                          <div className="flex flex-col">
-                            <span className="text-3xl font-headline font-black text-tertiary">{secs.toString().padStart(2, '0')}</span>
-                            <span className="text-[8px] font-bold uppercase opacity-50">sec</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Weekly Schedule */}
-                <div className="w-full space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-px flex-1 bg-outline-variant/10" />
-                    <span className="text-[10px] font-bold text-outline-variant uppercase tracking-[0.2em]">Our Schedule</span>
-                    <div className="h-px flex-1 bg-outline-variant/10" />
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-2">
-                    {(() => {
-                      const oh = branding.openingHours ?? DEFAULT_OPENING_HOURS;
-                      const dayKeys = ['monday','tuesday','wednesday','thursday','friday','saturday', 'sunday'] as const;
-                      const dayLabels = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday', 'Sunday'];
-                      const todayIdx = (new Date().getDay() + 6) % 7; // Adjust Sunday=0 to Monday=0
-
-                      return dayKeys.map((key, i) => {
-                        const day = oh[key];
-                        const isToday = i === todayIdx;
-                        return (
-                          <div key={key} className={`flex items-center justify-between px-4 py-2.5 rounded-xl transition-colors ${isToday ? 'bg-primary/5 border border-primary/10' : 'opacity-60'}`}>
-                            <span className={`text-xs font-bold ${isToday ? 'text-primary' : 'text-on-surface'}`}>{dayLabels[i]}</span>
-                            <span className={`text-xs font-medium ${isToday ? 'text-primary' : 'text-on-surface-variant'}`}>
-                              {day.enabled ? `${day.open} – ${day.close}` : 'Closed'}
-                            </span>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-on-surface-variant/40">
-                  <span className="material-symbols-outlined text-sm">schedule</span>
-                  <span className="text-[10px] font-medium tracking-wide">All times are in local server time</span>
-                </div>
-              </motion.div>
-            </div>
+              </div>
+            </motion.div>
           )}
 
           {error && (

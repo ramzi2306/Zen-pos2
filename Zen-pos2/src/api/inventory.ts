@@ -213,3 +213,84 @@ export async function updateIngredient(id: string, payload: Partial<IngredientCr
 export async function deleteIngredient(id: string): Promise<void> {
   await apiRequest(`/ingredients/${id}`, { method: 'DELETE' });
 }
+
+// ── Categories ──────────────────────────────────────────────
+
+export async function listCategories(): Promise<string[]> {
+  return apiRequest<string[]>('/ingredients/categories/');
+}
+
+// ── Recurring Usages ────────────────────────────────────────
+
+export interface RecurringUsage {
+  id: string;
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  quantity: number;
+  reason: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  nextRun: string;
+  isPaused: boolean;
+}
+
+interface ApiRecurringUsage {
+  id: string;
+  ingredient_id: string;
+  ingredient_name: string;
+  unit: string;
+  quantity: number;
+  reason: string;
+  frequency: string;
+  next_run: string;
+  is_paused: boolean;
+}
+
+function mapRecurring(r: ApiRecurringUsage): RecurringUsage {
+  return {
+    id: r.id,
+    ingredientId: r.ingredient_id,
+    ingredientName: r.ingredient_name,
+    unit: r.unit,
+    quantity: r.quantity,
+    reason: r.reason,
+    frequency: r.frequency as RecurringUsage['frequency'],
+    nextRun: r.next_run,
+    isPaused: r.is_paused,
+  };
+}
+
+export async function listRecurringUsages(): Promise<RecurringUsage[]> {
+  const raw = await apiRequest<ApiRecurringUsage[]>('/ingredients/recurring-usage/');
+  return raw.map(mapRecurring);
+}
+
+export async function createRecurringUsage(payload: {
+  ingredient_id: string;
+  quantity: number;
+  reason?: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+}): Promise<RecurringUsage> {
+  const raw = await apiRequest<ApiRecurringUsage>('/ingredients/recurring-usage/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return mapRecurring(raw);
+}
+
+export async function updateRecurringUsage(id: string, payload: {
+  quantity?: number;
+  reason?: string;
+  frequency?: 'daily' | 'weekly' | 'monthly';
+  is_paused?: boolean;
+}): Promise<RecurringUsage> {
+  const raw = await apiRequest<ApiRecurringUsage>(`/ingredients/recurring-usage/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return mapRecurring(raw);
+}
+
+export async function deleteRecurringUsage(id: string): Promise<void> {
+  await apiRequest(`/ingredients/recurring-usage/${id}`, { method: 'DELETE' });
+}

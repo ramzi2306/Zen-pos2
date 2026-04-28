@@ -7,7 +7,7 @@ import { ComposedChart, Bar, XAxis, YAxis, Cell, PieChart, Pie, BarChart, Cartes
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import QRCode from 'react-qr-code';
 import * as api from '../api';
-import type { IngredientItem, PurchaseLog, UsageLog } from '../api/inventory';
+import type { IngredientItem, PurchaseLog, UsageLog, RecurringUsage } from '../api/inventory';
 import type { FinanceReport } from '../api/analytics';
 import { DEFAULT_BRANDING } from '../api/settings';
 import type { BrandingData } from '../api/settings';
@@ -2611,11 +2611,19 @@ const LogPurchaseModal = ({ onClose, ingredients, onSuccess }: { onClose: () => 
   );
 };
 
+function generateSku(nameValue: string): string {
+  const words = nameValue.trim().split(/\s+/).filter(Boolean).slice(0, 3);
+  return words.map(w => w.replace(/[^a-zA-Z0-9]/g, '').slice(0, 3).toUpperCase()).join('-');
+}
+
 const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: () => void, onCreated?: () => void, ingredient?: IngredientItem }) => {
   const { localization } = useLocalization();
   const [name, setName] = useState(ingredient?.name || '');
   const [sku, setSku] = useState(ingredient?.sku || '');
-  const [category, setCategory] = useState(ingredient?.category?.join(', ') || '');
+  const [skuEdited, setSkuEdited] = useState(!!ingredient?.sku);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(ingredient?.category || []);
+  const [catInput, setCatInput] = useState('');
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [unit, setUnit] = useState(ingredient?.unit || 'kg');
   const [price, setPrice] = useState(ingredient?.pricePerUnit?.toString() || '');
   const [capacity, setCapacity] = useState(ingredient?.capacity?.toString() || '');
@@ -2624,14 +2632,38 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    api.inventory.listCategories().then(setExistingCategories).catch(() => {});
+  }, []);
+
+  const handleNameChange = (v: string) => {
+    setName(v);
+    if (!skuEdited) setSku(generateSku(v));
+  };
+
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const addCustomCategory = () => {
+    const val = catInput.trim().toUpperCase();
+    if (val && !selectedCategories.includes(val)) {
+      setSelectedCategories(prev => [...prev, val]);
+      if (!existingCategories.includes(val)) setExistingCategories(prev => [...prev, val].sort());
+    }
+    setCatInput('');
+  };
+
   const handleCreate = async () => {
     if (!name || !sku || !unit || !capacity) { setError('Name, SKU, unit, capacity required.'); return; }
     setIsLoading(true);
     try {
       if (ingredient) {
-        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : undefined, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
+        await api.inventory.updateIngredient(ingredient.id, { name, sku, category: selectedCategories, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
       } else {
-        await api.inventory.createIngredient({ name, sku, category: category ? category.split(',').map(s => s.trim().toUpperCase()) : [], unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
+        await api.inventory.createIngredient({ name, sku, category: selectedCategories, unit, capacity: parseFloat(capacity), price_per_unit: parseFloat(price) || 0, in_stock: parseFloat(inStock) || 0, min_stock: parseFloat(minStock) || 0 });
       }
       if (onCreated) onCreated();
       onClose();
@@ -2642,7 +2674,7 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 lg:p-8">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500">
+      <div className="relative w-full max-w-lg bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500 max-h-[90vh]">
         <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low">
           <div>
             <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">{ingredient ? 'Edit Ingredient' : 'New Ingredient'}</h2>
@@ -2653,56 +2685,103 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
           </button>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-8 space-y-6 overflow-y-auto">
+          {/* Name + SKU */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-3">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Ingredient Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={e => handleNameChange(e.target.value)}
                 placeholder="e.g. Uni (Sea Urchin)"
                 className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
               />
             </div>
             <div className="space-y-3">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">SKU / ID</label>
-              <input 
-                type="text" 
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">SKU / ID</label>
+                {!skuEdited && name && <span className="text-[9px] text-primary font-bold uppercase tracking-widest">Auto</span>}
+              </div>
+              <input
+                type="text"
                 value={sku}
-                onChange={e => setSku(e.target.value)}
-                placeholder="e.g. SF-UNI-01"
+                onChange={e => { setSku(e.target.value); setSkuEdited(true); }}
+                onFocus={() => setSkuEdited(true)}
+                placeholder="e.g. SEA-URC"
                 className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all font-mono"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Category</label>
-              <input 
-                type="text" 
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                placeholder="e.g. SEAFOOD"
-                className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all"
+          {/* Category tag picker */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Categories</label>
+            {/* Selected tags */}
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedCategories.map(cat => (
+                  <span key={cat} className="flex items-center gap-1 px-3 py-1 rounded-full bg-primary/15 border border-primary/30 text-xs font-bold text-primary">
+                    {cat}
+                    <button onClick={() => toggleCategory(cat)} className="ml-1 hover:text-error transition-colors cursor-pointer">
+                      <span className="material-symbols-outlined text-[12px]">close</span>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Existing category chips */}
+            {existingCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {existingCategories.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => toggleCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer border ${
+                      selectedCategories.includes(cat)
+                        ? 'bg-primary text-on-primary border-primary'
+                        : 'bg-surface-container-highest border-outline-variant/20 text-on-surface-variant hover:border-primary/40'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* New category input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={catInput}
+                onChange={e => setCatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCustomCategory(); } }}
+                placeholder="New category…"
+                className="flex-1 bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-2 text-sm text-on-surface focus:border-primary outline-none transition-all"
               />
-            </div>
-            <div className="space-y-3">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Storage Unit</label>
-              <select 
-                value={unit}
-                onChange={e => setUnit(e.target.value)}
-                className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+              <button
+                onClick={addCustomCategory}
+                className="px-4 py-2 bg-surface-container-highest border border-outline-variant/20 rounded-xl text-[10px] font-bold text-on-surface-variant hover:border-primary/40 transition-all cursor-pointer"
               >
-                <option value="kg">Kilograms (kg)</option>
-                <option value="g">Grams (g)</option>
-                <option value="l">Liters (l)</option>
-                <option value="ml">Milliliters (ml)</option>
-                <option value="pcs">Pieces (pcs)</option>
-                <option value="box">Boxes (box)</option>
-              </select>
+                Add
+              </button>
             </div>
+          </div>
+
+          {/* Unit */}
+          <div className="space-y-3">
+            <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Storage Unit</label>
+            <select
+              value={unit}
+              onChange={e => setUnit(e.target.value)}
+              className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-2xl px-6 py-4 text-sm text-on-surface focus:border-primary outline-none transition-all appearance-none"
+            >
+              <option value="kg">Kilograms (kg)</option>
+              <option value="g">Grams (g)</option>
+              <option value="l">Liters (l)</option>
+              <option value="ml">Milliliters (ml)</option>
+              <option value="pcs">Pieces (pcs)</option>
+              <option value="box">Boxes (box)</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
@@ -2762,10 +2841,12 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
               </div>
             </div>
           </div>
+
+          {error && <p className="text-xs text-error font-bold">{error}</p>}
         </div>
 
         <div className="p-8 bg-surface-container-low border-t border-outline-variant/10 flex gap-4">
-          <button 
+          <button
             onClick={onClose}
             className="flex-1 py-4 bg-surface-container-highest text-on-surface rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all"
           >
@@ -2784,11 +2865,188 @@ const CreateIngredientModal = ({ onClose, onCreated, ingredient }: { onClose: ()
   );
 };
 
+const FREQ_LABELS: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+const FREQ_ICONS: Record<string, string> = { daily: 'today', weekly: 'date_range', monthly: 'calendar_month' };
+
+const RecurringUsageModal = ({ onClose, ingredients }: { onClose: () => void, ingredients: IngredientItem[] }) => {
+  const [records, setRecords] = useState<RecurringUsage[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [selIngredient, setSelIngredient] = useState(ingredients[0]?.id || '');
+  const [quantity, setQuantity] = useState('');
+  const [reason, setReason] = useState('Service');
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(() => {
+    api.inventory.listRecurringUsages().then(setRecords).catch(console.error);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!selIngredient || !quantity) return;
+    setIsLoading(true);
+    try {
+      await api.inventory.createRecurringUsage({ ingredient_id: selIngredient, quantity: parseFloat(quantity), reason, frequency });
+      setShowAdd(false);
+      setQuantity('');
+      load();
+    } finally { setIsLoading(false); }
+  };
+
+  const togglePause = async (r: RecurringUsage) => {
+    await api.inventory.updateRecurringUsage(r.id, { is_paused: !r.isPaused });
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    await api.inventory.deleteRecurringUsage(id);
+    load();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 lg:p-8">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-500 max-h-[90vh]">
+        {/* Header */}
+        <div className="p-8 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low">
+          <div>
+            <h2 className="text-3xl font-headline font-extrabold text-on-surface uppercase tracking-tight">Recurring Usage</h2>
+            <p className="text-on-surface-variant text-[10px] font-bold uppercase tracking-widest mt-1">Automate daily / weekly / monthly stock deductions</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAdd(v => !v)}
+              className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              NEW
+            </button>
+            <button onClick={onClose} className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface hover:bg-surface-variant transition-all">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 space-y-4">
+          {/* Add form */}
+          {showAdd && (
+            <div className="bg-surface-container-low border border-outline-variant/20 rounded-2xl p-6 space-y-4">
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">New Recurring Usage</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Ingredient</label>
+                  <select
+                    value={selIngredient}
+                    onChange={e => setSelIngredient(e.target.value)}
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none"
+                  >
+                    {ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+                    Quantity ({ingredients.find(i => i.id === selIngredient)?.unit || ''})
+                  </label>
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={e => setQuantity(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Reason</label>
+                  <select
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface focus:border-primary outline-none"
+                  >
+                    <option>Service</option>
+                    <option>Waste</option>
+                    <option>Staff Meal</option>
+                    <option>Spoilage</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Frequency</label>
+                  <div className="flex gap-2">
+                    {(['daily', 'weekly', 'monthly'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setFrequency(f)}
+                        className={`flex-1 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer border ${frequency === f ? 'bg-primary text-on-primary border-primary' : 'border-outline-variant/20 text-on-surface-variant hover:border-primary/40'}`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowAdd(false)} className="flex-1 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest">Cancel</button>
+                <button onClick={handleAdd} disabled={isLoading || !quantity} className="flex-1 py-3 bg-primary text-on-primary rounded-xl text-[10px] font-bold uppercase tracking-widest disabled:opacity-50">
+                  {isLoading ? 'Saving...' : 'Create'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Records list */}
+          {records.length === 0 && !showAdd ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 opacity-50">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant">autorenew</span>
+              <p className="text-sm text-on-surface-variant font-bold">No recurring usages yet</p>
+            </div>
+          ) : (
+            records.map(r => (
+              <div key={r.id} className={`flex items-center gap-4 p-5 rounded-2xl border transition-all ${r.isPaused ? 'border-outline-variant/10 opacity-50' : 'border-outline-variant/15 bg-surface-container-low'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${r.isPaused ? 'bg-surface-container-highest' : 'bg-tertiary/10'}`}>
+                  <span className={`material-symbols-outlined text-[20px] ${r.isPaused ? 'text-on-surface-variant' : 'text-tertiary'}`}>{FREQ_ICONS[r.frequency]}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-on-surface truncate">{r.ingredientName}</p>
+                  <p className="text-xs text-on-surface-variant">{r.quantity} {r.unit} — {r.reason}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${r.isPaused ? 'bg-surface-container-highest text-on-surface-variant' : 'bg-tertiary/15 text-tertiary'}`}>
+                    {FREQ_LABELS[r.frequency]}
+                  </span>
+                  <p className="text-[9px] text-on-surface-variant">Next: {r.nextRun}</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => togglePause(r)}
+                    title={r.isPaused ? 'Resume' : 'Pause'}
+                    className="w-9 h-9 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{r.isPaused ? 'play_arrow' : 'pause'}</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="w-9 h-9 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant hover:text-error transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const InventoryView = () => {
   const { formatCurrency } = useLocalization();
   const [isAddUsageOpen, setIsAddUsageOpen] = useState(false);
   const [isLogPurchaseOpen, setIsLogPurchaseOpen] = useState(false);
   const [isCreateIngredientOpen, setIsCreateIngredientOpen] = useState(false);
+  const [isRecurringOpen, setIsRecurringOpen] = useState(false);
   const [editingIngredient, setEditingIngredient] = useState<IngredientItem | null>(null);
   const [ingredients, setIngredients] = useState<IngredientItem[]>([]);
   const [deliveries, setDeliveries] = useState<PurchaseLog[]>([]);
@@ -2872,7 +3130,14 @@ export const InventoryView = () => {
               <span className="material-symbols-outlined text-sm">add_circle</span>
               ADD USAGE
             </button>
-            <button 
+            <button
+              onClick={() => setIsRecurringOpen(true)}
+              className="px-6 py-3 bg-surface-container-highest text-on-surface rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-surface-variant transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">autorenew</span>
+              RECURRING
+            </button>
+            <button
               onClick={() => setIsLogPurchaseOpen(true)}
               className="px-6 py-3 bg-secondary text-on-secondary rounded-xl text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-lg shadow-secondary/20"
             >
@@ -3135,6 +3400,7 @@ export const InventoryView = () => {
 
         {isCreateIngredientOpen && <CreateIngredientModal onClose={() => setIsCreateIngredientOpen(false)} onCreated={loadData} />}
         {editingIngredient && <CreateIngredientModal ingredient={editingIngredient} onClose={() => setEditingIngredient(null)} onCreated={loadData} />}
+        {isRecurringOpen && <RecurringUsageModal ingredients={ingredients} onClose={() => setIsRecurringOpen(false)} />}
         {confirmDelete && (
           <ConfirmModal
             title="Delete Ingredient"

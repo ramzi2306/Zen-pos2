@@ -61,3 +61,18 @@ class UsageLogDocument(Document):
     class Settings:
         name = "usage_logs"
         indexes = [IndexModel([("date", DESCENDING)])]
+
+
+class RecurringUsageDocument(Document):
+    ingredient: Link[IngredientInventoryDocument]
+    quantity: float
+    unit: str
+    reason: str = "Service"
+    frequency: str  # daily | weekly | monthly
+    next_run: str   # ISO date YYYY-MM-DD
+    is_active: bool = True
+    is_paused: bool = False
+
+    class Settings:
+        name = "recurring_usages"
+        indexes = [IndexModel([("next_run", ASCENDING), ("is_paused", ASCENDING)])]

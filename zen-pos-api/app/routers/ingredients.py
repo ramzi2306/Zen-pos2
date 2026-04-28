@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import require_permission
-from app.models.ingredient import IngredientInventoryDocument, PurchaseLogDocument, UsageLogDocument
+from app.models.ingredient import IngredientInventoryDocument, PurchaseLogDocument, UsageLogDocument, RecurringUsageDocument
 from app.schemas.ingredient import (
     IngredientOut, IngredientCreate, IngredientUpdate,
     PurchaseLogCreate, PurchaseLogOut,
@@ -233,3 +233,136 @@ async def log_usage(body: UsageLogCreate):
         reason=log.reason,
         date=log.date,
     )
+
+
+# ── Categories ─────────────────────────────────────────────
+
+@router.get("/categories/", response_model=list[str],
+            dependencies=[Depends(require_permission("view_inventory"))])
+async def list_categories():
+    """Return all distinct category tags across all ingredients."""
+    items = await IngredientInventoryDocument.find().to_list()
+    seen: set[str] = set()
+    for item in items:
+        for cat in item.category:
+            if cat:
+                seen.add(cat.upper())
+    return sorted(seen)
+
+
+# ── Recurring Usages ───────────────────────────────────────
+
+from pydantic import BaseModel as _BaseModel
+
+class RecurringUsageCreate(_BaseModel):
+    ingredient_id: str
+    quantity: float
+    reason: str = "Service"
+    frequency: str  # daily | weekly | monthly
+
+class RecurringUsageUpdate(_BaseModel):
+    quantity: Optional[float] = None
+    reason: Optional[str] = None
+    frequency: Optional[str] = None
+    is_paused: Optional[bool] = None
+
+class RecurringUsageOut(_BaseModel):
+    id: str
+    ingredient_id: str
+    ingredient_name: str
+    unit: str
+    quantity: float
+    reason: str
+    frequency: str
+    next_run: str
+    is_paused: bool
+
+
+def _next_run_date(from_date: str, frequency: str) -> str:
+    from datetime import date, timedelta
+    import calendar
+    d = date.fromisoformat(from_date)
+    if frequency == "daily":
+        return (d + timedelta(days=1)).isoformat()
+    if frequency == "weekly":
+        return (d + timedelta(weeks=1)).isoformat()
+    # monthly
+    month = d.month + 1 if d.month < 12 else 1
+    year = d.year + 1 if d.month == 12 else d.year
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day).isoformat()
+
+
+def _rec_to_out(r: RecurringUsageDocument, ing) -> RecurringUsageOut:
+    return RecurringUsageOut(
+        id=str(r.id),
+        ingredient_id=str(ing.id) if ing else "",
+        ingredient_name=ing.name if ing else "",
+        unit=ing.unit if ing else r.unit,
+        quantity=r.quantity,
+        reason=r.reason,
+        frequency=r.frequency,
+        next_run=r.next_run,
+        is_paused=r.is_paused,
+    )
+
+
+@router.get("/recurring-usage/", response_model=list[RecurringUsageOut],
+            dependencies=[Depends(require_permission("view_inventory"))])
+async def list_recurring_usages():
+    records = await RecurringUsageDocument.find(
+        RecurringUsageDocument.is_active == True  # noqa: E712
+    ).to_list()
+    result = []
+    for r in records:
+        await r.fetch_all_links()
+        result.append(_rec_to_out(r, r.ingredient))
+    return result
+
+
+@router.post("/recurring-usage/", response_model=RecurringUsageOut, status_code=201,
+             dependencies=[Depends(require_permission("manage_inventory"))])
+async def create_recurring_usage(body: RecurringUsageCreate):
+    ing = await IngredientInventoryDocument.get(body.ingredient_id)
+    if not ing:
+        raise NotFoundError("Ingredient not found")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    rec = RecurringUsageDocument(
+        ingredient=ing,
+        quantity=body.quantity,
+        unit=ing.unit,
+        reason=body.reason,
+        frequency=body.frequency,
+        next_run=today,
+    )
+    await rec.insert()
+    return _rec_to_out(rec, ing)
+
+
+@router.patch("/recurring-usage/{rec_id}", response_model=RecurringUsageOut,
+              dependencies=[Depends(require_permission("manage_inventory"))])
+async def update_recurring_usage(rec_id: str, body: RecurringUsageUpdate):
+    rec = await RecurringUsageDocument.get(rec_id)
+    if not rec:
+        raise NotFoundError("Recurring usage not found")
+    await rec.fetch_all_links()
+    if body.quantity is not None:
+        rec.quantity = body.quantity
+    if body.reason is not None:
+        rec.reason = body.reason
+    if body.frequency is not None:
+        rec.frequency = body.frequency
+    if body.is_paused is not None:
+        rec.is_paused = body.is_paused
+    await rec.save()
+    return _rec_to_out(rec, rec.ingredient)
+
+
+@router.delete("/recurring-usage/{rec_id}", status_code=204,
+               dependencies=[Depends(require_permission("manage_inventory"))])
+async def delete_recurring_usage(rec_id: str):
+    rec = await RecurringUsageDocument.get(rec_id)
+    if not rec:
+        raise NotFoundError("Recurring usage not found")
+    rec.is_active = False
+    await rec.save()
