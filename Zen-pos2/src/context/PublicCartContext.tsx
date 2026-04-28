@@ -74,7 +74,13 @@ export function itemKey(item: PublicCartItem): string { return cartKey(item.prod
 
 export function PublicCartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<PublicCartItem[]>(() => loadStorage(STORAGE_KEY, []));
-  const [ui, setUiState] = useState<PublicUIState>(() => loadStorage(UI_STORAGE_KEY, DEFAULT_UI));
+  const [ui, setUiState] = useState<PublicUIState>(() => {
+    const saved = loadStorage(UI_STORAGE_KEY, DEFAULT_UI);
+    // On page load, always start from the cart view — never land directly in checkout/phone step.
+    // Persisted phone/name/address are kept so checkout pre-fills them.
+    if (saved.view === 'checkout') return { ...saved, view: 'cart' };
+    return saved;
+  });
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }, [items]);
   useEffect(() => { localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(ui)); }, [ui]);

@@ -492,6 +492,12 @@ function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boole
     }
   }, [view]);
   
+  // Auto-advance phone step when a phone number is already populated (pre-filled from persisted state)
+  useEffect(() => {
+    if (view !== 'checkout' || checkoutStep !== 'phone' || lookingUp) return;
+    if (phone.replace(/\D/g, '').length >= 8) lookupPhone(phone);
+  }, [view, checkoutStep]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Handle order delivery/completion: clear cart but stay on tracking for review
   useEffect(() => {
     if (tracking?.status === 'Done') {
@@ -1746,7 +1752,7 @@ function FloatingCartButton({ onOpen }: { onOpen: () => void }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 function PublicMenuPageInner() {
   const navigate = useNavigate();
-  const { addItem, itemCount, setUi } = usePublicCart();
+  const { addItem, itemCount } = usePublicCart();
   const branding = getBranding();
   const restaurantName: string = branding.restaurantName || 'Our Restaurant';
   const restaurantLogo: string = branding.logo || '';
@@ -1782,13 +1788,7 @@ function PublicMenuPageInner() {
   const [selectedSupplements, setSelectedSupplements] = useState<Record<string, SupplementOption>>({});
   const [productRect, setProductRect] = useState<DOMRect | null>(null);
 
-  // Cart: auto-open on desktop only when first item added
   const [cartOpen, setCartOpen] = useState(false);
-  const prevCount = useRef(0);
-  useEffect(() => {
-    if (itemCount > prevCount.current && prevCount.current === 0 && window.innerWidth >= 1024) setCartOpen(true);
-    prevCount.current = itemCount;
-  }, [itemCount]);
 
   useEffect(() => {
     Promise.all([publicApi.getPublicMenu(), publicApi.getPublicMenuImages()])
@@ -1871,8 +1871,6 @@ function PublicMenuPageInner() {
       selectedVariations: publicVariations,
       selectedSupplements: publicSupplements,
     });
-    setCartOpen(true);
-    setUi({ view: 'cart' });
     navigate('/', { replace: true });
 
     // Track AddToCart
@@ -2106,21 +2104,10 @@ function PublicMenuPageInner() {
           )}
         </div>
 
-        {/* Desktop cart (shown when open) */}
-        <AnimatePresence>
-          {cartOpen && (
-            <motion.div
-              key="desktop-cart"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-              className="hidden lg:block flex-shrink-0 overflow-hidden"
-            >
-              <PublicCartPanel open={true} setOpen={setCartOpen} orderForLater={orderForLater} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Desktop cart — always visible */}
+        <div className="hidden lg:block flex-shrink-0 w-80 border-l border-outline-variant/10">
+          <PublicCartPanel open={true} setOpen={setCartOpen} orderForLater={orderForLater} />
+        </div>
       </div>
 
       {/* Mobile cart */}
