@@ -247,6 +247,15 @@ function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boole
   const branding = getBranding();
   const restaurantName: string = branding.restaurantName || 'Our Restaurant';
 
+  // Derive today's open/close times for the time-pickers
+  const todayHours = (() => {
+    const oh = branding.openingHours ?? DEFAULT_OPENING_HOURS;
+    const keys = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+    const todayKey = keys[(new Date().getDay() + 6) % 7];
+    const d = oh[todayKey];
+    return d.enabled ? { min: d.open, max: d.close } : null;
+  })();
+
   const location = useLocation();
   const navigate = useNavigate();
   const { token } = useParams();
@@ -969,6 +978,8 @@ function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boole
                               <input
                                 type="time" value={pickupTime}
                                 onChange={e => setPickupTime(e.target.value)}
+                                min={todayHours?.min}
+                                max={todayHours?.max}
                                 className="flex-1 bg-transparent text-sm text-on-surface focus:outline-none"
                               />
                             </motion.label>
@@ -1055,14 +1066,21 @@ function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boole
 
                         {/* Scheduled delivery time — only in "Order for Later" mode */}
                         {orderForLater && (
-                          <div>
-                            <p className="text-[10px] font-bold text-outline uppercase tracking-widest mb-2">Scheduled delivery time</p>
+                          <div className="space-y-2">
+                            {/* Working hours pill — consistent with pickup */}
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-tertiary/10 border border-tertiary/20">
+                              <span className="material-symbols-outlined text-[15px] text-tertiary">calendar_clock</span>
+                              <span className="text-xs font-bold text-tertiary">Scheduled delivery — working hours only</span>
+                            </div>
+                            {/* Time picker */}
                             <label className="flex items-center gap-3 bg-surface-container border border-outline-variant/20 rounded-2xl px-4 py-3.5 focus-within:border-tertiary/60 focus-within:bg-surface-container-high transition-all">
-                              <span className="material-symbols-outlined text-[18px] text-tertiary flex-shrink-0">calendar_clock</span>
+                              <span className="material-symbols-outlined text-[18px] text-outline-variant flex-shrink-0">schedule</span>
                               <input
                                 type="time"
                                 value={deliveryTime}
                                 onChange={e => setDeliveryTime(e.target.value)}
+                                min={todayHours?.min}
+                                max={todayHours?.max}
                                 className="flex-1 bg-transparent text-sm text-on-surface focus:outline-none"
                               />
                               {deliveryTime && (
@@ -1071,7 +1089,11 @@ function PublicCartPanel({ open, setOpen, orderForLater = false }: { open: boole
                                 </button>
                               )}
                             </label>
-                            <p className="text-[10px] text-on-surface-variant/60 mt-1.5">Pickup &amp; delivery fulfilled during working hours only</p>
+                            {todayHours && (
+                              <p className="text-[10px] text-on-surface-variant/60">
+                                Available {todayHours.min} – {todayHours.max}
+                              </p>
+                            )}
                           </div>
                         )}
 
