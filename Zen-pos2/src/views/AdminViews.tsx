@@ -5184,6 +5184,23 @@ const FinanceDashboard = () => {
   );
 };
 
+// Dual-layer bar: semi-transparent background = expected (income), solid = declared (actual)
+const DualBarShape = ({ x, y, width, height, payload }: any) => {
+  if (!payload || height <= 0) return null;
+  const income = payload.income || 0;
+  const declared = Math.min(payload.declared || 0, income); // cap at income for display
+  const declaredHeight = income > 0 ? (declared / income) * height : 0;
+  const declaredY = y + height - declaredHeight; // bottom-aligned
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill="white" fillOpacity={0.1} rx={4} ry={4} />
+      {declared > 0 && (
+        <rect x={x} y={declaredY} width={width} height={Math.max(declaredHeight, 2)} fill="var(--chart-1)" rx={4} ry={4} />
+      )}
+    </g>
+  );
+};
+
 // ── Sales View ────────────────────────────────────────────────────────────────
 const SalesView = () => {
   const { formatCurrency } = useLocalization();
@@ -5303,21 +5320,35 @@ const SalesView = () => {
   const chartData = useMemo(() => {
     // Deduplicate by date to prevent UI glitches if backend returns duplicate keys
     const unique = Array.from(new Map(dailyData.map(d => [d.date, d])).values());
-    
+
+    // Group register reports by date → sum actualSales per day
+    const declaredByDate = new Map<string, number>();
+    for (const r of registerReports) {
+      if (!r.closedAt) continue;
+      const date = new Date(r.closedAt).toISOString().split('T')[0];
+      declaredByDate.set(date, (declaredByDate.get(date) || 0) + (r.actualSales || 0));
+    }
+
     return unique.map(d => ({
       ...d,
+      declared: declaredByDate.get(d.date) || 0,
       dateLabel: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
       fullDate: new Date(d.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     }));
-  }, [dailyData]);
+  }, [dailyData, registerReports]);
 
   // Compute KPI values from dailyData so they respond to the date filter
   const filteredKPIs = useMemo(() => {
     const totalRevenue = dailyData.reduce((s, d) => s + d.income, 0);
     const totalOrders = dailyData.reduce((s, d) => s + d.order_count, 0);
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    return { totalRevenue, totalOrders, avgOrderValue };
-  }, [dailyData]);
+    const start = dateFilter.start ? new Date(dateFilter.start).getTime() : 0;
+    const end = dateFilter.end ? new Date(dateFilter.end + 'T23:59:59').getTime() : Infinity;
+    const declaredRevenue = registerReports
+      .filter(r => r.closedAt >= start && r.closedAt <= end)
+      .reduce((s, r) => s + (r.actualSales || 0), 0);
+    return { totalRevenue, totalOrders, avgOrderValue, declaredRevenue };
+  }, [dailyData, registerReports, dateFilter.start, dateFilter.end]);
 
   // Remove the jumpy full-screen splash. Let the skeletons handle the loading state immediately.
   // if (loading) return <LoadingScreen />; 
@@ -5390,13 +5421,12 @@ const SalesView = () => {
         </div>
 
         {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Period Revenue', value: formatCurrency(filteredKPIs.totalRevenue), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: dailyLoading },
+            { label: 'Expected Revenue', value: formatCurrency(filteredKPIs.totalRevenue), icon: <span className="material-symbols-outlined text-[18px]">trending_up</span>, loading: dailyLoading },
+            { label: 'Declared Revenue', value: formatCurrency(filteredKPIs.declaredRevenue), icon: <span className="material-symbols-outlined text-[18px]">point_of_sale</span>, loading: reportsLoading },
             { label: 'Period Orders', value: filteredKPIs.totalOrders.toLocaleString(), icon: <span className="material-symbols-outlined text-[18px]">tag</span>, loading: dailyLoading },
             { label: 'Avg Order Value', value: formatCurrency(filteredKPIs.avgOrderValue), icon: <span className="material-symbols-outlined text-[18px]">shopping_bag</span>, loading: dailyLoading },
-            { label: 'All-Time Revenue', value: formatCurrency(summary?.totalRevenue || 0), icon: <span className="material-symbols-outlined text-[18px]">calendar_month</span>, loading: summaryLoading },
-            { label: 'Avg Rating', value: summary ? `${summary.reviewsAvgRating.toFixed(1)} ★ (${summary.reviewsCount})` : '—', icon: <span className="material-symbols-outlined text-[18px]">star</span>, loading: summaryLoading },
           ].map((stat, i) => (
             <div key={i} className="bg-surface border border-white/5 rounded-2xl p-6 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-4">
@@ -5434,6 +5464,16 @@ const SalesView = () => {
                 <p className="text-xs text-on-surface-variant">Income distribution over the period</p>
               </div>
             </div>
+            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-white/20" />
+                <span className="text-on-surface-variant">Expected</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm" style={{ background: 'var(--chart-1)' }} />
+                <span className="text-on-surface-variant">Declared</span>
+              </div>
+            </div>
           </div>
           <div className="h-[300px] w-full flex items-center justify-center">
             {dailyLoading ? (
@@ -5447,7 +5487,7 @@ const SalesView = () => {
                 ))}
               </div>
             ) : (
-              <ChartContainer config={{ income: { label: 'Revenue', color: 'white' } } satisfies ChartConfig} className="w-full h-full">
+              <ChartContainer config={{ income: { label: 'Expected', color: 'rgba(255,255,255,0.4)' }, declared: { label: 'Declared', color: 'var(--chart-1)' } } satisfies ChartConfig} className="w-full h-full">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="white" opacity={0.05} />
                   <XAxis
@@ -5473,8 +5513,12 @@ const SalesView = () => {
                             <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-4 border-b border-white/5 pb-2">{d.fullDate}</div>
                             <div className="space-y-3">
                               <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
-                                <span className="text-[10px] font-bold text-white/60 uppercase">Revenue</span>
-                                <span className="text-sm font-headline font-extrabold text-white">{formatCurrency(d.income)}</span>
+                                <span className="text-[10px] font-bold text-white/60 uppercase">Expected</span>
+                                <span className="text-sm font-headline font-extrabold text-white/50">{formatCurrency(d.income)}</span>
+                              </div>
+                              <div className="flex justify-between items-center bg-white/5 p-2 rounded-xl">
+                                <span className="text-[10px] font-bold text-white/60 uppercase">Declared</span>
+                                <span className="text-sm font-headline font-extrabold text-white">{d.declared ? formatCurrency(d.declared) : '—'}</span>
                               </div>
                               <div className="flex justify-between items-center px-2">
                                 <span className="text-[10px] font-bold text-white/60 uppercase">Volume</span>
@@ -5491,7 +5535,7 @@ const SalesView = () => {
                       return null;
                     }}
                   />
-                  <Bar dataKey="income" radius={[4, 4, 0, 0]} fill="var(--color-income)" />
+                  <Bar dataKey="income" shape={<DualBarShape />} />
                 </BarChart>
               </ChartContainer>
             )}
