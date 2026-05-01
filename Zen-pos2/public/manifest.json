@@ -1,0 +1,21 @@
+{
+  "name": "ZenPOS",
+  "short_name": "ZenPOS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "ZenPOS Point of Sale System",
+  "icons": [
+    {
+      "src": "/bag.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/bag.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

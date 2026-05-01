@@ -45,55 +45,99 @@ export interface WsEvent {
 type EventHandler = (event: WsEvent) => void;
 type ReconnectHandler = () => void;
 
-// Derive WS base from the Vite API URL env var (http → ws, https → wss)
+// Derive API base from the Vite API URL env var
 function wsBase(): string {
   const apiUrl: string =
     (import.meta as any).env?.VITE_API_URL || window.location.origin;
-  return apiUrl.replace(/^http/, 'ws');
+  return apiUrl;
 }
 
 class ZenWebSocket {
-  private ws: WebSocket | null = null;
+  private worker: Worker | null = null;
   private handlers: Set<EventHandler> = new Set();
   private reconnectHandlers: Set<ReconnectHandler> = new Set();
   private statusHandlers: Set<(connected: boolean) => void> = new Set();
-  private reconnectDelay = 1_000; // ms
-  private readonly maxDelay = 30_000;
-  private shouldReconnect = false;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private activeToken = '';
-  private everConnected = false; // tracks if we've had at least one successful connection
-  private failCount = 0; // consecutive failed connect attempts
+  private isConnectedState = false;
+
+  constructor() {
+    this._initWorker();
+  }
+
+  private _initWorker() {
+    this.worker = new Worker('/ws-worker.js');
+    this.worker.onmessage = (e: MessageEvent) => {
+      const data = e.data;
+      if (data.type === 'STATUS') {
+        this.isConnectedState = data.connected;
+        this._notifyStatusChange(this.isConnectedState);
+      } else if (data.type === 'EVENT') {
+        const event: WsEvent = data.event;
+        this.handlers.forEach(h => h(event));
+        this._handleNotification(event);
+      } else if (data.type === 'RECONNECT') {
+        this.reconnectHandlers.forEach(h => h());
+      } else if (data.type === 'NEED_TOKEN') {
+        this._refreshTokenAndConnect();
+      }
+    };
+  }
+
+  private async _refreshTokenAndConnect() {
+    const token = await getValidToken();
+    if (token && this.worker) {
+      this.worker.postMessage({ type: 'REFRESH_TOKEN', token });
+    }
+  }
+
+  private _handleNotification(event: WsEvent) {
+    if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (event.type === 'new_order') {
+          registration.active?.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: 'New Order',
+            options: {
+              body: `Order #${event.order_number || event.order_id || ''} received!`,
+              icon: '/bag.png',
+              tag: 'new_order',
+              data: { url: '/orders' }
+            }
+          });
+        } else if (event.type === 'urgent') {
+          registration.active?.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: 'Urgent Notification',
+            options: {
+              body: event.message || 'Action required',
+              icon: '/bag.png',
+              tag: 'urgent',
+              requireInteraction: true
+            }
+          });
+        }
+      });
+    }
+  }
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
   connect(token: string): void {
-    this.activeToken = token;
-    this.shouldReconnect = true;
-    this.reconnectDelay = 1_000;
-    this.failCount = 0;
-    this.everConnected = false;
-    this._connect(token);
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    if (!this.worker) this._initWorker();
+    this.worker?.postMessage({
+      type: 'CONNECT',
+      token,
+      apiUrl: wsBase()
+    });
     document.addEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   disconnect(): void {
-    this.shouldReconnect = false;
-    this.activeToken = '';
-    this.everConnected = false;
     document.removeEventListener('visibilitychange', this._onVisibilityChange);
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this._stopHeartbeat();
-    if (this.ws) {
-      this.ws.onclose = null; // prevent auto-reconnect
-      this.ws.close(1000, 'logout');
-      this.ws = null;
-    }
-    this.reconnectDelay = 1_000;
+    this.worker?.postMessage({ type: 'DISCONNECT' });
+    this.isConnectedState = false;
     this._notifyStatusChange(false);
   }
 
@@ -105,7 +149,6 @@ class ZenWebSocket {
 
   /**
    * Subscribe to reconnect events (fires when WS re-establishes after a drop).
-   * Use this to trigger a full data re-fetch and catch up on missed events.
    */
   onReconnect(handler: ReconnectHandler): () => void {
     this.reconnectHandlers.add(handler);
@@ -115,13 +158,12 @@ class ZenWebSocket {
   /** Subscribe to connection status changes. */
   onStatusChange(handler: (connected: boolean) => void): () => void {
     this.statusHandlers.add(handler);
-    // Call immediately with current status
-    handler(this.isConnected);
+    handler(this.isConnectedState);
     return () => this.statusHandlers.delete(handler);
   }
 
   get isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.isConnectedState;
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────
@@ -131,112 +173,13 @@ class ZenWebSocket {
   }
 
   private _onVisibilityChange = async (): Promise<void> => {
-    if (document.visibilityState === 'visible' && this.shouldReconnect && !this.isConnected) {
-      if (this.reconnectTimer) {
-        clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = null;
-      }
-      // Always refresh token on tab focus — user may have been idle for hours
-      const token = await getValidToken() || this.activeToken;
-      if (token) {
-        this.activeToken = token;
-        this._connect(token);
+    if (document.visibilityState === 'visible' && !this.isConnectedState) {
+      const token = await getValidToken();
+      if (token && this.worker) {
+        this.worker.postMessage({ type: 'REFRESH_TOKEN', token });
       }
     }
   };
-
-  private _connect(token: string): void {
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-      this.ws = null;
-    }
-    this._stopHeartbeat();
-    this._notifyStatusChange(false);
-
-    try {
-      this.ws = new WebSocket(`${wsBase()}/ws/notifications?token=${token}`);
-    } catch (err) {
-      console.warn('[WS] Failed to create WebSocket:', err);
-      this._scheduleReconnect();
-      return;
-    }
-
-    this.ws.onopen = () => {
-      this.reconnectDelay = 1_000; // reset backoff on success
-      this.failCount = 0;
-      this._startHeartbeat();
-      this._notifyStatusChange(true);
-      // If this is a re-connection (not the initial connect), notify subscribers
-      // so they can re-fetch to catch up on any events missed during the gap.
-      if (this.everConnected) {
-        this.reconnectHandlers.forEach(h => h());
-      }
-      this.everConnected = true;
-    };
-
-    this.ws.onmessage = (e: MessageEvent) => {
-      try {
-        const event: WsEvent = JSON.parse(e.data as string);
-        // Ignore server-sent keepalive pings
-        if ((event as any).type === 'ping') return;
-        this.handlers.forEach(h => h(event));
-      } catch {
-        // malformed message or plain-text pong — ignore
-      }
-    };
-
-    this.ws.onclose = (e: CloseEvent) => {
-      this._stopHeartbeat();
-      this._notifyStatusChange(false);
-      if (!this.shouldReconnect) return;
-      this.failCount++;
-      // Code 4001/4003 = server-side auth rejection — no point retrying without a new token
-      const isAuthClose = e.code === 4001 || e.code === 4003;
-      this._scheduleReconnect(isAuthClose || this.failCount >= 2);
-    };
-
-    this.ws.onerror = () => {
-      // onclose fires after onerror — reconnect logic handled there
-    };
-  }
-
-  private _startHeartbeat(): void {
-    this._stopHeartbeat();
-    // Send a ping every 25s to prevent proxy idle-connection timeouts (typically 60s)
-    this.heartbeatTimer = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send('ping');
-      }
-    }, 25_000);
-  }
-
-  private _stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-  }
-
-  private _scheduleReconnect(refreshFirst = false): void {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    const delay = this.reconnectDelay;
-    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxDelay);
-    this.reconnectTimer = setTimeout(async () => {
-      if (!this.shouldReconnect) return;
-      // After repeated failures or auth close, refresh the token before trying again
-      let token: string | null = null;
-      if (refreshFirst) {
-        token = await getValidToken();
-      } else {
-        token = this.activeToken || getAccessToken();
-      }
-      if (token) {
-        this.activeToken = token; // keep activeToken up to date
-        this._connect(token);
-      }
-    }, delay);
-  }
 }
 
 /** Module-level singleton — import and use everywhere */
